@@ -9,6 +9,7 @@ import { CouponsService } from '../coupons/coupons.service.js';
 import { assertGroomingTransition, assertWalkingTransition } from './booking-state-machine.js';
 import { BUSINESS_CONFIG } from '@wag/config';
 import { isBefore, addHours } from 'date-fns';
+import { BookingType, BookingStatus, BookingChannel, PaymentMethod } from '@prisma/client';
 
 @Injectable()
 export class BookingsService {
@@ -23,10 +24,10 @@ export class BookingsService {
     const { type, status, page = 1, pageSize = 20 } = filters;
     const skip = (page - 1) * pageSize;
 
-    const where = {
+    const where: Record<string, unknown> = {
       customerId,
-      ...(type ? { type } : {}),
-      ...(status ? { status } : {}),
+      ...(type ? { type: type as BookingType } : {}),
+      ...(status ? { status: status as BookingStatus } : {}),
     };
 
     const [data, total] = await Promise.all([
@@ -37,7 +38,7 @@ export class BookingsService {
         orderBy: { createdAt: 'desc' },
         include: {
           pet: true,
-          partner: { include: { profile: true } },
+          partner: { include: { user: { include: { profile: true } } } },
           addOns: { include: { addOn: true } },
         },
       }),
@@ -56,8 +57,8 @@ export class BookingsService {
     const skip = (page - 1) * pageSize;
 
     const where: Record<string, unknown> = {
-      ...(type ? { type } : {}),
-      ...(status ? { status } : {}),
+      ...(type ? { type: type as BookingType } : {}),
+      ...(status ? { status: status as BookingStatus } : {}),
       ...(partnerId ? { partnerId } : {}),
       ...(customerId ? { customerId } : {}),
       ...(from || to ? {
@@ -77,7 +78,7 @@ export class BookingsService {
         include: {
           customer: { include: { profile: true } },
           pet: true,
-          partner: { include: { profile: true } },
+          partner: { include: { user: { include: { profile: true } } } },
           addOns: { include: { addOn: true } },
         },
       }),
@@ -93,7 +94,7 @@ export class BookingsService {
       include: {
         customer: { include: { profile: true } },
         pet: { include: { careNotes: { orderBy: { createdAt: 'desc' } } } },
-        partner: { include: { profile: true } },
+        partner: { include: { user: { include: { profile: true } } } },
         addOns: { include: { addOn: true } },
         statusHistory: { orderBy: { changedAt: 'desc' } },
         payment: true,
@@ -154,8 +155,8 @@ export class BookingsService {
 
     const booking = await this.prisma.booking.create({
       data: {
-        type: 'grooming',
-        status: 'pending_payment',
+        type: 'grooming' as BookingType,
+        status: 'pending_payment' as BookingStatus,
         customerId,
         petId: data.petId,
         petName: pet.name,
@@ -168,14 +169,14 @@ export class BookingsService {
         scheduledAt: new Date(data.scheduledAt),
         addressId: data.addressId,
         addressLine: `${address.line1}, ${address.city}`,
-        channel: data.channel ?? 'app',
+        channel: (data.channel ?? 'app') as BookingChannel,
         notes: data.notes ?? null,
         subtotal,
         discount,
         total,
         couponCode: data.couponCode ?? null,
-        paymentMethod: data.paymentMethod,
-        paymentStatus: 'pending',
+        paymentMethod: data.paymentMethod as PaymentMethod,
+        paymentStatus: 'pending' as const,
         addOns: {
           create: addOns.map((a) => ({ addOnId: a.id, name: a.name, price: a.price })),
         },
@@ -218,8 +219,8 @@ export class BookingsService {
 
     const booking = await this.prisma.booking.create({
       data: {
-        type: 'walking',
-        status: data.scheduleNow ? 'searching_partner' : 'confirmed',
+        type: 'walking' as BookingType,
+        status: (data.scheduleNow ? 'searching_partner' : 'confirmed') as BookingStatus,
         customerId,
         petId: data.petId,
         petName: pet.name,
@@ -230,13 +231,13 @@ export class BookingsService {
         scheduledAt: data.scheduledAt ? new Date(data.scheduledAt) : new Date(),
         addressId: data.addressId,
         addressLine: `${address.line1}, ${address.city}`,
-        channel: 'app',
+        channel: 'app' as BookingChannel,
         subtotal,
         discount,
         total: subtotal - discount,
         couponCode: data.couponCode ?? null,
-        paymentMethod: data.paymentMethod,
-        paymentStatus: 'pending',
+        paymentMethod: data.paymentMethod as PaymentMethod,
+        paymentStatus: 'pending' as const,
         statusHistory: {
           create: {
             status: data.scheduleNow ? 'searching_partner' : 'confirmed',
@@ -265,7 +266,7 @@ export class BookingsService {
     const updated = await this.prisma.booking.update({
       where: { id: bookingId },
       data: {
-        status: newStatus,
+        status: newStatus as BookingStatus,
         ...(newStatus === 'completed' ? { completedAt: new Date() } : {}),
         ...(newStatus === 'cancelled' ? { cancelledAt: new Date(), cancelReason: note ?? null } : {}),
         statusHistory: {
@@ -323,15 +324,21 @@ export class BookingsService {
     });
   }
 
-  // Staff-only: assign partner to booking
+  // Staff-only: assign partner to booking using state machine
   async assignPartner(bookingId: string, partnerId: string, staffId: string) {
+    const booking = await this.prisma.booking.findUniqueOrThrow({ where: { id: bookingId } });
+    // Use state machine — from current status to 'assigned'
+    // Valid from: needs_partner, confirmed → assigned
+    if (!['needs_partner', 'confirmed'].includes(booking.status)) {
+      throw new BadRequestException(`Cannot assign partner to booking with status: ${booking.status}`);
+    }
     await this.prisma.booking.update({
       where: { id: bookingId },
       data: {
         partnerId,
-        status: 'assigned',
+        status: 'assigned' as BookingStatus,
         statusHistory: {
-          create: { status: 'assigned', changedBy: staffId, note: `Assigned partner ${partnerId}` },
+          create: { status: 'assigned', changedBy: staffId, note: `Partner assigned by staff` },
         },
       },
     });

@@ -5,6 +5,7 @@ export interface NearbyPartner {
   id: string;
   modes: string[];
   isOnline: boolean;
+  serviceRadiusKm: number;
   distanceKm: number;
   lat: number;
   lng: number;
@@ -41,19 +42,30 @@ export class MapsLocationService {
         id: p.userId,
         modes: p.modes as string[],
         isOnline: p.isOnline,
+        serviceRadiusKm: p.serviceRadiusKm,
         distanceKm: this.haversineKm(lat, lng, p.currentLat!, p.currentLng!),
         lat: p.currentLat!,
         lng: p.currentLng!,
       }))
-      .filter((p) => p.distanceKm <= radiusKm)
+      // A partner can serve the booking location if:
+      // (a) the booking is within the requested search radius, AND
+      // (b) the booking is within the partner's own service radius
+      .filter((p) => p.distanceKm <= radiusKm && p.distanceKm <= p.serviceRadiusKm)
       .sort((a, b) => a.distanceKm - b.distanceKm);
   }
 
   async geocode(address: string): Promise<{ lat: number; lng: number } | null> {
     const provider = process.env['MAPS_PROVIDER'] ?? 'mock';
     if (provider === 'mock') {
-      // Return a mock location in Bengaluru for dev
-      return { lat: 12.9716 + Math.random() * 0.1, lng: 77.5946 + Math.random() * 0.1 };
+      // Return a deterministic mock location in Bengaluru based on address hash
+      // This makes tests reproducible
+      let hash = 0;
+      for (let i = 0; i < address.length; i++) {
+        hash = (hash * 31 + address.charCodeAt(i)) >>> 0;
+      }
+      const latOffset = ((hash % 100) / 1000); // 0.000–0.099
+      const lngOffset = (((hash >> 7) % 100) / 1000);
+      return { lat: 12.9716 + latOffset, lng: 77.5946 + lngOffset };
     }
     // TODO: Google Maps / Mapbox geocoding
     return null;

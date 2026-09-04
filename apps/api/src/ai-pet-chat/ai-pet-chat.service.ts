@@ -82,6 +82,11 @@ export class AiPetChatService {
 
     // Check for off-topic messages (guardrail layer 1)
     if (isOffTopic(message)) {
+      // Store user message first
+      await this.prisma.aiChatMessage.create({
+        data: { sessionId: session.id, role: 'user', content: sanitize(message) },
+      });
+
       const aiMessage = await this.prisma.aiChatMessage.create({
         data: {
           sessionId: session.id,
@@ -90,11 +95,6 @@ export class AiPetChatService {
           refusalReason: UNRELATED_RESPONSE.refusalReason,
           suggestedActions: UNRELATED_RESPONSE.suggestedActions,
         },
-      });
-
-      // Also store user message
-      await this.prisma.aiChatMessage.create({
-        data: { sessionId: session.id, role: 'user', content: sanitize(message) },
       });
 
       return { sessionId: session.id, message: aiMessage };
@@ -144,7 +144,14 @@ Recent vaccinations: ${pet.vaccinations.map((v) => sanitize(v.vaccineName)).join
 
     if (provider === 'mock') {
       this.logger.log(`[MOCK LLM] Session: ${sessionId} | User: "${userMessage.slice(0, 60)}..."`);
-      return `Woof! 🐾 As ${userMessage.toLowerCase().includes('name') ? 'the pet you asked about' : 'your furry friend'}, I'd say: that's a great question! My care notes suggest I like gentle handling and regular walks. Always check with your vet for any health concerns. Is there anything else you'd like to know about my care routine?`;
+      // Extract pet name from system prompt context
+      const nameMatch = systemPrompt.match(/Name:\s*(.+)/);
+      const petName = nameMatch ? nameMatch[1]?.trim() ?? 'your pet' : 'your pet';
+      return `Woof! 🐾 Hi, I'm ${petName}! That's a great question. ${
+        userMessage.toLowerCase().includes('care note') || userMessage.toLowerCase().includes('note')
+          ? 'My care notes have some important details about my needs!'
+          : 'I love regular walks, proper nutrition, and lots of cuddles.'
+      } For any health concerns, please consult your vet directly. Is there anything else you'd like to know about my care routine?`;
     }
 
     // TODO: OpenAI / Anthropic integration

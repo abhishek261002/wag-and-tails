@@ -6,7 +6,7 @@ export type OrderStatus =
   | 'cancelled'
   | 'refunded';
 
-export type ProductCategory =
+export type ProductCategorySlug =
   | 'grooming'
   | 'food_and_treats'
   | 'health'

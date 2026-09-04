@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { BUSINESS_CONFIG } from '@wag/config';
+import { BookingType, PartnerStatus, Prisma } from '@prisma/client';
 
 @Injectable()
 export class PartnersService {
@@ -55,14 +56,13 @@ export class PartnersService {
     if (!partner || !partner.isOnline) return [];
 
     // Jobs that need a partner and match this partner's mode and radius
-    const radiusKm = Math.min(
-      partner.serviceRadiusKm,
-      BUSINESS_CONFIG.MAX_WALK_RADIUS_KM
+    const validModes = partner.modes.filter((m): m is BookingType =>
+      Object.values(BookingType).includes(m as BookingType)
     );
 
     const openBookings = await this.prisma.booking.findMany({
       where: {
-        type: { in: partner.modes as string[] },
+        type: { in: validModes },
         status: 'needs_partner',
         partnerId: null,
         scheduledAt: { gte: new Date() },
@@ -79,8 +79,9 @@ export class PartnersService {
     });
 
     // Filter by radius (simple Euclidean — PostGIS used in prod via raw query)
-    const lat = partner.currentLat;
-    const lng = partner.currentLng;
+    const lat = partner.currentLat ?? null;
+    const lng = partner.currentLng ?? null;
+    const radiusKm = Math.min(partner.serviceRadiusKm, BUSINESS_CONFIG.MAX_WALK_RADIUS_KM);
 
     return openBookings
       .filter((b) => {
@@ -101,7 +102,7 @@ export class PartnersService {
           : 'Customer',
         customerRating: 4.8,
         addressLine: b.addressLine,
-        distanceKm: lat && b.address ? this.haversineKm(lat, lng, b.address.lat, b.address.lng) : 0,
+        distanceKm: (lat != null && b.address) ? this.haversineKm(lat, lng!, b.address.lat, b.address.lng) : 0,
         scheduledAt: b.scheduledAt,
         packageName: b.package?.name,
         addOns: b.addOns.map((a) => a.addOn.name),
@@ -185,7 +186,7 @@ export class PartnersService {
   async listAll(filters: { status?: string; page?: number; pageSize?: number } = {}) {
     const { status, page = 1, pageSize = 20 } = filters;
     const skip = (page - 1) * pageSize;
-    const where = status ? { status } : {};
+    const where: Prisma.PartnerProfileWhereInput = status ? { status: status as PartnerStatus } : {};
 
     const [data, total] = await Promise.all([
       this.prisma.partnerProfile.findMany({

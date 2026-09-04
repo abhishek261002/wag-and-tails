@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { BUSINESS_CONFIG } from '@wag/config';
+import { PetSex, PetSize, CoatType } from '@prisma/client';
 
 @Injectable()
 export class PetsService {
@@ -52,11 +53,14 @@ export class PetsService {
       throw new BadRequestException(`Maximum ${BUSINESS_CONFIG.MAX_PETS_PER_CUSTOMER} pets allowed`);
     }
 
-    const { careNote, ...petData } = data;
+    const { careNote, sex, size, coatType, ...petData } = data;
 
     return this.prisma.pet.create({
       data: {
         ...petData,
+        sex: sex as PetSex,
+        size: size as PetSize,
+        coatType: coatType as CoatType,
         customerId,
         dateOfBirth: petData.dateOfBirth ? new Date(petData.dateOfBirth) : null,
         careNotes: careNote
@@ -77,11 +81,14 @@ export class PetsService {
     vetDoctorName: string; vetClinic: string; vetPhone: string;
   }>) {
     await this.assertOwnership(petId, customerId);
-    const { dateOfBirth, ...rest } = data;
+    const { dateOfBirth, sex, size, coatType, ...rest } = data;
     return this.prisma.pet.update({
       where: { id: petId },
       data: {
         ...rest,
+        ...(sex !== undefined ? { sex: sex as PetSex } : {}),
+        ...(size !== undefined ? { size: size as PetSize } : {}),
+        ...(coatType !== undefined ? { coatType: coatType as CoatType } : {}),
         ...(dateOfBirth ? { dateOfBirth: new Date(dateOfBirth) } : {}),
       },
     });

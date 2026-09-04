@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
-import { startOfMonth, startOfDay } from 'date-fns';
+import { startOfMonth } from 'date-fns';
+import { UserRole } from '@prisma/client';
 
 @Injectable()
 export class AdminService {
@@ -8,7 +9,6 @@ export class AdminService {
 
   async getDashboardKpis() {
     const monthStart = startOfMonth(new Date());
-    const today = startOfDay(new Date());
 
     const [
       bookings,
@@ -19,6 +19,7 @@ export class AdminService {
       topPackages,
       bestSellers,
       recentBookings,
+      channelGroups,
     ] = await Promise.all([
       this.prisma.booking.count({ where: { createdAt: { gte: monthStart } } }),
       this.prisma.booking.count({ where: { status: 'completed', createdAt: { gte: monthStart } } }),
@@ -51,7 +52,18 @@ export class AdminService {
         orderBy: { createdAt: 'desc' },
         include: { customer: { include: { profile: true } }, pet: true },
       }),
+      this.prisma.booking.groupBy({
+        by: ['channel'],
+        where: { createdAt: { gte: monthStart } },
+        _count: { id: true },
+      }),
     ]);
+
+    // Build channelSplit map
+    const channelSplit: Record<string, number> = {};
+    for (const group of channelGroups) {
+      channelSplit[group.channel] = group._count.id;
+    }
 
     const revenueThisMonth = payments.reduce((s, p) => s + Number(p.amount), 0);
     const storeGmv = storeOrders.reduce((s, o) => s + Number(o.total), 0);
@@ -66,7 +78,7 @@ export class AdminService {
       storeGmv: Math.round(storeGmv),
       cancellationRate: Math.round(cancellationRate * 10) / 10,
       avgBookingValue: Math.round(avgBookingValue),
-      channelSplit: {}, // TODO: group by channel
+      channelSplit,
       attentionQueue: [
         { type: 'needs_partner', label: 'Bookings needing partner', count: needsPartner, action: '/staff/bookings?status=needs_partner' },
       ],
@@ -80,16 +92,22 @@ export class AdminService {
         sold: p._sum.quantity ?? 0,
         revenue: Number(p._sum.totalPrice ?? 0),
       })),
-      recentBookings,
+      recentBookings: recentBookings.map((b) => ({
+        ...b,
+        total: Number(b.total),
+        subtotal: Number(b.subtotal),
+        discount: Number(b.discount),
+      })),
     };
   }
 
   async manageProduct(data: {
-    categoryId: string; name: string; description?: string;
+    categoryId: string; name: string; slug?: string; description?: string;
     mrp: number; retailPrice: number; tradePrice: number;
     tags?: string[]; allergyWarnings?: string[];
   }) {
-    return this.prisma.product.create({ data: { ...data, isActive: true } });
+    const slug = data.slug ?? data.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') + '-' + Date.now();
+    return this.prisma.product.create({ data: { ...data, slug, isActive: true } });
   }
 
   async updateProduct(productId: string, data: Partial<{
@@ -110,7 +128,7 @@ export class AdminService {
         data: {
           email: data.email,
           phone: `+91${Math.floor(Math.random() * 9000000000) + 1000000000}`,
-          role: (data.role ?? 'staff') as 'staff',
+          role: (data.role ?? 'staff') as UserRole,
           isActive: true,
           passwordHash: hash,
           profile: { create: { firstName: 'Staff', lastName: 'Member' } },

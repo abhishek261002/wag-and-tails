@@ -124,22 +124,22 @@ enum DiscountType {
 // ─── Auth ────────────────────────────────────────────────────────────────────
 
 model User {
-  id           String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  phone        String    @unique
-  email        String?   @unique
-  passwordHash String?   @map("password_hash")
-  role         UserRole  @default(customer)
-  isActive     Boolean   @default(true) @map("is_active")
-  createdAt    DateTime  @default(now()) @map("created_at")
-  updatedAt    DateTime  @updatedAt @map("updated_at")
-
+  id              String                    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  phone           String                    @unique
+  email           String?                   @unique
+  passwordHash    String?                   @map("password_hash")
+  role            UserRole                  @default(customer)
+  isActive        Boolean                   @default(true) @map("is_active")
+  createdAt       DateTime                  @default(now()) @map("created_at")
+  updatedAt       DateTime                  @updatedAt @map("updated_at")
+  pets            Pet[]
   // Relations
   profile         UserProfile?
   customerProfile CustomerProfile?
   partnerProfile  PartnerProfile?
   staffProfile    StaffProfile?
   addresses       Address[]
-  bookings        Booking[]        @relation("CustomerBookings")
+  bookings        Booking[]                 @relation("CustomerBookings")
   refreshTokens   RefreshToken[]
   pushTokens      PushToken[]
   notifications   Notification[]
@@ -148,11 +148,12 @@ model User {
   aiChatSessions  AiChatSession[]
   carts           Cart[]
   storeOrders     StoreOrder[]
-  reviews         Review[]         @relation("ReviewerRelation")
+  reviews         Review[]                  @relation("ReviewerRelation")
   uploadedFiles   UploadedFile[]
   auditLogs       AuditLog[]
   otpTokens       OtpToken[]
   payments        Payment[]
+  supportTickets  SupportTicket[]
 
   @@map("users")
 }
@@ -186,40 +187,40 @@ model CustomerProfile {
 }
 
 model PartnerProfile {
-  id              String        @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  userId          String        @unique @map("user_id") @db.Uuid
-  status          PartnerStatus @default(pending)
-  modes           String[]      @default([]) // 'grooming' | 'walking'
-  serviceRadiusKm Int           @default(5) @map("service_radius_km")
-  isOnline        Boolean       @default(false) @map("is_online")
-  currentLat      Float?        @map("current_lat")
-  currentLng      Float?        @map("current_lng")
-  bio             String?
-  rating          Decimal       @default(5.0) @db.Decimal(3, 2)
-  reviewCount     Int           @default(0) @map("review_count")
-  completedJobs   Int           @default(0) @map("completed_jobs")
-  bankAccountNumber String?     @map("bank_account_number")
-  ifscCode        String?       @map("ifsc_code")
-  approvedBy      String?       @map("approved_by") @db.Uuid
-  approvedAt      DateTime?     @map("approved_at")
-  suspendReason   String?       @map("suspend_reason")
-  lastSeenAt      DateTime?     @map("last_seen_at")
-  createdAt       DateTime      @default(now()) @map("created_at")
-  updatedAt       DateTime      @updatedAt @map("updated_at")
+  id                String        @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  userId            String        @unique @map("user_id") @db.Uuid
+  status            PartnerStatus @default(pending)
+  modes             String[]      @default([]) // 'grooming' | 'walking'
+  serviceRadiusKm   Int           @default(5) @map("service_radius_km")
+  isOnline          Boolean       @default(false) @map("is_online")
+  currentLat        Float?        @map("current_lat")
+  currentLng        Float?        @map("current_lng")
+  bio               String?
+  rating            Decimal       @default(5.0) @db.Decimal(3, 2)
+  reviewCount       Int           @default(0) @map("review_count")
+  completedJobs     Int           @default(0) @map("completed_jobs")
+  bankAccountNumber String?       @map("bank_account_number")
+  ifscCode          String?       @map("ifsc_code")
+  approvedBy        String?       @map("approved_by") @db.Uuid
+  approvedAt        DateTime?     @map("approved_at")
+  suspendReason     String?       @map("suspend_reason")
+  lastSeenAt        DateTime?     @map("last_seen_at")
+  createdAt         DateTime      @default(now()) @map("created_at")
+  updatedAt         DateTime      @updatedAt @map("updated_at")
 
   // Vet info (for the partner as a dog handler)
   vetDoctorName String? @map("vet_doctor_name")
   vetClinic     String? @map("vet_clinic")
   vetPhone      String? @map("vet_phone")
 
-  user          User                      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  availability  PartnerAvailability[]
-  neighborhoods PartnerNeighborhood[]
-  documents     PartnerDocument[]
-  payouts       Payout[]
-  location      PartnerLocation?
-  partnerBookings Booking[]               @relation("PartnerBookings")
-  walkSessions  WalkSession[]
+  user            User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  availability    PartnerAvailability[]
+  neighborhoods   PartnerNeighborhood[]
+  documents       PartnerDocument[]
+  payouts         Payout[]
+  location        PartnerLocation?
+  partnerBookings Booking[]             @relation("PartnerBookings")
+  walkSessions    WalkSession[]
 
   @@map("partner_profiles")
 }
@@ -267,7 +268,7 @@ model PushToken {
   id        String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
   userId    String   @map("user_id") @db.Uuid
   token     String   @unique
-  platform  String   // ios | android | web
+  platform  String // ios | android | web
   updatedAt DateTime @updatedAt @map("updated_at")
   createdAt DateTime @default(now()) @map("created_at")
 
@@ -294,7 +295,7 @@ model Address {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user     User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   bookings Booking[]
   orders   StoreOrder[]
 
@@ -326,7 +327,7 @@ model Pet {
   createdAt     DateTime  @default(now()) @map("created_at")
   updatedAt     DateTime  @updatedAt @map("updated_at")
 
-  customer     User              @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  customer     User             @relation(fields: [customerId], references: [id], onDelete: Cascade)
   careNotes    PetCareNote[]
   vaccinations PetVaccination[]
   bookings     Booking[]
@@ -422,10 +423,10 @@ model WalkPricing {
 // ─── Bookings ─────────────────────────────────────────────────────────────────
 
 model Booking {
-  id       String        @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  type     BookingType
-  status   BookingStatus @default(draft)
-  channel  BookingChannel @default(app)
+  id      String         @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  type    BookingType
+  status  BookingStatus  @default(draft)
+  channel BookingChannel @default(app)
 
   // Participants
   customerId String  @map("customer_id") @db.Uuid
@@ -444,8 +445,7 @@ model Booking {
   packagePrice Decimal? @map("package_price") @db.Decimal(10, 2)
 
   // Walking specific
-  durationMinutes Int? @map("duration_minutes")
-  walkSessionId   String? @unique @map("walk_session_id") @db.Uuid
+  durationMinutes Int?    @map("duration_minutes")
 
   // Schedule & Location
   scheduledAt DateTime? @map("scheduled_at")
@@ -466,12 +466,12 @@ model Booking {
   paymentStatus PaymentStatus  @default(pending) @map("payment_status")
 
   // Completion
-  beforePhotos      String[] @default([]) @map("before_photos")
-  afterPhotos       String[] @default([]) @map("after_photos")
-  checklistCompleted String[] @default([]) @map("checklist_completed")
-  completedAt       DateTime? @map("completed_at")
-  cancelledAt       DateTime? @map("cancelled_at")
-  cancelReason      String?   @map("cancel_reason")
+  beforePhotos       String[]  @default([]) @map("before_photos")
+  afterPhotos        String[]  @default([]) @map("after_photos")
+  checklistCompleted String[]  @default([]) @map("checklist_completed")
+  completedAt        DateTime? @map("completed_at")
+  cancelledAt        DateTime? @map("cancelled_at")
+  cancelReason       String?   @map("cancel_reason")
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
@@ -485,7 +485,7 @@ model Booking {
   addOns        BookingAddOn[]
   statusHistory BookingStatusHistory[]
   payment       Payment?
-  walkSession   WalkSession?           @relation(fields: [walkSessionId], references: [id])
+  walkSession   WalkSession?
   conversation  Conversation?
   review        Review?
 
@@ -510,12 +510,12 @@ model BookingAddOn {
 }
 
 model BookingStatusHistory {
-  id         String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  bookingId  String   @map("booking_id") @db.Uuid
-  status     String
-  note       String?
-  changedBy  String   @map("changed_by") @db.Uuid
-  changedAt  DateTime @default(now()) @map("changed_at")
+  id        String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  bookingId String   @map("booking_id") @db.Uuid
+  status    String
+  note      String?
+  changedBy String   @map("changed_by") @db.Uuid
+  changedAt DateTime @default(now()) @map("changed_at")
 
   booking Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
 
@@ -543,7 +543,7 @@ model PartnerAvailability {
   partnerId String @map("partner_id") @db.Uuid
   day       String // mon|tue|wed|thu|fri|sat|sun
   startTime String @map("start_time") // "09:00"
-  endTime   String @map("end_time")   // "18:00"
+  endTime   String @map("end_time") // "18:00"
 
   partner PartnerProfile @relation(fields: [partnerId], references: [userId], onDelete: Cascade)
 
@@ -618,7 +618,7 @@ model WalkSession {
 
   partner        PartnerProfile      @relation(fields: [partnerId], references: [userId])
   locationPoints WalkLocationPoint[]
-  booking        Booking[]
+  booking        Booking?            @relation(fields: [bookingId], references: [id])
 
   @@map("walk_sessions")
 }
@@ -792,11 +792,11 @@ model Product {
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @updatedAt @map("updated_at")
 
-  category  ProductCategory   @relation(fields: [categoryId], references: [id])
-  variants  ProductVariant[]
-  cartItems CartItem[]
+  category   ProductCategory  @relation(fields: [categoryId], references: [id])
+  variants   ProductVariant[]
+  cartItems  CartItem[]
   orderItems StoreOrderItem[]
-  reviews   ProductReview[]
+  reviews    ProductReview[]
 
   @@map("products")
 }
@@ -812,7 +812,7 @@ model ProductVariant {
   stockQty    Int     @default(0) @map("stock_qty")
   imageUrl    String? @map("image_url")
 
-  product    Product      @relation(fields: [productId], references: [id], onDelete: Cascade)
+  product    Product          @relation(fields: [productId], references: [id], onDelete: Cascade)
   cartItems  CartItem[]
   orderItems StoreOrderItem[]
 
@@ -820,12 +820,12 @@ model ProductVariant {
 }
 
 model ProductReview {
-  id         String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  productId  String   @map("product_id") @db.Uuid
-  userId     String   @map("user_id") @db.Uuid
-  rating     Int
-  comment    String?
-  createdAt  DateTime @default(now()) @map("created_at")
+  id        String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  productId String   @map("product_id") @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  rating    Int
+  comment   String?
+  createdAt DateTime @default(now()) @map("created_at")
 
   product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
 
@@ -860,29 +860,29 @@ model CartItem {
 }
 
 model StoreOrder {
-  id            String      @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  orderNumber   String      @unique @map("order_number")
-  userId        String      @map("user_id") @db.Uuid
-  customerName  String      @map("customer_name")
-  customerPhone String      @map("customer_phone")
-  addressId     String      @map("address_id") @db.Uuid
-  addressLine   String      @map("address_line")
-  subtotal      Decimal     @db.Decimal(10, 2)
-  discount      Decimal     @default(0) @db.Decimal(10, 2)
-  shippingFee   Decimal     @default(0) @map("shipping_fee") @db.Decimal(10, 2)
-  total         Decimal     @db.Decimal(10, 2)
-  couponCode    String?     @map("coupon_code")
-  paymentMethod String      @map("payment_method")
-  paymentStatus String      @map("payment_status")
-  status        OrderStatus @default(placed)
-  notes         String?
-  trackingNumber String?    @map("tracking_number")
-  labelUrl      String?     @map("label_url")
-  packedAt      DateTime?   @map("packed_at")
-  shippedAt     DateTime?   @map("shipped_at")
-  deliveredAt   DateTime?   @map("delivered_at")
-  createdAt     DateTime    @default(now()) @map("created_at")
-  updatedAt     DateTime    @updatedAt @map("updated_at")
+  id             String      @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  orderNumber    String      @unique @map("order_number")
+  userId         String      @map("user_id") @db.Uuid
+  customerName   String      @map("customer_name")
+  customerPhone  String      @map("customer_phone")
+  addressId      String      @map("address_id") @db.Uuid
+  addressLine    String      @map("address_line")
+  subtotal       Decimal     @db.Decimal(10, 2)
+  discount       Decimal     @default(0) @db.Decimal(10, 2)
+  shippingFee    Decimal     @default(0) @map("shipping_fee") @db.Decimal(10, 2)
+  total          Decimal     @db.Decimal(10, 2)
+  couponCode     String?     @map("coupon_code")
+  paymentMethod  String      @map("payment_method")
+  paymentStatus  String      @map("payment_status")
+  status         OrderStatus @default(placed)
+  notes          String?
+  trackingNumber String?     @map("tracking_number")
+  labelUrl       String?     @map("label_url")
+  packedAt       DateTime?   @map("packed_at")
+  shippedAt      DateTime?   @map("shipped_at")
+  deliveredAt    DateTime?   @map("delivered_at")
+  createdAt      DateTime    @default(now()) @map("created_at")
+  updatedAt      DateTime    @updatedAt @map("updated_at")
 
   user    User             @relation(fields: [userId], references: [id])
   address Address          @relation(fields: [addressId], references: [id])
@@ -976,14 +976,14 @@ model Payout {
 }
 
 model PayoutBatch {
-  id           String       @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  createdBy    String       @map("created_by") @db.Uuid
-  totalAmount  Decimal      @map("total_amount") @db.Decimal(10, 2)
-  payoutCount  Int          @map("payout_count")
-  status       PayoutStatus @default(approved)
-  processedAt  DateTime?    @map("processed_at")
-  notes        String?
-  createdAt    DateTime     @default(now()) @map("created_at")
+  id          String       @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  createdBy   String       @map("created_by") @db.Uuid
+  totalAmount Decimal      @map("total_amount") @db.Decimal(10, 2)
+  payoutCount Int          @map("payout_count")
+  status      PayoutStatus @default(approved)
+  processedAt DateTime?    @map("processed_at")
+  notes       String?
+  createdAt   DateTime     @default(now()) @map("created_at")
 
   payouts Payout[]
 
@@ -1011,33 +1011,36 @@ model UploadedFile {
 // ─── Support ─────────────────────────────────────────────────────────────────
 
 model SupportTicket {
-  id          String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  userId      String   @map("user_id") @db.Uuid
+  id          String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  userId      String    @map("user_id") @db.Uuid
   subject     String
-  description String   @db.Text
-  status      String   @default("open")
-  priority    String   @default("normal")
+  description String    @db.Text
+  status      String    @default("open")
+  priority    String    @default("normal")
   resolvedAt  DateTime? @map("resolved_at")
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
 
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
   @@map("support_tickets")
 }
 
 // ─── Audit ────────────────────────────────────────────────────────────────────
 
 model AuditLog {
-  id         String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  userId     String   @map("user_id") @db.Uuid
-  userEmail  String?  @map("user_email")
-  userRole   String   @map("user_role")
-  action     String
-  entity     String
-  entityId   String?  @map("entity_id")
-  changes    Json?
-  ipAddress  String?  @map("ip_address")
-  userAgent  String?  @map("user_agent")
-  createdAt  DateTime @default(now()) @map("created_at")
+  id        String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  userEmail String?  @map("user_email")
+  userRole  String   @map("user_role")
+  action    String
+  entity    String
+  entityId  String?  @map("entity_id")
+  changes   Json?
+  ipAddress String?  @map("ip_address")
+  userAgent String?  @map("user_agent")
+  createdAt DateTime @default(now()) @map("created_at")
 
   user User @relation(fields: [userId], references: [id])
 
@@ -1055,8 +1058,8 @@ model AiChatSession {
   createdAt  DateTime @default(now()) @map("created_at")
   updatedAt  DateTime @updatedAt @map("updated_at")
 
-  pet      Pet            @relation(fields: [petId], references: [id])
-  customer User           @relation(fields: [customerId], references: [id])
+  pet      Pet             @relation(fields: [petId], references: [id])
+  customer User            @relation(fields: [customerId], references: [id])
   messages AiChatMessage[]
 
   @@index([customerId, petId])
@@ -1066,7 +1069,7 @@ model AiChatSession {
 model AiChatMessage {
   id               String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
   sessionId        String   @map("session_id") @db.Uuid
-  role             String   // user | assistant
+  role             String // user | assistant
   content          String   @db.Text
   refusalReason    String?  @map("refusal_reason")
   suggestedActions String[] @default([]) @map("suggested_actions")

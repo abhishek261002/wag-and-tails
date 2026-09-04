@@ -38,20 +38,20 @@ export default function PartnerAccountScreen() {
         </View>
 
         <MenuSection title="Service Settings">
-          <MenuItem emoji="📍" label="Service Radius" onPress={() => {}} />
-          <MenuItem emoji="🗓" label="Working Hours" onPress={() => {}} />
-          <MenuItem emoji="📍" label="Neighborhoods" onPress={() => {}} />
+          <MenuItem emoji="📍" label="Service Radius" onPress={() => router.push('/account/service-radius' as any)} />
+          <MenuItem emoji="🗓" label="Working Hours" onPress={() => router.push('/account/working-hours' as any)} />
+          <MenuItem emoji="🗺" label="Neighborhoods" onPress={() => router.push('/account/neighborhoods' as any)} />
         </MenuSection>
 
         <MenuSection title="Account">
-          <MenuItem emoji="📄" label="Documents & Verification" onPress={() => {}} />
+          <MenuItem emoji="📄" label="Documents & Verification" onPress={() => router.push('/account/documents' as any)} />
           <MenuItem emoji="🏦" label="Bank Account" onPress={() => {}} />
-          <MenuItem emoji="⭐" label="Reviews" onPress={() => {}} />
+          <MenuItem emoji="⭐" label="Reviews" onPress={() => router.push('/account/reviews' as any)} />
         </MenuSection>
 
         <MenuSection title="Support">
-          <MenuItem emoji="💬" label="Help & Support" onPress={() => {}} />
-          <MenuItem emoji="📄" label="Terms of Service" onPress={() => {}} />
+          <MenuItem emoji="💬" label="Help & Support" onPress={() => router.push('/account/support' as any)} />
+          <MenuItem emoji="📄" label="Terms of Service" onPress={() => router.push('/account/terms' as any)} />
         </MenuSection>
 
         <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>

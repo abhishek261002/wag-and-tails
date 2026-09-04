@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { BookingType, BookingChannel, BookingStatus, PaymentMethod } from '@prisma/client';
 
 @Injectable()
 export class StaffService {
@@ -82,13 +83,13 @@ export class StaffService {
 
     return this.prisma.booking.create({
       data: {
-        type: data.type,
-        status: data.partnerId ? 'assigned' : 'needs_partner',
+        type: data.type as BookingType,
+        status: (data.partnerId ? 'assigned' : 'needs_partner') as BookingStatus,
         customerId: data.customerId,
         petId: data.petId,
         petName: pet?.name ?? '',
         petBreed: pet?.breed ?? '',
-        petSize: pet?.size ?? 'medium',
+        petSize: (pet?.size ?? 'medium') as import('@prisma/client').PetSize,
         petCareNotes: careNote?.note ?? null,
         partnerId: data.partnerId ?? null,
         packageId: data.packageId ?? null,
@@ -98,13 +99,13 @@ export class StaffService {
         scheduledAt: new Date(data.scheduledAt),
         addressId: data.addressId,
         addressLine: `${address.line1}, ${address.city}`,
-        channel: data.channel,
+        channel: data.channel as BookingChannel,
         notes: data.notes ?? null,
         subtotal,
         discount: 0,
         total: subtotal,
-        paymentMethod: 'cash_after_service',
-        paymentStatus: 'pending',
+        paymentMethod: 'cash_after_service' as PaymentMethod,
+        paymentStatus: 'pending' as const,
         statusHistory: {
           create: {
             status: data.partnerId ? 'assigned' : 'needs_partner',
@@ -121,7 +122,7 @@ export class StaffService {
       where: { id: bookingId },
       data: {
         partnerId,
-        status: 'assigned',
+        status: 'assigned' as BookingStatus,
         statusHistory: {
           create: { status: 'assigned', changedBy: staffId, note: `Partner assigned by staff` },
         },
@@ -134,7 +135,7 @@ export class StaffService {
       where: { id: bookingId },
       data: {
         partnerId: null,
-        status: 'needs_partner',
+        status: 'needs_partner' as BookingStatus,
         statusHistory: {
           create: { status: 'needs_partner', changedBy: staffId, note: 'Partner unassigned by staff' },
         },

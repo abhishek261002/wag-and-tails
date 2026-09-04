@@ -49,7 +49,7 @@ export class WalkingService {
         customerRating: 4.8,
         pickupAddress: booking.addressLine,
         distanceKm: partner.distanceKm,
-        partnerPayout: this.calculatePayout(booking.subtotal),
+        partnerPayout: this.calculatePayout(Number(booking.subtotal)),
         expiresAt: expiresAt.toISOString(),
       });
     }

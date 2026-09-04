@@ -168,7 +168,12 @@ export class StoreService {
         paymentStatus: 'pending',
         status: 'placed',
         items: {
-          create: cart.items.map((i) => ({
+          create: cart.items.map((i: {
+            productId: string; variantId: string | null;
+            productName: string; variantName: string | null;
+            imageUrl: string | null; quantity: number;
+            unitPrice: number; totalPrice: number;
+          }) => ({
             productId: i.productId,
             variantId: i.variantId,
             productName: i.productName,

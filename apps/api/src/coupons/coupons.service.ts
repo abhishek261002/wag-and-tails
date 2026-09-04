@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { DiscountType } from '@prisma/client';
 
 @Injectable()
 export class CouponsService {
@@ -80,6 +81,7 @@ export class CouponsService {
     return this.prisma.coupon.create({
       data: {
         ...data,
+        discountType: data.discountType as DiscountType,
         discountValue: data.discountValue,
         validFrom: new Date(data.validFrom),
         validUntil: new Date(data.validUntil),

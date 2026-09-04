@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { OrderStatus, Prisma } from '@prisma/client';
 
 @Injectable()
 export class OrdersService {
@@ -28,7 +29,7 @@ export class OrdersService {
   async listAll(filters: { status?: string; page?: number; pageSize?: number } = {}) {
     const { status, page = 1, pageSize = 20 } = filters;
     const skip = (page - 1) * pageSize;
-    const where = status ? { status } : {};
+    const where: Prisma.StoreOrderWhereInput = status ? { status: status as OrderStatus } : {};
 
     const [data, total] = await Promise.all([
       this.prisma.storeOrder.findMany({
@@ -55,7 +56,7 @@ export class OrdersService {
     return this.prisma.storeOrder.update({
       where: { id: orderId },
       data: {
-        status,
+        status: status as OrderStatus,
         ...(status === 'packed' ? { packedAt: new Date() } : {}),
         ...(status === 'out_for_delivery' ? { shippedAt: new Date() } : {}),
         ...(status === 'delivered' ? { deliveredAt: new Date() } : {}),

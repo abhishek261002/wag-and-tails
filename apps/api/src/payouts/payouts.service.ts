@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { BUSINESS_CONFIG } from '@wag/config';
+import { PayoutStatus, Prisma } from '@prisma/client';
 
 @Injectable()
 export class PayoutsService {
@@ -46,14 +47,14 @@ export class PayoutsService {
   async listAll(filters: { status?: string; page?: number; pageSize?: number } = {}) {
     const { status, page = 1, pageSize = 20 } = filters;
     const skip = (page - 1) * pageSize;
-    const where = status ? { status } : {};
+    const where: Prisma.PayoutWhereInput = status ? { status: status as PayoutStatus } : {};
 
     const [data, total] = await Promise.all([
       this.prisma.payout.findMany({
         where,
         skip,
         take: pageSize,
-        include: { partner: { include: { profile: true } } },
+        include: { partner: { include: { user: { include: { profile: true } } } } },
         orderBy: { createdAt: 'desc' },
       }),
       this.prisma.payout.count({ where }),

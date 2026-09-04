@@ -14,7 +14,19 @@
     "typecheck": "turbo run typecheck",
     "db:migrate": "turbo run db:migrate --filter=api",
     "db:seed": "turbo run db:seed --filter=api",
-    "db:studio": "turbo run db:studio --filter=api"
+    "db:studio": "turbo run db:studio --filter=api",
+    "dev:api": "turbo run dev --filter=api",
+    "dev:staff": "turbo run dev --filter=staff-web",
+    "dev:admin": "turbo run dev --filter=admin-web",
+    "dev:customer": "turbo run dev --filter=customer-mobile",
+    "dev:partner": "turbo run dev --filter=partner-mobile",
+    "dev:web": "turbo run dev --filter=staff-web --filter=admin-web",
+    "dev:all": "turbo run dev --filter=api --filter=staff-web --filter=admin-web",
+    "check": "turbo run typecheck lint test build"
+  },
+  "overrides": {
+    "react": "18.3.1",
+    "react-dom": "18.3.1"
   },
   "devDependencies": {
     "turbo": "^1.13.4",

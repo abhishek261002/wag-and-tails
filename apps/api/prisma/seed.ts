@@ -11,6 +11,13 @@ const prisma = new PrismaClient();
 async function main() {
   console.log('🌱 Seeding Wag & Tails database...');
 
+  // Guard: check if seed already ran (admin user exists)
+  const existing = await prisma.user.findUnique({ where: { email: 'admin@wagandtails.in' } });
+  if (existing) {
+    console.log('⏭️  Database already seeded — skipping (delete DB or run prisma migrate reset to re-seed)');
+    return;
+  }
+
   // ── Passwords ──────────────────────────────────────────────────────────────
   const defaultHash = await bcrypt.hash('WagTails@123', 12);
   const partnerHash = await bcrypt.hash('Partner@123', 12);
@@ -623,8 +630,11 @@ async function main() {
   // ── Service Areas ──────────────────────────────────────────────────────────
   console.log('  Creating service areas...');
 
-  const bengaluruArea = await prisma.serviceArea.create({
-    data: {
+  await prisma.serviceArea.upsert({
+    where: { id: '00000000-0000-0000-0002-000000000001' },
+    update: {},
+    create: {
+      id: '00000000-0000-0000-0002-000000000001',
       name: 'Bengaluru South',
       city: 'Bengaluru',
       neighborhoods: {
