@@ -1,0 +1,25 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "useDefineForClassFields": true,
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "skipLibCheck": true,
+    "moduleResolution": "bundler",
+    "allowImportingTsExtensions": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "jsx": "react-jsx",
+    "strict": true,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+    "paths": {
+      "@wag/design-tokens": ["../../packages/design-tokens/src/index.ts"],
+      "@wag/api-client": ["../../packages/api-client/src/index.ts"],
+      "@wag/shared-types": ["../../packages/shared-types/src/index.ts"],
+      "@wag/ui-web": ["../../packages/ui-web/src/index.ts"]
+    }
+  },
+  "include": ["src"]
+}

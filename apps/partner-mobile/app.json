@@ -1,0 +1,25 @@
+{
+  "expo": {
+    "name": "Wag & Tails Partner",
+    "slug": "wag-and-tails-partner",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "splash": { "backgroundColor": "#4A1E0B" },
+    "ios": {
+      "bundleIdentifier": "in.wagandtails.partner",
+      "infoPlist": {
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "Share your live location while on an active job.",
+        "NSLocationWhenInUseUsageDescription": "Share your location with customers during jobs.",
+        "NSCameraUsageDescription": "Take before/after photos for grooming jobs and walk photos."
+      }
+    },
+    "android": {
+      "package": "in.wagandtails.partner",
+      "permissions": ["ACCESS_FINE_LOCATION", "ACCESS_BACKGROUND_LOCATION", "CAMERA"]
+    },
+    "plugins": ["expo-router", "expo-secure-store", "expo-location"],
+    "scheme": "wagandtailspartner",
+    "extra": { "apiUrl": "http://localhost:3001/api/v1" }
+  }
+}

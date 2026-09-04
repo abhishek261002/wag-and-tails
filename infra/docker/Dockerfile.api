@@ -1,0 +1,51 @@
+# ── Stage 1: Build ────────────────────────────────────────────────────────────
+FROM node:20-alpine AS builder
+
+WORKDIR /app
+
+# Copy workspace root manifests
+COPY package.json package-lock.json* ./
+COPY tsconfig.base.json ./
+
+# Copy shared packages (needed for build)
+COPY packages/design-tokens ./packages/design-tokens
+COPY packages/shared-types  ./packages/shared-types
+COPY packages/validation    ./packages/validation
+COPY packages/config        ./packages/config
+
+# Copy API
+COPY apps/api ./apps/api
+
+# Install all deps (workspace)
+RUN npm ci --workspace=@wag/api --include-workspace-root
+
+# Generate Prisma client
+RUN npx prisma generate --schema=apps/api/prisma/schema.prisma
+
+# Build NestJS
+RUN npm run build --workspace=@wag/api
+
+# ── Stage 2: Production image ─────────────────────────────────────────────────
+FROM node:20-alpine AS runner
+
+WORKDIR /app
+
+ENV NODE_ENV=production
+
+# Only production deps
+COPY --from=builder /app/package.json /app/package-lock.json* ./
+COPY --from=builder /app/apps/api/package.json ./apps/api/
+RUN npm ci --workspace=@wag/api --omit=dev --include-workspace-root
+
+# Copy built output and Prisma client
+COPY --from=builder /app/apps/api/dist ./apps/api/dist
+COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
+COPY --from=builder /app/apps/api/prisma ./apps/api/prisma
+
+# Create uploads directory
+RUN mkdir -p /app/uploads
+
+EXPOSE 3001
+
+# Run migrations then start
+CMD ["sh", "-c", "npx prisma migrate deploy --schema=apps/api/prisma/schema.prisma && node apps/api/dist/main.js"]

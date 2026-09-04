@@ -1,0 +1,103 @@
+version: '3.9'
+
+services:
+  # ─── PostgreSQL with PostGIS ────────────────────────────────────────────────
+  postgres:
+    image: postgis/postgis:16-3.4-alpine
+    container_name: wag_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: wagandtails
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-db.sql:/docker-entrypoint-initdb.d/init-db.sql:ro
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres -d wagandtails']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ─── Redis ──────────────────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: wag_redis
+    restart: unless-stopped
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ─── NestJS API ─────────────────────────────────────────────────────────────
+  api:
+    build:
+      context: ../../apps/api
+      dockerfile: ../../infra/docker/Dockerfile.api
+    container_name: wag_api
+    restart: unless-stopped
+    env_file:
+      - ../../.env
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/wagandtails
+      REDIS_URL: redis://redis:6379
+      NODE_ENV: production
+    ports:
+      - '3001:3001'
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - uploads_data:/app/uploads
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -qO- http://localhost:3001/api/v1/health || exit 1']
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # ─── Staff Web ───────────────────────────────────────────────────────────────
+  staff-web:
+    build:
+      context: ../../apps/staff-web
+      dockerfile: ../../infra/docker/Dockerfile.web
+      args:
+        VITE_API_URL: http://localhost:3001/api/v1
+    container_name: wag_staff_web
+    restart: unless-stopped
+    ports:
+      - '3003:80'
+    depends_on:
+      - api
+
+  # ─── Admin Web ───────────────────────────────────────────────────────────────
+  admin-web:
+    build:
+      context: ../../apps/admin-web
+      dockerfile: ../../infra/docker/Dockerfile.web
+      args:
+        VITE_API_URL: http://localhost:3001/api/v1
+    container_name: wag_admin_web
+    restart: unless-stopped
+    ports:
+      - '3004:80'
+    depends_on:
+      - api
+
+volumes:
+  postgres_data:
+  redis_data:
+  uploads_data:
+
+networks:
+  default:
+    name: wag_network

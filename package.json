@@ -1,0 +1,31 @@
+{
+  "name": "wag-and-tails",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "turbo run build",
+    "dev": "turbo run dev",
+    "test": "turbo run test",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "db:migrate": "turbo run db:migrate --filter=api",
+    "db:seed": "turbo run db:seed --filter=api",
+    "db:studio": "turbo run db:studio --filter=api"
+  },
+  "devDependencies": {
+    "turbo": "^1.13.4",
+    "typescript": "^5.4.5",
+    "@types/node": "^20.14.0",
+    "prettier": "^3.3.2",
+    "eslint": "^8.57.0"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "npm": ">=10.0.0"
+  },
+  "packageManager": "npm@10.8.1"
+}

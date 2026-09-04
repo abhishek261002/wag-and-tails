@@ -1,0 +1,48 @@
+{
+  "expo": {
+    "name": "Wag & Tails",
+    "slug": "wag-and-tails-customer",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "backgroundColor": "#4A1E0B"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "in.wagandtails.customer",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "We use your location to find nearby partners and track your pet's walk.",
+        "NSPhotoLibraryUsageDescription": "Upload photos of your pet.",
+        "NSCameraUsageDescription": "Take photos for your pet's profile."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#4A1E0B"
+      },
+      "package": "in.wagandtails.customer",
+      "permissions": [
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE"
+      ]
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Allow Wag & Tails to use your location."
+        }
+      ]
+    ],
+    "scheme": "wagandtails",
+    "extra": {
+      "apiUrl": "http://localhost:3001/api/v1"
+    }
+  }
+}
