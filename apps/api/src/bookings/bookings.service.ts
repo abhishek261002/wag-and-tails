@@ -9,7 +9,7 @@ import { CouponsService } from '../coupons/coupons.service.js';
 import { assertGroomingTransition, assertWalkingTransition } from './booking-state-machine.js';
 import { BUSINESS_CONFIG } from '@wag/config';
 import { isBefore, addHours } from 'date-fns';
-import { BookingType, BookingStatus, BookingChannel, PaymentMethod } from '@prisma/client';
+import { BookingType, BookingStatus, BookingChannel, PaymentMethod, Prisma } from '@prisma/client';
 
 @Injectable()
 export class BookingsService {
@@ -24,7 +24,7 @@ export class BookingsService {
     const { type, status, page = 1, pageSize = 20 } = filters;
     const skip = (page - 1) * pageSize;
 
-    const where: Record<string, unknown> = {
+    const where: Prisma.BookingWhereInput = {
       customerId,
       ...(type ? { type: type as BookingType } : {}),
       ...(status ? { status: status as BookingStatus } : {}),
@@ -56,7 +56,7 @@ export class BookingsService {
     const { type, status, partnerId, customerId, from, to, page = 1, pageSize = 20 } = filters;
     const skip = (page - 1) * pageSize;
 
-    const where: Record<string, unknown> = {
+    const where: Prisma.BookingWhereInput = {
       ...(type ? { type: type as BookingType } : {}),
       ...(status ? { status: status as BookingStatus } : {}),
       ...(partnerId ? { partnerId } : {}),

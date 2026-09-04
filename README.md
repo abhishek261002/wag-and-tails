@@ -204,6 +204,18 @@ Key test files:
 ## Useful development commands
 
 ```bash
+# Start everything at once (API + staff + admin)
+npm run dev:all
+
+# Start individual surfaces
+npm run dev:api      # http://localhost:3001
+npm run dev:staff    # http://localhost:3003
+npm run dev:admin    # http://localhost:3004
+npm run dev:web      # staff + admin together
+
+# Run typecheck + lint + tests + build (CI equivalent)
+npm run check
+
 # Typecheck all packages and apps
 npm run typecheck
 
@@ -233,7 +245,7 @@ All variables are documented in `.env.example`. Key ones:
 |---|---|---|
 | `DATABASE_URL` | postgresql://postgres:postgres@localhost:5432/wagandtails | Prisma connection string |
 | `REDIS_URL` | redis://localhost:6379 | BullMQ + cache |
-| `JWT_SECRET` | change-me-in-production | Must be 32+ chars in production |
+| `JWT_SECRET` | *(see .env.example)* | Must be 32+ chars. `.env.example` ships with a valid 32-char dev default |
 | `PAYMENT_PROVIDER` | `mock` | Set to `razorpay` in production |
 | `MAPS_PROVIDER` | `mock` | Set to `google` or `mapbox` in production |
 | `LLM_PROVIDER` | `mock` | Set to `openai` or `anthropic` in production |
@@ -264,6 +276,17 @@ Services started:
 - API on port 3001 (runs migrations automatically on startup)
 - Staff portal on port 3003
 - Admin console on port 3004
+
+---
+
+## Manual testing
+
+A full manual test plan is at [`docs/manual-test-plan.md`](docs/manual-test-plan.md). It includes:
+- Exact seeded login credentials and OTP instructions
+- Step-by-step flows for all major customer, partner, staff, and admin scenarios
+- Real-time cross-surface test checklist
+- Mock provider behaviour reference
+- Windows/Expo/Docker troubleshooting notes
 
 ---
 

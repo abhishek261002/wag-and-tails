@@ -27,7 +27,8 @@
   "overrides": {
     "react": "18.3.1",
     "react-dom": "18.3.1",
-    "ajv": "^8.12.0"
+    "ajv": "^8.12.0",
+    "@react-native/babel-plugin-codegen": "0.74.87"
   },
   "devDependencies": {
     "@types/node": "^20.14.0",
