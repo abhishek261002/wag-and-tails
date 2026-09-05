@@ -28,7 +28,7 @@ export default function DocumentsScreen() {
     setUploading(docType);
     try {
       const formData = new FormData();
-      formData.append('file', { uri: res.assets[0].uri, type: 'image/jpeg', name: `${docType}.jpg' } as any);
+      formData.append('file', { uri: res.assets[0].uri, type: 'image/jpeg', name: `${docType}.jpg` } as any);
       formData.append('docType', docType);
       await wagApi.client.post('/partners/me/documents', formData);
       Alert.alert('Uploaded!', 'Document submitted for verification.');

@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { colors, radii, spacing } from '@wag/design-tokens';
 
-export type ButtonVariant = 'primary' | 'secondary' | 'outline' | 'ghost' | 'danger';
+export type ButtonVariant = 'primary' | 'secondary' | 'outline' | 'ghost' | 'danger' | 'destructive';
 export type ButtonSize = 'sm' | 'md' | 'lg';
 
 export interface ButtonProps {
@@ -38,6 +38,7 @@ const variantContainerStyle: Record<ButtonVariant, ViewStyle> = {
   },
   ghost: { backgroundColor: 'transparent' },
   danger: { backgroundColor: colors.error },
+  destructive: { backgroundColor: colors.error },
 };
 
 const variantTextStyle: Record<ButtonVariant, TextStyle> = {
@@ -46,6 +47,7 @@ const variantTextStyle: Record<ButtonVariant, TextStyle> = {
   outline: { color: colors.brandBrown },
   ghost: { color: colors.brandBrown },
   danger: { color: colors.white },
+  destructive: { color: colors.white },
 };
 
 const sizePadding: Record<ButtonSize, ViewStyle> = {
