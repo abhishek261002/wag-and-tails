@@ -1,11 +1,11 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity, TextInput,
   KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { colors, spacing, typography, radii } from '@wag/design-tokens';
+import { colors, spacing, radii } from '@wag/design-tokens';
 import { wagApi } from '../../src/lib/api';
 import { useAuthStore } from '../../src/store/auth.store';
 
@@ -13,32 +13,35 @@ export default function MessagingScreen() {
   const { bookingId } = useLocalSearchParams<{ bookingId: string }>();
   const { userId } = useAuthStore();
   const [messages, setMessages] = useState<any[]>([]);
-  const [text, setText] = useState('');
   const [conversationId, setConversationId] = useState<string | null>(null);
+  const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
   const listRef = useRef<FlatList>(null);
 
+  // Fetch messages for a known conversation
+  const refreshMessages = useCallback(async (convId: string) => {
+    try {
+      const msgs = await wagApi.messaging.getMessages(convId);
+      setMessages(msgs as any[]);
+    } catch {}
+  }, []);
+
+  // Get-or-create conversation on mount, then start polling
   useEffect(() => {
-    const loadMessages = async () => {
-      try {
-        const conv = await wagApi.client.get<any>(`/messaging/booking/${bookingId}`);
+    if (!bookingId) return;
+    let pollTimer: ReturnType<typeof setInterval> | null = null;
+
+    wagApi.messaging.getOrCreateConversation(bookingId)
+      .then((conv: any) => {
         setConversationId(conv.id);
-        const msgs = await wagApi.client.get<any[]>(`/messaging/${conv.id}/messages`);
-        setMessages(msgs);
-      } catch {}
-    };
-    loadMessages();
+        refreshMessages(conv.id);
+        // Start polling now that we have a real conv ID
+        pollTimer = setInterval(() => refreshMessages(conv.id), 4000);
+      })
+      .catch(() => {});
 
-    const poll = setInterval(async () => {
-      if (!conversationId) return;
-      try {
-        const msgs = await wagApi.client.get<any[]>(`/messaging/${conversationId}/messages`);
-        setMessages(msgs);
-      } catch {}
-    }, 4000);
-
-    return () => clearInterval(poll);
-  }, [bookingId, conversationId]);
+    return () => { if (pollTimer) clearInterval(pollTimer); };
+  }, [bookingId, refreshMessages]);
 
   const send = async () => {
     if (!text.trim() || !conversationId) return;
@@ -46,12 +49,11 @@ export default function MessagingScreen() {
     const content = text.trim();
     setText('');
     try {
-      await wagApi.client.post(`/messaging/${conversationId}/messages`, { content });
-      const msgs = await wagApi.client.get<any[]>(`/messaging/${conversationId}/messages`);
-      setMessages(msgs);
+      await wagApi.messaging.sendMessage({ conversationId, content });
+      await refreshMessages(conversationId);
       setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 100);
     } catch {
-      setText(content);
+      setText(content); // restore on failure
     } finally {
       setSending(false);
     }
@@ -67,7 +69,11 @@ export default function MessagingScreen() {
         <View style={{ width: 50 }} />
       </View>
 
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={90}>
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={90}
+      >
         <FlatList
           ref={listRef}
           data={messages}

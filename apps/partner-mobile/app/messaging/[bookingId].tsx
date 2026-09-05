@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity, TextInput,
   KeyboardAvoidingView, Platform,
@@ -18,27 +18,27 @@ export default function PartnerMessagingScreen() {
   const [sending, setSending] = useState(false);
   const listRef = useRef<FlatList>(null);
 
+  const refreshMessages = useCallback(async (convId: string) => {
+    try {
+      const msgs = await wagApi.messaging.getMessages(convId);
+      setMessages(msgs as any[]);
+    } catch {}
+  }, []);
+
   useEffect(() => {
-    const load = async () => {
-      try {
-        const conv = await wagApi.client.get<any>(`/messaging/booking/${bookingId}`);
+    if (!bookingId) return;
+    let pollTimer: ReturnType<typeof setInterval> | null = null;
+
+    wagApi.messaging.getOrCreateConversation(bookingId)
+      .then((conv: any) => {
         setConversationId(conv.id);
-        const msgs = await wagApi.client.get<any[]>(`/messaging/${conv.id}/messages`);
-        setMessages(msgs);
-      } catch {}
-    };
-    load();
+        refreshMessages(conv.id);
+        pollTimer = setInterval(() => refreshMessages(conv.id), 4000);
+      })
+      .catch(() => {});
 
-    const poll = setInterval(async () => {
-      if (!conversationId) return;
-      try {
-        const msgs = await wagApi.client.get<any[]>(`/messaging/${conversationId}/messages`);
-        setMessages(msgs);
-      } catch {}
-    }, 4000);
-
-    return () => clearInterval(poll);
-  }, [bookingId, conversationId]);
+    return () => { if (pollTimer) clearInterval(pollTimer); };
+  }, [bookingId, refreshMessages]);
 
   const send = async () => {
     if (!text.trim() || !conversationId) return;
@@ -46,11 +46,14 @@ export default function PartnerMessagingScreen() {
     const content = text.trim();
     setText('');
     try {
-      await wagApi.client.post(`/messaging/${conversationId}/messages`, { content });
-      const msgs = await wagApi.client.get<any[]>(`/messaging/${conversationId}/messages`);
-      setMessages(msgs);
+      await wagApi.messaging.sendMessage({ conversationId, content });
+      await refreshMessages(conversationId);
       setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 100);
-    } catch { setText(content); } finally { setSending(false); }
+    } catch {
+      setText(content);
+    } finally {
+      setSending(false);
+    }
   };
 
   return (
@@ -62,7 +65,12 @@ export default function PartnerMessagingScreen() {
         <Text style={styles.title}>Customer Chat</Text>
         <View style={{ width: 50 }} />
       </View>
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={90}>
+
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        keyboardVerticalOffset={90}
+      >
         <FlatList
           ref={listRef}
           data={messages}
@@ -81,7 +89,14 @@ export default function PartnerMessagingScreen() {
               </View>
             );
           }}
+          ListEmptyComponent={
+            <View style={styles.empty}>
+              <Text style={{ fontSize: 36 }}>💬</Text>
+              <Text style={styles.emptyText}>No messages yet. Say hello!</Text>
+            </View>
+          }
         />
+
         <View style={styles.inputRow}>
           <TextInput
             style={styles.input}
@@ -121,6 +136,8 @@ const styles = StyleSheet.create({
   msgTextMe: { color: colors.white },
   time: { fontFamily: 'Inter', fontSize: 10, color: colors.textMuted, marginTop: 4, textAlign: 'right' },
   timeMe: { color: 'rgba(255,255,255,0.6)' },
+  empty: { alignItems: 'center', paddingTop: spacing[16] },
+  emptyText: { fontFamily: 'Inter', fontSize: 14, color: colors.textMuted, marginTop: spacing[2] },
   inputRow: { flexDirection: 'row', alignItems: 'flex-end', gap: spacing[2], padding: spacing[3], borderTopWidth: 1, borderTopColor: colors.borderLight, backgroundColor: colors.white },
   input: { flex: 1, backgroundColor: colors.canvas, borderRadius: radii.xl, borderWidth: 1, borderColor: colors.borderLight, paddingHorizontal: spacing[4], paddingVertical: spacing[2], fontFamily: 'Inter', fontSize: 15, color: colors.textPrimary, maxHeight: 100 },
   sendBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.brandBrown, alignItems: 'center', justifyContent: 'center' },

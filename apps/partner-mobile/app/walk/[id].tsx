@@ -53,7 +53,7 @@ export default function WalkDetailScreen() {
     if (timerRef.current) clearInterval(timerRef.current);
     setEnding(true);
     try {
-      await wagApi.partner.endWalk(bookingId!, photos);
+      await wagApi.partner.endWalk(bookingId!, { photos });
       Alert.alert('Walk complete! 🏁', 'Great job! The customer has been notified.', [
         { text: 'OK', onPress: () => router.replace('/(tabs)/jobs') },
       ]);

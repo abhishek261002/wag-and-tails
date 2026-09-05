@@ -1,25 +1,25 @@
-export { ApiClient } from './client.js';
-export type { ApiClientConfig, ApiError } from './client.js';
-export { AuthApi } from './auth.api.js';
-export { PetsApi } from './pets.api.js';
-export { BookingsApi } from './bookings.api.js';
-export type { PaginatedResponse, BookingFilters } from './bookings.api.js';
-export { StoreApi } from './store.api.js';
-export { PartnerApi } from './partner.api.js';
-export { MessagingApi } from './messaging.api.js';
-export { AiApi } from './ai.api.js';
-export { RealtimeClient } from './realtime.js';
+export { ApiClient } from './client';
+export type { ApiClientConfig, ApiError } from './client';
+export { AuthApi } from './auth.api';
+export { PetsApi } from './pets.api';
+export { BookingsApi } from './bookings.api';
+export type { PaginatedResponse, BookingFilters } from './bookings.api';
+export { StoreApi } from './store.api';
+export { PartnerApi } from './partner.api';
+export { MessagingApi } from './messaging.api';
+export { AiApi } from './ai.api';
+export { RealtimeClient } from './realtime';
 
 // Convenience factory
-import { ApiClient } from './client.js';
-import { AuthApi } from './auth.api.js';
-import { PetsApi } from './pets.api.js';
-import { BookingsApi } from './bookings.api.js';
-import { StoreApi } from './store.api.js';
-import { PartnerApi } from './partner.api.js';
-import { MessagingApi } from './messaging.api.js';
-import { AiApi } from './ai.api.js';
-import type { ApiClientConfig } from './client.js';
+import { ApiClient } from './client';
+import { AuthApi } from './auth.api';
+import { PetsApi } from './pets.api';
+import { BookingsApi } from './bookings.api';
+import { StoreApi } from './store.api';
+import { PartnerApi } from './partner.api';
+import { MessagingApi } from './messaging.api';
+import { AiApi } from './ai.api';
+import type { ApiClientConfig } from './client';
 
 export function createWagApiClient(config: ApiClientConfig) {
   const client = new ApiClient(config);

@@ -183,6 +183,62 @@ export class PartnersService {
     return { total, pending, payouts: payouts.slice(0, 20) };
   }
 
+  async getAvailability(partnerId: string) {
+    return this.prisma.partnerAvailability.findMany({
+      where: { partnerId },
+      orderBy: { day: 'asc' },
+    });
+  }
+
+  async upsertAvailability(partnerId: string, availability: Array<{
+    day: string; startTime: string; endTime: string;
+  }>) {
+    // Delete existing and recreate
+    await this.prisma.partnerAvailability.deleteMany({ where: { partnerId } });
+    if (availability.length === 0) return [];
+    return this.prisma.partnerAvailability.createMany({
+      data: availability.map((a) => ({ partnerId, day: a.day, startTime: a.startTime, endTime: a.endTime })),
+    });
+  }
+
+  async getDocuments(partnerId: string) {
+    return this.prisma.partnerDocument.findMany({
+      where: { partnerId },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  async uploadDocument(partnerId: string, docType: string, fileUrl: string) {
+    return this.prisma.partnerDocument.create({
+      data: { partnerId, docType, fileUrl },
+    });
+  }
+
+  async getReviews(partnerId: string) {
+    const reviews = await this.prisma.review.findMany({
+      where: { revieweeId: partnerId, revieweeType: 'partner' },
+      include: { reviewer: { include: { profile: true } } },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const avg = reviews.length > 0
+      ? reviews.reduce((s, r) => s + r.rating, 0) / reviews.length
+      : 0;
+
+    return {
+      reviews: reviews.map((r) => ({
+        id: r.id,
+        reviewerName: r.reviewerName,
+        rating: r.rating,
+        comment: r.comment,
+        tip: r.tip ? Number(r.tip) : null,
+        createdAt: r.createdAt,
+      })),
+      avg: Math.round(avg * 10) / 10,
+      count: reviews.length,
+    };
+  }
+
   async listAll(filters: { status?: string; page?: number; pageSize?: number } = {}) {
     const { status, page = 1, pageSize = 20 } = filters;
     const skip = (page - 1) * pageSize;
