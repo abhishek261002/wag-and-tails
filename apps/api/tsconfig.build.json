@@ -5,18 +5,21 @@
     "moduleResolution": "node",
     "target": "ES2021",
     "outDir": "dist",
-    "rootDir": "src",
     "emitDecoratorMetadata": true,
     "experimentalDecorators": true,
-    "strict": false,
+    "strict": true,
     "skipLibCheck": true,
-    "baseUrl": "./",
     "paths": {
       "@wag/config": ["../../packages/config/src/index.ts"],
       "@wag/shared-types": ["../../packages/shared-types/src/index.ts"],
       "@wag/validation": ["../../packages/validation/src/index.ts"]
     }
   },
-  "include": ["src/**/*"],
+  "include": [
+    "src/**/*",
+    "../../packages/config/src/**/*",
+    "../../packages/shared-types/src/**/*",
+    "../../packages/validation/src/**/*"
+  ],
   "exclude": ["node_modules", "dist", "**/*.spec.ts"]
 }

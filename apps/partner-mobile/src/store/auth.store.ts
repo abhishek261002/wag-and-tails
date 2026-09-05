@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import * as SecureStore from 'expo-secure-store';
+import { Platform } from 'react-native';
 
 interface AuthState {
   accessToken: string | null;
@@ -16,6 +17,37 @@ const ACCESS_KEY = 'wag_partner_access';
 const REFRESH_KEY = 'wag_partner_refresh';
 const USER_KEY = 'wag_partner_uid';
 
+const storage = {
+  getItem: async (key: string): Promise<string | null> => {
+    if (Platform.OS === 'web') {
+      try {
+        return typeof window !== 'undefined' ? window.localStorage.getItem(key) : null;
+      } catch {
+        return null;
+      }
+    }
+    return await SecureStore.getItemAsync(key);
+  },
+  setItem: async (key: string, value: string): Promise<void> => {
+    if (Platform.OS === 'web') {
+      try {
+        if (typeof window !== 'undefined') window.localStorage.setItem(key, value);
+      } catch {}
+      return;
+    }
+    await SecureStore.setItemAsync(key, value);
+  },
+  deleteItem: async (key: string): Promise<void> => {
+    if (Platform.OS === 'web') {
+      try {
+        if (typeof window !== 'undefined') window.localStorage.removeItem(key);
+      } catch {}
+      return;
+    }
+    await SecureStore.deleteItemAsync(key);
+  },
+};
+
 export const useAuthStore = create<AuthState>((set) => ({
   accessToken: null,
   refreshToken: null,
@@ -24,17 +56,19 @@ export const useAuthStore = create<AuthState>((set) => ({
   isLoading: true,
 
   setTokens: async (access, refresh, userId) => {
-    await SecureStore.setItemAsync(ACCESS_KEY, access);
-    await SecureStore.setItemAsync(REFRESH_KEY, refresh);
-    await SecureStore.setItemAsync(USER_KEY, userId);
+    await Promise.all([
+      storage.setItem(ACCESS_KEY, access),
+      storage.setItem(REFRESH_KEY, refresh),
+      storage.setItem(USER_KEY, userId),
+    ]);
     set({ accessToken: access, refreshToken: refresh, userId, isAuthenticated: true });
   },
 
   clearTokens: async () => {
     await Promise.all([
-      SecureStore.deleteItemAsync(ACCESS_KEY),
-      SecureStore.deleteItemAsync(REFRESH_KEY),
-      SecureStore.deleteItemAsync(USER_KEY),
+      storage.deleteItem(ACCESS_KEY),
+      storage.deleteItem(REFRESH_KEY),
+      storage.deleteItem(USER_KEY),
     ]);
     set({ accessToken: null, refreshToken: null, userId: null, isAuthenticated: false });
   },
@@ -42,9 +76,9 @@ export const useAuthStore = create<AuthState>((set) => ({
   loadFromStorage: async () => {
     try {
       const [access, refresh, userId] = await Promise.all([
-        SecureStore.getItemAsync(ACCESS_KEY),
-        SecureStore.getItemAsync(REFRESH_KEY),
-        SecureStore.getItemAsync(USER_KEY),
+        storage.getItem(ACCESS_KEY),
+        storage.getItem(REFRESH_KEY),
+        storage.getItem(USER_KEY),
       ]);
       if (access && refresh && userId) {
         set({ accessToken: access, refreshToken: refresh, userId, isAuthenticated: true });

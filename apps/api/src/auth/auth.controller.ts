@@ -3,24 +3,82 @@ import {
   Post,
   Body,
   UseGuards,
-  Request,
   HttpCode,
   HttpStatus,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
+import { IsEmail, IsNotEmpty, IsOptional, IsString } from 'class-validator';
 import { AuthService } from './auth.service.js';
 import { CurrentUser } from '../common/decorators.js';
 
-class OtpRequestDto { phone!: string; }
-class OtpVerifyDto { phone!: string; otp!: string; }
-class RegisterDto {
-  phone!: string; otp!: string; email!: string;
-  firstName!: string; lastName!: string; dateOfBirth!: string;
+class OtpRequestDto {
+  @IsString()
+  @IsNotEmpty()
+  phone!: string;
 }
-class LoginDto { email!: string; password!: string; }
-class RefreshDto { refreshToken!: string; }
-class PushTokenDto { token!: string; platform!: string; }
+
+class OtpVerifyDto {
+  @IsString()
+  @IsNotEmpty()
+  phone!: string;
+
+  @IsString()
+  @IsNotEmpty()
+  otp!: string;
+}
+
+class RegisterDto {
+  @IsString()
+  @IsNotEmpty()
+  phone!: string;
+
+  @IsString()
+  @IsNotEmpty()
+  otp!: string;
+
+  @IsEmail()
+  @IsNotEmpty()
+  email!: string;
+
+  @IsString()
+  @IsNotEmpty()
+  firstName!: string;
+
+  @IsString()
+  @IsNotEmpty()
+  lastName!: string;
+
+  @IsString()
+  @IsNotEmpty()
+  dateOfBirth!: string;
+}
+
+class LoginDto {
+  @IsEmail()
+  @IsNotEmpty()
+  email!: string;
+
+  @IsString()
+  @IsNotEmpty()
+  password!: string;
+}
+
+class RefreshDto {
+  @IsString()
+  @IsNotEmpty()
+  refreshToken!: string;
+}
+
+class PushTokenDto {
+  @IsString()
+  @IsNotEmpty()
+  token!: string;
+
+  @IsString()
+  @IsNotEmpty()
+  platform!: string;
+}
 
 @ApiTags('auth')
 @Controller('auth')
