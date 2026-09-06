@@ -6,20 +6,21 @@ const workspaceRoot = path.resolve(projectRoot, '../..');
 
 const config = getDefaultConfig(projectRoot);
 
-// 1. Watch all files in the monorepo so changes to packages/ are picked up
+// 1. Watch monorepo root
 config.watchFolders = [workspaceRoot];
 
-// 2. Resolve modules starting from the app's local node_modules, then workspace root.
+// 2. Resolve module search paths
 config.resolver.nodeModulesPaths = [
   path.resolve(projectRoot, 'node_modules'),
   path.resolve(workspaceRoot, 'node_modules'),
 ];
 
-// 3. Packages that MUST be singletons — always resolved from the app's local copy.
-//    This prevents the "duplicate React" crash (Cannot read properties of null).
+// 3. Keep critical singletons matched across packages
 const SINGLETON_MODULES = [
   'react',
+  'react-dom',
   'react-native',
+  'react-native-web',
   'react-native-safe-area-context',
   'react-native-screens',
   'react-native-gesture-handler',
@@ -30,13 +31,9 @@ const SINGLETON_MODULES = [
 
 const singletonMap = {};
 for (const mod of SINGLETON_MODULES) {
-  const localPath = path.resolve(projectRoot, 'node_modules', mod);
   try {
-    require.resolve(localPath);
-    singletonMap[mod] = localPath;
-  } catch {
-    // Not installed locally — fall through to default resolution
-  }
+    singletonMap[mod] = require.resolve(mod, { paths: [projectRoot, workspaceRoot] });
+  } catch {}
 }
 
 config.resolver.extraNodeModules = new Proxy(singletonMap, {
@@ -46,34 +43,36 @@ config.resolver.extraNodeModules = new Proxy(singletonMap, {
       : path.resolve(workspaceRoot, 'node_modules', name),
 });
 
-// 4. Use resolveRequest to intercept imports of singleton packages from
-//    any location (including inside @wag/* packages) and redirect them
-//    to the app-local copy. This is the most reliable fix for the duplicate
-//    React problem in Expo monorepos.
+// 4. Resolve requests
 const existingResolveRequest = config.resolver.resolveRequest;
 config.resolver.resolveRequest = (context, moduleName, platform) => {
+  // Direct singleton matches
   if (singletonMap[moduleName]) {
     return {
-      filePath: require.resolve(singletonMap[moduleName]),
+      filePath: singletonMap[moduleName],
       type: 'sourceFile',
     };
   }
-  // Also intercept sub-path imports like 'react/jsx-runtime'
+
+  // Singleton subpaths like 'react/jsx-runtime' or 'react-dom/client'
   const topLevel = moduleName.split('/')[0];
   if (singletonMap[topLevel] && moduleName.startsWith(topLevel + '/')) {
-    const subPath = moduleName.slice(topLevel.length);
-    return {
-      filePath: require.resolve(singletonMap[topLevel] + subPath),
-      type: 'sourceFile',
-    };
+    try {
+      const resolvedSub = require.resolve(moduleName, { paths: [projectRoot, workspaceRoot] });
+      return {
+        filePath: resolvedSub,
+        type: 'sourceFile',
+      };
+    } catch {}
   }
+
   if (existingResolveRequest) {
     return existingResolveRequest(context, moduleName, platform);
   }
   return context.resolveRequest(context, moduleName, platform);
 };
 
-// 5. Block Metro from traversing deprecated flow specs
+// 5. Block deprecated flow specs
 config.resolver.blockList = [
   /node_modules\/react-native\/src\/private\/specs_DEPRECATED\/.*/,
   /node_modules\/react-native\/src\/private\/components\/virtualview\/.*/,

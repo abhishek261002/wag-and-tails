@@ -3,6 +3,22 @@ module.exports = function (api) {
   return {
     presets: ['babel-preset-expo'],
     plugins: [
+      function importMetaTransform() {
+        return {
+          visitor: {
+            MetaProperty(path) {
+              if (
+                path.node.meta &&
+                path.node.meta.name === 'import' &&
+                path.node.property &&
+                path.node.property.name === 'meta'
+              ) {
+                path.replaceWithSourceString('({ env: { MODE: "development" } })');
+              }
+            },
+          },
+        };
+      },
       [
         'module-resolver',
         {
