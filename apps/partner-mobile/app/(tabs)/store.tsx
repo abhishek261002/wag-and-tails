@@ -31,7 +31,7 @@ export default function PartnerStoreScreen() {
       <View style={styles.header}>
         <Text style={styles.title}>Partner Store</Text>
         <View style={styles.tradeBadge}><Text style={styles.tradeText}>Trade Pricing</Text></View>
-        <TouchableOpacity style={styles.cartBtn} accessibilityLabel={`Cart, ${cartCount} items`}>
+        <TouchableOpacity style={styles.cartBtn} onPress={() => router.push('/store/cart' as any)} accessibilityLabel={`Cart, ${cartCount} items`}>
           <Text style={{ fontSize: 22 }}>🛒</Text>
           {cartCount > 0 && <View style={styles.cartBadge}><Text style={styles.cartBadgeText}>{cartCount}</Text></View>}
         </TouchableOpacity>
