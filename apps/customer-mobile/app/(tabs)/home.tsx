@@ -85,17 +85,21 @@ export default function HomeScreen() {
               showsHorizontalScrollIndicator={false}
               keyExtractor={(p) => p.id}
               contentContainerStyle={{ paddingLeft: spacing[1] }}
-              renderItem={({ item: pet }) => (
-                <TouchableOpacity
-                  style={styles.petItem}
-                  onPress={() => router.push({ pathname: '/pet/[id]', params: { id: pet.id } })}
-                  accessibilityLabel={`View ${pet.name}'s profile`}
-                >
-                  <PetAvatar name={pet.name} imageUrl={pet.avatarUrl} size={64} ringState="idle" />
-                  <Text style={styles.petName} numberOfLines={1}>{pet.name}</Text>
-                  <Text style={styles.petBreed} numberOfLines={1}>{pet.breed}</Text>
-                </TouchableOpacity>
-              )}
+              renderItem={({ item: pet }) => {
+                const hasActiveBooking = upcomingBooking?.petId === pet.id && ['in_progress', 'arrived', 'partner_on_the_way'].includes(upcomingBooking.status);
+                const ringState = hasActiveBooking && upcomingBooking.type === 'walking' ? 'walking' : hasActiveBooking ? 'inProgress' : 'idle';
+                return (
+                  <TouchableOpacity
+                    style={styles.petItem}
+                    onPress={() => router.push({ pathname: '/pet/[id]', params: { id: pet.id } })}
+                    accessibilityLabel={`View ${pet.name}'s profile`}
+                  >
+                    <PetAvatar name={pet.name} imageUrl={pet.avatarUrl} size={64} ringState={ringState} />
+                    <Text style={styles.petName} numberOfLines={1}>{pet.name}</Text>
+                    <Text style={styles.petBreed} numberOfLines={1}>{pet.breed}</Text>
+                  </TouchableOpacity>
+                );
+              }}
               ListFooterComponent={
                 <TouchableOpacity
                   style={styles.addPetBtn}

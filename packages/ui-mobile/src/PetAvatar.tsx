@@ -9,7 +9,7 @@ import {
 } from 'react-native';
 import { colors, radii } from '@wag/design-tokens';
 
-export type AvatarRingState = 'idle' | 'active' | 'inProgress' | 'done';
+export type AvatarRingState = 'idle' | 'active' | 'inProgress' | 'walking' | 'done';
 
 export interface PetAvatarProps {
   name: string;
@@ -25,6 +25,7 @@ const ringColors: Record<AvatarRingState, string> = {
   idle: colors.biscuit,
   active: colors.marigold,
   inProgress: colors.brandBrown,
+  walking: colors.marigold,
   done: colors.success,
 };
 
@@ -43,6 +44,9 @@ export function PetAvatar({
 
   // Pulse animation for inProgress state
   const pulseAnim = useRef(new Animated.Value(1)).current;
+  // Rotation animation for walking state
+  const rotateAnim = useRef(new Animated.Value(0)).current;
+
   useEffect(() => {
     if (ringState === 'inProgress') {
       Animated.loop(
@@ -64,6 +68,25 @@ export function PetAvatar({
     }
   }, [ringState, pulseAnim]);
 
+  useEffect(() => {
+    if (ringState === 'walking') {
+      Animated.loop(
+        Animated.timing(rotateAnim, {
+          toValue: 1,
+          duration: 3000,
+          useNativeDriver: true,
+        })
+      ).start();
+    } else {
+      rotateAnim.setValue(0);
+    }
+  }, [ringState, rotateAnim]);
+
+  const rotateInterpolate = rotateAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ['0deg', '360deg'],
+  });
+
   return (
     <Animated.View
       style={[
@@ -75,7 +98,10 @@ export function PetAvatar({
           borderColor: ringColor,
           alignItems: 'center',
           justifyContent: 'center',
-          transform: [{ scale: pulseAnim }],
+          transform: [
+            { scale: pulseAnim },
+            ...(ringState === 'walking' ? [{ rotate: rotateInterpolate }] : []),
+          ],
         },
         style,
       ]}

@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { PetAvatar } from '@wag/ui-mobile';
 import { colors, spacing, typography, radii } from '@wag/design-tokens';
 import { wagApi } from '../../../src/lib/api';
 
@@ -87,6 +88,13 @@ export default function LiveWalkScreen() {
         {/* Timer */}
         {status === 'in_progress' && (
           <View style={styles.timerCard}>
+            <PetAvatar
+              name={booking?.petName ?? 'Your Pet'}
+              imageUrl={booking?.pet?.avatarUrl}
+              size={80}
+              ringState="walking"
+              style={{ marginBottom: spacing[4] }}
+            />
             <Text style={styles.timerLabel}>Walk time</Text>
             <Text style={styles.timerValue}>{formatTime(elapsed)}</Text>
             <Text style={styles.durationLeft}>
