@@ -10,7 +10,7 @@ export default function OffersScreen() {
   const [coupons, setCoupons] = useState<any[]>([]);
 
   useEffect(() => {
-    wagApi.client.get<any[]>('/coupons').then(setCoupons).catch(() => {});
+    wagApi.client.get<any[]>('/coupons/active').then(setCoupons).catch(() => {});
   }, []);
 
   return (

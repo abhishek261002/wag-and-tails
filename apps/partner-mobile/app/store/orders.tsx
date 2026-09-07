@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, FlatList, TouchableOpacity } from 'react-native
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Card, Badge } from '@wag/ui-mobile';
-import { colors, spacing, typography, radii } from '@wag/design-tokens';
+import { colors, spacing, radii } from '@wag/design-tokens';
 import { wagApi } from '../../src/lib/api';
 import { format } from 'date-fns';
 
@@ -16,7 +16,7 @@ const STATUS_VARIANT: Record<string, 'success' | 'warning' | 'error' | 'info'> =
   refunded: 'error',
 };
 
-export default function OrdersScreen() {
+export default function PartnerOrdersScreen() {
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -49,14 +49,9 @@ export default function OrdersScreen() {
               <View style={styles.orderHeader}>
                 <View>
                   <Text style={styles.orderNum}>#{order.orderNumber}</Text>
-                  <Text style={styles.orderDate}>
-                    {format(new Date(order.createdAt), 'd MMM yyyy')}
-                  </Text>
+                  <Text style={styles.orderDate}>{format(new Date(order.createdAt), 'd MMM yyyy')}</Text>
                 </View>
-                <Badge
-                  variant={STATUS_VARIANT[order.status] ?? 'info'}
-                  label={order.status.replace(/_/g, ' ')}
-                />
+                <Badge variant={STATUS_VARIANT[order.status] ?? 'info'} label={order.status.replace(/_/g, ' ')} />
               </View>
               <Text style={styles.orderItems} numberOfLines={1}>
                 {order.items?.map((i: any) => i.productName).join(', ') ?? '—'}
@@ -96,7 +91,7 @@ const styles = StyleSheet.create({
   orderDate: { fontFamily: 'Inter', fontSize: 12, color: colors.textMuted, marginTop: 2 },
   orderItems: { fontFamily: 'Inter', fontSize: 13, color: colors.textSecondary, marginBottom: spacing[3] },
   orderFooter: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  orderTotal: { fontFamily: 'Inter', fontSize: 16, fontWeight: '800', color: colors.brandBrown },
+  orderTotal: { fontFamily: 'Inter', fontSize: 16, fontWeight: '800', color: colors.success },
   viewDetails: { fontFamily: 'Inter', fontSize: 13, color: colors.marigoldDark, fontWeight: '600' },
   empty: { alignItems: 'center', paddingTop: spacing[16] },
   emptyText: { fontFamily: 'Inter', fontSize: 16, color: colors.textMuted, marginTop: spacing[3] },

@@ -18,17 +18,23 @@ const paddingMap = {
 };
 
 export function Card({ children, style, onPress, padding = 'md', elevated = false }: CardProps) {
+  // The prototype's default .card is flat (just a hairline border); only
+  // the .card--pop / .card--lift variants (elevated=true here) get a shadow.
   const containerStyle: ViewStyle = {
     backgroundColor: colors.white,
     borderRadius: radii.lg,
-    borderWidth: 1,
+    borderWidth: elevated ? 0 : 1,
     borderColor: colors.borderLight,
     padding: paddingMap[padding],
-    shadowColor: colors.brandBrown,
-    shadowOffset: { width: 0, height: elevated ? 4 : 2 },
-    shadowOpacity: elevated ? 0.12 : 0.07,
-    shadowRadius: elevated ? 12 : 6,
-    elevation: elevated ? 6 : 2,
+    ...(elevated
+      ? {
+          shadowColor: colors.brandBrown,
+          shadowOffset: { width: 0, height: 6 },
+          shadowOpacity: 0.08,
+          shadowRadius: 16,
+          elevation: 5,
+        }
+      : null),
   };
 
   if (onPress) {

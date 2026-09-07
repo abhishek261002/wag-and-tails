@@ -21,6 +21,10 @@ export class CouponsController {
     return this.couponsService.apply(body.couponCode, body.service, body.orderValue, user.sub);
   }
 
+  @Get('active')
+  @Roles('customer', 'partner', 'staff', 'admin')
+  listActive() { return this.couponsService.listActive(); }
+
   @Get()
   @Roles('admin', 'staff')
   list() { return this.couponsService.list(); }

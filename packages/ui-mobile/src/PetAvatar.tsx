@@ -1,15 +1,17 @@
 import React, { useEffect, useRef } from 'react';
-import {
-  View,
-  Image,
-  Text,
-  StyleSheet,
-  Animated,
-  ViewStyle,
-} from 'react-native';
-import { colors, radii } from '@wag/design-tokens';
+import { View, Image, Text, StyleSheet, Animated, Easing, ViewStyle } from 'react-native';
+import Svg, { Circle } from 'react-native-svg';
+import { colors } from '@wag/design-tokens';
+import { DogFace, pickDogArt } from './dogArt';
 
-export type AvatarRingState = 'idle' | 'active' | 'inProgress' | 'walking' | 'done';
+/**
+ * The pet avatar ring — the signature element carried through every
+ * surface of the prototype: biscuit idle, marigold pulsing when a
+ * booking is live, a marigold arc during a walk/groom in progress,
+ * a spinning dash while searching for a partner, success green + a
+ * check overlay when done.
+ */
+export type AvatarRingState = 'idle' | 'active' | 'inProgress' | 'walking' | 'searching' | 'done';
 
 export interface PetAvatarProps {
   name: string;
@@ -21,13 +23,8 @@ export interface PetAvatarProps {
   style?: ViewStyle;
 }
 
-const ringColors: Record<AvatarRingState, string> = {
-  idle: colors.biscuit,
-  active: colors.marigold,
-  inProgress: colors.brandBrown,
-  walking: colors.marigold,
-  done: colors.success,
-};
+const TRACK_R = 45;
+const CIRCUMFERENCE = 2 * Math.PI * TRACK_R;
 
 export function PetAvatar({
   name,
@@ -38,128 +35,147 @@ export function PetAvatar({
   progressPercent = 0,
   style,
 }: PetAvatarProps) {
-  const ringColor = ringColors[ringState];
-  const innerSize = size - 6;
-  const initials = name.slice(0, 2).toUpperCase();
+  const art = pickDogArt(name || 'pet');
+  const gradId = `pa-${(name || 'pet').replace(/[^a-zA-Z0-9]/g, '')}-${size}`;
 
-  // Pulse animation for inProgress state
-  const pulseAnim = useRef(new Animated.Value(1)).current;
-  // Rotation animation for walking state
-  const rotateAnim = useRef(new Animated.Value(0)).current;
+  const pulse = useRef(new Animated.Value(1)).current;
+  const spin = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    if (ringState === 'inProgress') {
-      Animated.loop(
+    if (ringState === 'active' || ringState === 'inProgress') {
+      const loop = Animated.loop(
         Animated.sequence([
-          Animated.timing(pulseAnim, {
-            toValue: 1.06,
-            duration: 800,
-            useNativeDriver: true,
-          }),
-          Animated.timing(pulseAnim, {
-            toValue: 1,
-            duration: 800,
-            useNativeDriver: true,
-          }),
+          Animated.timing(pulse, { toValue: 0.5, duration: 950, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+          Animated.timing(pulse, { toValue: 1, duration: 950, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
         ])
-      ).start();
-    } else {
-      pulseAnim.setValue(1);
+      );
+      loop.start();
+      return () => loop.stop();
     }
-  }, [ringState, pulseAnim]);
+    pulse.setValue(1);
+    return undefined;
+  }, [ringState, pulse]);
 
   useEffect(() => {
-    if (ringState === 'walking') {
-      Animated.loop(
-        Animated.timing(rotateAnim, {
-          toValue: 1,
-          duration: 3000,
-          useNativeDriver: true,
-        })
-      ).start();
-    } else {
-      rotateAnim.setValue(0);
+    if (ringState === 'searching') {
+      const loop = Animated.loop(
+        Animated.timing(spin, { toValue: 1, duration: 1100, easing: Easing.linear, useNativeDriver: true })
+      );
+      loop.start();
+      return () => loop.stop();
     }
-  }, [ringState, rotateAnim]);
+    spin.setValue(0);
+    return undefined;
+  }, [ringState, spin]);
 
-  const rotateInterpolate = rotateAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: ['0deg', '360deg'],
-  });
+  const spinDeg = spin.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] });
+
+  // track + arc colors, matching the prototype's ring[data-state=…] rules
+  let trackColor: string = colors.biscuit; // idle default
+  let trackOpacity = 1;
+  let arcColor: string = 'transparent';
+  let dashOffset = CIRCUMFERENCE;
+  let dashArray: string | undefined;
+
+  if (ringState === 'active' || ringState === 'inProgress') {
+    trackColor = colors.marigold;
+  } else if (ringState === 'walking' || (showProgress && ringState !== 'searching')) {
+    trackColor = colors.biscuit;
+    trackOpacity = 0.5;
+    arcColor = colors.marigold;
+    const p = Math.max(0, Math.min(1, progressPercent / 100));
+    dashOffset = CIRCUMFERENCE * (1 - p);
+  } else if (ringState === 'searching') {
+    trackColor = colors.biscuit;
+    trackOpacity = 0.4;
+    arcColor = colors.marigold;
+    dashArray = `${CIRCUMFERENCE * 0.25} ${CIRCUMFERENCE * 0.75}`;
+    dashOffset = 0;
+  } else if (ringState === 'done') {
+    trackColor = colors.success;
+  }
+
+  const innerInset = size * 0.09;
+  const innerSize = size - innerInset * 2;
 
   return (
-    <Animated.View
-      style={[
-        {
+    <View style={[{ width: size, height: size }, style]}>
+      <Animated.View
+        style={{
           width: size,
           height: size,
-          borderRadius: size / 2,
-          borderWidth: 3,
-          borderColor: ringColor,
-          alignItems: 'center',
-          justifyContent: 'center',
           transform: [
-            { scale: pulseAnim },
-            ...(ringState === 'walking' ? [{ rotate: rotateInterpolate }] : []),
+            { scale: pulse },
+            ...(ringState === 'searching' ? [{ rotate: spinDeg }] : []),
           ],
-        },
-        style,
-      ]}
-    >
-      {imageUrl ? (
-        <Image
-          source={{ uri: imageUrl }}
-          style={{
-            width: innerSize,
-            height: innerSize,
-            borderRadius: innerSize / 2,
-          }}
-          accessibilityLabel={`${name}'s photo`}
-        />
-      ) : (
-        <View
-          style={{
-            width: innerSize,
-            height: innerSize,
-            borderRadius: innerSize / 2,
-            backgroundColor: colors.biscuitLight,
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
+        }}
+      >
+        <Svg
+          width={size}
+          height={size}
+          viewBox="0 0 100 100"
+          style={{ transform: [{ rotate: '-90deg' }] }}
         >
-          <Text
-            style={{
-              fontSize: size * 0.28,
-              fontWeight: '700',
-              color: colors.brandBrown,
-              fontFamily: 'Inter',
-            }}
-          >
-            {initials}
-          </Text>
-        </View>
-      )}
+          <Circle cx={50} cy={50} r={TRACK_R} stroke={trackColor} strokeOpacity={trackOpacity} strokeWidth={5} fill="none" />
+          <Circle
+            cx={50}
+            cy={50}
+            r={TRACK_R}
+            stroke={arcColor}
+            strokeWidth={5}
+            fill="none"
+            strokeLinecap="round"
+            strokeDasharray={dashArray ?? `${CIRCUMFERENCE}`}
+            strokeDashoffset={dashOffset}
+          />
+        </Svg>
+      </Animated.View>
 
-      {/* Done checkmark overlay */}
+      <View
+        style={{
+          position: 'absolute',
+          left: innerInset,
+          top: innerInset,
+          width: innerSize,
+          height: innerSize,
+          borderRadius: innerSize / 2,
+          overflow: 'hidden',
+          backgroundColor: colors.biscuitLight,
+        }}
+      >
+        {imageUrl ? (
+          <Image
+            source={{ uri: imageUrl }}
+            style={{ width: innerSize, height: innerSize }}
+            accessibilityLabel={`${name}'s photo`}
+          />
+        ) : (
+          <DogFace art={art} gradId={gradId} />
+        )}
+      </View>
+
       {ringState === 'done' && (
-        <View style={[StyleSheet.absoluteFill, styles.doneOverlay]}>
-          <Text style={styles.checkmark}>✓</Text>
+        <View style={[styles.badge, { width: Math.max(16, size * 0.34), height: Math.max(16, size * 0.34), borderRadius: 999 }]}>
+          <Text style={[styles.checkmark, { fontSize: Math.max(9, size * 0.16) }]}>✓</Text>
         </View>
       )}
-    </Animated.View>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  doneOverlay: {
-    borderRadius: 999,
-    backgroundColor: 'rgba(46,125,50,0.25)',
+  badge: {
+    position: 'absolute',
+    right: -2,
+    bottom: -2,
+    backgroundColor: colors.marigoldMid ?? colors.marigold,
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 2.5,
+    borderColor: colors.canvas,
   },
   checkmark: {
-    color: colors.success,
-    fontSize: 14,
+    color: '#fff',
     fontWeight: '800',
   },
 });

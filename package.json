@@ -22,13 +22,11 @@
     "dev:partner": "turbo run dev --filter=partner-mobile",
     "dev:web": "turbo run dev --filter=staff-web --filter=admin-web",
     "dev:all": "turbo run dev --filter=api --filter=staff-web --filter=admin-web",
-    "check": "turbo run typecheck lint test build"
+    "check": "turbo run typecheck lint test build",
+    "postinstall": "node scripts/patch-metro-cache.js"
   },
   "overrides": {
-    "react": "18.3.1",
-    "react-dom": "18.3.1",
-    "ajv": "^8.12.0",
-    "@react-native/babel-plugin-codegen": "0.74.87"
+    "ajv": "^8.12.0"
   },
   "devDependencies": {
     "@types/node": "^20.14.0",

@@ -44,6 +44,10 @@ config.resolver.extraNodeModules = new Proxy(singletonMap, {
 });
 
 // 4. Resolve requests
+const VIRTUAL_VIEW_STUB = path.resolve(
+  projectRoot,
+  'metro-stubs/VirtualViewExperimentalNativeComponentStub.js'
+);
 const existingResolveRequest = config.resolver.resolveRequest;
 config.resolver.resolveRequest = (context, moduleName, platform) => {
   // Direct singleton matches
@@ -66,16 +70,32 @@ config.resolver.resolveRequest = (context, moduleName, platform) => {
     } catch {}
   }
 
-  if (existingResolveRequest) {
-    return existingResolveRequest(context, moduleName, platform);
-  }
-  return context.resolveRequest(context, moduleName, platform);
-};
+  const result = existingResolveRequest
+    ? existingResolveRequest(context, moduleName, platform)
+    : context.resolveRequest(context, moduleName, platform);
 
-// 5. Block deprecated flow specs
-config.resolver.blockList = [
-  /node_modules\/react-native\/src\/private\/specs_DEPRECATED\/.*/,
-  /node_modules\/react-native\/src\/private\/components\/virtualview\/.*/,
-];
+  // Several of react-native 0.86.3's own legacy/experimental codegen spec
+  // files (under src/private/specs_DEPRECATED and the virtualview
+  // components) use Flow prop/event types this Metro/codegen combo can't
+  // parse — a real upstream bug confirmed across several distinct,
+  // unrelated files (VirtualView*NativeComponent, AndroidSwitchNative
+  // Component, AndroidSwipeRefreshLayoutNativeComponent), not a version
+  // mismatch. These are pulled in unconditionally by ordinary cross-
+  // platform RN components (Switch, RefreshControl, ...) picking between
+  // their Android/iOS native components even when only one platform is
+  // being built, so swap any of them for a harmless stub by destination
+  // path rather than chase each broken file's every possible importer.
+  if (result && result.type === 'sourceFile' && result.filePath) {
+    const resolved = result.filePath.replace(/\\/g, '/');
+    const isLegacyOrExperimentalSpec =
+      /\/react-native\/src\/private\/specs_DEPRECATED\//.test(resolved) ||
+      /\/react-native\/src\/private\/components\/virtualview\//.test(resolved);
+    if (isLegacyOrExperimentalSpec && /NativeComponent\.js$/.test(resolved)) {
+      return { filePath: VIRTUAL_VIEW_STUB, type: 'sourceFile' };
+    }
+  }
+
+  return result;
+};
 
 module.exports = config;

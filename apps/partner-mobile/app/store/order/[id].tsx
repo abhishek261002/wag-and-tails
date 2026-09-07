@@ -3,11 +3,11 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-nati
 import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Badge } from '@wag/ui-mobile';
-import { colors, spacing, typography, radii } from '@wag/design-tokens';
+import { colors, spacing, radii } from '@wag/design-tokens';
 import { wagApi } from '../../../src/lib/api';
 import { format } from 'date-fns';
 
-export default function OrderDetailScreen() {
+export default function PartnerOrderDetailScreen() {
   const { id: orderId } = useLocalSearchParams<{ id: string }>();
   const [order, setOrder] = useState<any>(null);
 
@@ -45,14 +45,12 @@ export default function OrderDetailScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Status */}
         <View style={styles.statusHeader}>
           <Text style={styles.orderNum}>#{order.orderNumber}</Text>
           <Badge variant={STATUS_VARIANT[order.status] ?? 'info'} label={order.status.replace(/_/g, ' ')} />
         </View>
         <Text style={styles.orderDate}>Placed {format(new Date(order.createdAt), 'EEE, d MMM yyyy · h:mm a')}</Text>
 
-        {/* Progress tracker */}
         {!['cancelled', 'refunded'].includes(order.status) && (
           <View style={styles.tracker}>
             {STATUS_STEPS.map((step, i) => (
@@ -69,7 +67,6 @@ export default function OrderDetailScreen() {
           </View>
         )}
 
-        {/* Items */}
         <SectionTitle title="Items" />
         <View style={styles.itemsCard}>
           {order.items?.map((item: any) => (
@@ -85,13 +82,11 @@ export default function OrderDetailScreen() {
           ))}
         </View>
 
-        {/* Delivery address */}
         <SectionTitle title="Delivery Address" />
         <View style={styles.card}>
           <Text style={styles.addrText}>{order.addressLine}</Text>
         </View>
 
-        {/* Tracking */}
         {order.trackingNumber && (
           <>
             <SectionTitle title="Tracking" />
@@ -101,7 +96,6 @@ export default function OrderDetailScreen() {
           </>
         )}
 
-        {/* Price breakdown */}
         <SectionTitle title="Payment" />
         <View style={styles.card}>
           <PriceRow label="Subtotal" value={`₹${Number(order.subtotal)}`} />
@@ -142,11 +136,11 @@ const styles = StyleSheet.create({
   tracker: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: spacing[5] },
   trackerStep: { flex: 1, alignItems: 'center', position: 'relative' },
   trackerDot: { width: 14, height: 14, borderRadius: 7, backgroundColor: colors.borderMedium, marginBottom: 6 },
-  trackerDotActive: { backgroundColor: colors.marigold },
+  trackerDotActive: { backgroundColor: colors.success },
   trackerLabel: { fontFamily: 'Inter', fontSize: 10, color: colors.textMuted, textAlign: 'center' },
-  trackerLabelActive: { color: colors.marigoldDark, fontWeight: '700' },
+  trackerLabelActive: { color: colors.success, fontWeight: '700' },
   trackerLine: { position: 'absolute', top: 7, left: '50%', right: '-50%', height: 2, backgroundColor: colors.borderLight },
-  trackerLineActive: { backgroundColor: colors.marigold },
+  trackerLineActive: { backgroundColor: colors.success },
   sectionTitle: { fontFamily: 'Inter', fontSize: 12, fontWeight: '700', color: colors.textMuted, textTransform: 'uppercase', letterSpacing: 1, marginTop: spacing[4], marginBottom: spacing[2] },
   itemsCard: { backgroundColor: colors.white, borderRadius: radii.xl, padding: spacing[4], borderWidth: 1, borderColor: colors.borderLight, gap: spacing[3] },
   item: { flexDirection: 'row', alignItems: 'center', gap: spacing[3] },
@@ -154,12 +148,12 @@ const styles = StyleSheet.create({
   itemName: { fontFamily: 'Inter', fontSize: 14, fontWeight: '700', color: colors.textPrimary },
   itemVariant: { fontFamily: 'Inter', fontSize: 12, color: colors.textMuted },
   itemQty: { fontFamily: 'Inter', fontSize: 12, color: colors.textMuted },
-  itemPrice: { fontFamily: 'Inter', fontSize: 14, fontWeight: '800', color: colors.brandBrown },
+  itemPrice: { fontFamily: 'Inter', fontSize: 14, fontWeight: '800', color: colors.success },
   card: { backgroundColor: colors.white, borderRadius: radii.xl, padding: spacing[4], borderWidth: 1, borderColor: colors.borderLight },
   addrText: { fontFamily: 'Inter', fontSize: 14, color: colors.textPrimary },
   tracking: { fontFamily: 'Inter', fontSize: 15, fontWeight: '700', color: colors.brandBrown },
   priceRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: spacing[1] },
   priceLabel: { fontFamily: 'Inter', fontSize: 14, color: colors.textMuted },
   priceValue: { fontFamily: 'Inter', fontSize: 14, fontWeight: '600', color: colors.textPrimary },
-  priceBold: { fontWeight: '800', fontSize: 16, color: colors.brandBrown },
+  priceBold: { fontWeight: '800', fontSize: 16, color: colors.success },
 });

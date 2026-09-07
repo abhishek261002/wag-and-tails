@@ -45,7 +45,7 @@ export default function PartnerStoreScreen() {
         contentContainerStyle={styles.grid}
         columnWrapperStyle={{ gap: spacing[3] }}
         renderItem={({ item: p }) => (
-          <View style={styles.productCard}>
+          <TouchableOpacity style={styles.productCard} onPress={() => router.push({ pathname: '/store/[id]', params: { id: p.id } } as any)} accessibilityLabel={`View ${p.name}`}>
             <View style={styles.productImg}>
               {p.imageUrls?.[0]
                 ? <Image source={{ uri: p.imageUrls[0] }} style={{ width: '100%', height: '100%', resizeMode: 'cover' }} />
@@ -61,7 +61,7 @@ export default function PartnerStoreScreen() {
             <TouchableOpacity style={styles.addBtn} onPress={() => addToCart(p.id)} accessibilityLabel={`Add ${p.name} to cart`}>
               <Text style={styles.addBtnText}>+ Cart</Text>
             </TouchableOpacity>
-          </View>
+          </TouchableOpacity>
         )}
       />
     </SafeAreaView>

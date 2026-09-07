@@ -1,12 +1,11 @@
-import React, { useEffect, useState, useCallback, useRef } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
-  View, Text, StyleSheet, FlatList, TouchableOpacity,
-  Switch, RefreshControl, Alert, Animated,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl, Alert,
 } from 'react-native';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Card, Badge } from '@wag/ui-mobile';
-import { colors, spacing, typography, radii } from '@wag/design-tokens';
+import { PetAvatar, Button } from '@wag/ui-mobile';
+import { colors, spacing, radii } from '@wag/design-tokens';
 import { wagApi } from '../../src/lib/api';
 import { useModeStore } from '../../src/store/mode.store';
 
@@ -34,24 +33,9 @@ export default function JobsScreen() {
   const { mode, isOnline, setMode, setOnline } = useModeStore();
   const [openJobs, setOpenJobs] = useState<PartnerJobCard[]>([]);
   const [myJobs, setMyJobs] = useState<PartnerJobCard[]>([]);
-  const [tab, setTab] = useState<'open' | 'mine'>('open');
   const [refreshing, setRefreshing] = useState(false);
   const [togglingOnline, setTogglingOnline] = useState(false);
-  const pulseAnim = useRef(new Animated.Value(1)).current;
-
-  // Pulse when online
-  useEffect(() => {
-    if (isOnline) {
-      Animated.loop(
-        Animated.sequence([
-          Animated.timing(pulseAnim, { toValue: 1.12, duration: 900, useNativeDriver: true }),
-          Animated.timing(pulseAnim, { toValue: 1, duration: 900, useNativeDriver: true }),
-        ])
-      ).start();
-    } else {
-      pulseAnim.setValue(1);
-    }
-  }, [isOnline, pulseAnim]);
+  const [claimingId, setClaimingId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -59,20 +43,20 @@ export default function JobsScreen() {
         wagApi.partner.getOpenJobs(),
         wagApi.partner.getMyJobs(),
       ]);
-      setOpenJobs(open as PartnerJobCard[]);
-      setMyJobs(mine as PartnerJobCard[]);
+      setOpenJobs((open as PartnerJobCard[]).filter((j) => j.type === (mode === 'grooming' ? 'grooming' : 'walking')));
+      setMyJobs((mine as PartnerJobCard[]).filter((j) => j.type === (mode === 'grooming' ? 'grooming' : 'walking')));
     } catch {}
-  }, []);
+  }, [mode]);
 
   useEffect(() => { load(); }, [load]);
 
   const onRefresh = async () => { setRefreshing(true); await load(); setRefreshing(false); };
 
-  const handleToggleOnline = async (val: boolean) => {
+  const handleToggleOnline = async () => {
     setTogglingOnline(true);
     try {
-      await wagApi.partner.setOnline(val);
-      setOnline(val);
+      await wagApi.partner.setOnline(!isOnline);
+      setOnline(!isOnline);
     } catch {
       Alert.alert('Error', 'Could not update status. Check your connection.');
     } finally {
@@ -81,222 +65,260 @@ export default function JobsScreen() {
   };
 
   const handleClaim = async (bookingId: string) => {
+    setClaimingId(bookingId);
     try {
       await wagApi.partner.claimJob(bookingId);
-      load();
-      Alert.alert('Job claimed! 🎉', 'Check your schedule tab for details.');
+      await load();
     } catch (err: any) {
       Alert.alert('Could not claim', err?.message ?? 'Job may have been taken.');
+    } finally {
+      setClaimingId(null);
     }
   };
 
-  const jobs = tab === 'open' ? openJobs : myJobs;
+  const todayEarnings = myJobs
+    .filter((j) => j.status === 'completed')
+    .reduce((s, j) => s + j.partnerPayout, 0);
 
   return (
-    <SafeAreaView style={styles.safe}>
-      {/* Status bar */}
-      <View style={styles.statusBar}>
-        <View style={styles.onlineRow}>
-          <Animated.View style={[styles.onlineDot, { transform: [{ scale: pulseAnim }], backgroundColor: isOnline ? colors.success : colors.gray400 }]} />
-          <Text style={styles.onlineLabel}>{isOnline ? 'Online' : 'Offline'}</Text>
-          <Switch
-            value={isOnline}
-            onValueChange={handleToggleOnline}
-            disabled={togglingOnline}
-            trackColor={{ false: colors.gray300, true: colors.success }}
-            thumbColor={colors.white}
-            accessibilityLabel="Toggle online status"
-          />
-        </View>
-
-        {/* Mode switch */}
-        <View style={styles.modeSwitch}>
-          {(['grooming', 'walking'] as const).map((m) => (
-            <TouchableOpacity
-              key={m}
-              style={[styles.modeBtn, mode === m && styles.modeBtnActive]}
-              onPress={() => setMode(m)}
-              accessibilityRole="radio"
-              accessibilityState={{ selected: mode === m }}
-            >
-              <Text style={[styles.modeBtnText, mode === m && styles.modeBtnTextActive]}>
-                {m === 'grooming' ? '✂️ Grooming' : '🐾 Walking'}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-      </View>
-
-      {/* Tabs */}
-      <View style={styles.tabRow}>
-        <TouchableOpacity style={[styles.tab, tab === 'open' && styles.tabActive]} onPress={() => setTab('open')}>
-          <Text style={[styles.tabText, tab === 'open' && styles.tabTextActive]}>
-            Open Jobs {openJobs.length > 0 ? `(${openJobs.length})` : ''}
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={[styles.tab, tab === 'mine' && styles.tabActive]} onPress={() => setTab('mine')}>
-          <Text style={[styles.tabText, tab === 'mine' && styles.tabTextActive]}>
-            My Jobs {myJobs.length > 0 ? `(${myJobs.length})` : ''}
-          </Text>
-        </TouchableOpacity>
-      </View>
-
-      {!isOnline && tab === 'open' && (
-        <View style={styles.offlineBanner}>
-          <Text style={styles.offlineText}>You're offline — go online to see available jobs</Text>
-        </View>
-      )}
-
-      <FlatList
-        data={isOnline || tab === 'mine' ? jobs : []}
-        keyExtractor={(j) => j.bookingId}
-        contentContainerStyle={styles.list}
+    <SafeAreaView style={styles.safe} edges={['top']}>
+      <ScrollView
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.brandBrown} />}
-        renderItem={({ item: job }) => (
-          <JobCard job={job} tab={tab} onClaim={handleClaim} />
-        )}
-        ListEmptyComponent={
-          <View style={styles.empty}>
-            <Text style={{ fontSize: 40 }}>{tab === 'open' ? '🔍' : '📋'}</Text>
-            <Text style={styles.emptyText}>
-              {tab === 'open' ? 'No open jobs near you right now' : 'No jobs assigned yet'}
-            </Text>
-          </View>
-        }
-      />
+        contentContainerStyle={styles.scrollContent}
+      >
+            <View style={styles.pagehead}>
+              <View style={styles.headRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.eyebrow}>Partner</Text>
+                  <Text style={styles.title}>{mode === 'grooming' ? 'Jobs' : 'Walks'}</Text>
+                </View>
+              </View>
+            </View>
+
+            {/* role switch — mirrors the prototype's .rolebar */}
+            <View style={styles.pad}>
+              <View style={styles.rolebar}>
+                {(['grooming', 'walking'] as const).map((m) => (
+                  <TouchableOpacity
+                    key={m}
+                    style={[styles.roleBtn, mode === m && styles.roleBtnActive]}
+                    onPress={() => setMode(m)}
+                    accessibilityRole="radio"
+                    accessibilityState={{ selected: mode === m }}
+                  >
+                    <Text style={[styles.roleBtnText, mode === m && styles.roleBtnTextActive]}>
+                      {m === 'grooming' ? '✂️  Grooming' : '🐾  Walking'}
+                    </Text>
+                    {m === 'grooming' && openJobs.length > 0 && mode === 'grooming' && (
+                      <View style={styles.roleBadge}><Text style={styles.roleBadgeText}>{openJobs.length}</Text></View>
+                    )}
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              {/* availability bar */}
+              <TouchableOpacity
+                style={[styles.availbar, isOnline && styles.availbarOn]}
+                onPress={handleToggleOnline}
+                disabled={togglingOnline}
+                accessibilityRole="switch"
+                accessibilityState={{ checked: isOnline }}
+              >
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.availTitle, isOnline && styles.availTitleOn]}>{isOnline ? 'Online' : 'Offline'}</Text>
+                  <Text style={[styles.availSub, isOnline && styles.availSubOn]}>
+                    {isOnline ? `Taking new jobs · ${mode === 'grooming' ? 'grooming' : 'walking'}` : 'You will not see new jobs'}
+                  </Text>
+                </View>
+                <View style={[styles.switchTrack, isOnline && styles.switchTrackOn]}>
+                  <View style={[styles.switchThumb, isOnline && styles.switchThumbOn]} />
+                </View>
+              </TouchableOpacity>
+
+              {/* metrics row */}
+              <View style={styles.metrics}>
+                <Metric v={`₹${todayEarnings}`} k="Today" />
+                <Metric v={String(myJobs.length)} k="Jobs left" />
+                <Metric v="4.8" k="Rating" />
+              </View>
+
+              {/* Open jobs */}
+              <SectionHead
+                title="Open jobs"
+                sub={isOnline ? `${openJobs.length} near you right now` : 'Paused while you are offline'}
+              />
+              {!isOnline ? (
+                <Empty icon="💼" title="You are offline" sub="Go online to see jobs near you." />
+              ) : openJobs.length === 0 ? (
+                <Empty icon="💼" title="No open jobs right now" sub="New jobs appear here the moment a customer books." />
+              ) : (
+                openJobs.map((job) => (
+                  <OpenJobCard
+                    key={job.bookingId}
+                    job={job}
+                    claiming={claimingId === job.bookingId}
+                    onClaim={() => handleClaim(job.bookingId)}
+                  />
+                ))
+              )}
+
+              {/* Today's schedule */}
+              <SectionHead title="Today's schedule" sub={`${myJobs.length} assigned`} />
+              {myJobs.length === 0 ? (
+                <Empty icon="📅" title="Nothing scheduled today" sub="Claim an open job to fill your day." />
+              ) : (
+                myJobs.map((job) => <AssignedJobCard key={job.bookingId} job={job} />)
+              )}
+            </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }
 
-function JobCard({
-  job, tab, onClaim,
-}: { job: PartnerJobCard; tab: string; onClaim: (id: string) => void }) {
-  const isGrooming = job.type === 'grooming';
-
+function Metric({ v, k }: { v: string; k: string }) {
   return (
-    <Card style={styles.jobCard} onPress={() => router.push({ pathname: '/job/[id]', params: { id: job.bookingId } })}>
-      <View style={styles.jobHeader}>
-        <View style={styles.jobTypeIcon}>
-          <Text style={{ fontSize: 24 }}>{isGrooming ? '✂️' : '🐾'}</Text>
-        </View>
-        <View style={styles.jobMeta}>
-          <Text style={styles.jobPet}>{job.petName} · {job.petBreed}</Text>
-          <Text style={styles.jobCustomer}>{job.customerName} ⭐ {job.customerRating.toFixed(1)}</Text>
-        </View>
-        <View style={styles.payoutBox}>
-          <Text style={styles.payoutAmt}>₹{job.partnerPayout}</Text>
-          <Text style={styles.payoutLabel}>payout</Text>
-        </View>
-      </View>
-
-      {/* Pet info row */}
-      <View style={styles.tagsRow}>
-        <Tag label={job.petSize} />
-        {job.petWeightKg && <Tag label={`${job.petWeightKg}kg`} />}
-        {isGrooming && job.packageName && <Tag label={job.packageName} highlight />}
-        {!isGrooming && job.durationMinutes && <Tag label={`${job.durationMinutes} min`} highlight />}
-      </View>
-
-      {/* Add-ons */}
-      {job.addOns && job.addOns.length > 0 && (
-        <Text style={styles.addons}>+ {job.addOns.join(', ')}</Text>
-      )}
-
-      {/* Care notes — always prominent */}
-      {job.petCareNotes && (
-        <View style={styles.careNote}>
-          <Text style={styles.careNoteIcon}>📝</Text>
-          <Text style={styles.careNoteText} numberOfLines={3}>{job.petCareNotes}</Text>
-        </View>
-      )}
-
-      {/* Location & time */}
-      <View style={styles.infoRow}>
-        <Text style={styles.infoText}>📍 {job.addressLine}</Text>
-        <Text style={styles.distanceText}>{job.distanceKm.toFixed(1)} km away</Text>
-      </View>
-      {job.scheduledAt && (
-        <Text style={styles.scheduledAt}>
-          🕐 {new Date(job.scheduledAt).toLocaleString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
-        </Text>
-      )}
-
-      {/* Actions */}
-      {tab === 'open' && (
-        <TouchableOpacity
-          style={styles.claimBtn}
-          onPress={() => onClaim(job.bookingId)}
-          accessibilityRole="button"
-          accessibilityLabel={`Claim job for ${job.petName}`}
-        >
-          <Text style={styles.claimBtnText}>Claim Job</Text>
-        </TouchableOpacity>
-      )}
-      {tab === 'mine' && (
-        <View style={styles.statusRow}>
-          <Badge variant="success" label={job.status.replace(/_/g, ' ')} />
-          <TouchableOpacity onPress={() => router.push({ pathname: '/job/[id]', params: { id: job.bookingId } })}>
-            <Text style={styles.viewBtn}>View details →</Text>
-          </TouchableOpacity>
-        </View>
-      )}
-    </Card>
+    <View style={styles.metric}>
+      <Text style={styles.metricV}>{v}</Text>
+      <Text style={styles.metricK}>{k}</Text>
+    </View>
   );
 }
 
-function Tag({ label, highlight }: { label: string; highlight?: boolean }) {
+function SectionHead({ title, sub }: { title: string; sub: string }) {
   return (
-    <View style={[styles.tag, highlight && styles.tagHighlight]}>
-      <Text style={[styles.tagText, highlight && styles.tagTextHighlight]}>{label}</Text>
+    <View style={styles.sectionHead}>
+      <Text style={styles.sectionTitle}>{title}</Text>
+      <Text style={styles.sectionSub}>{sub}</Text>
+    </View>
+  );
+}
+
+function Empty({ icon, title, sub }: { icon: string; title: string; sub: string }) {
+  return (
+    <View style={styles.empty}>
+      <View style={styles.emptyArt}><Text style={{ fontSize: 26 }}>{icon}</Text></View>
+      <Text style={styles.emptyTitle}>{title}</Text>
+      <Text style={styles.emptySub}>{sub}</Text>
+    </View>
+  );
+}
+
+function OpenJobCard({ job, claiming, onClaim }: { job: PartnerJobCard; claiming: boolean; onClaim: () => void }) {
+  return (
+    <View style={styles.jobcard}>
+      <View style={styles.jobcardTop}>
+        <PetAvatar name={job.petName} size={50} ringState="idle" />
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <View style={styles.jobcardTitleRow}>
+            <Text style={styles.jobcardName} numberOfLines={1}>{job.packageName ?? job.petBreed}</Text>
+            <Text style={styles.jobcardPayout}>₹{job.partnerPayout}</Text>
+          </View>
+          <Text style={styles.jobcardMeta} numberOfLines={1}>{job.petName} · {job.petBreed} · {job.petSize}{job.petWeightKg ? `, ${job.petWeightKg}kg` : ''}</Text>
+          <View style={styles.pillRow}>
+            {job.scheduledAt && <Pill label={new Date(job.scheduledAt).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' })} />}
+            <Pill label={`${job.distanceKm.toFixed(1)} km`} />
+            {job.durationMinutes ? <Pill label={`${job.durationMinutes} min`} /> : null}
+            {job.addOns && job.addOns.length > 0 && <Pill label={`+${job.addOns.length} add-on`} accent />}
+          </View>
+        </View>
+      </View>
+      <View style={styles.jobcardFooter}>
+        <Text style={styles.jobcardDim}>{job.addressLine}</Text>
+        <View style={styles.jobcardActions}>
+          <Button size="xs" variant="outline" onPress={() => router.push({ pathname: '/job/[id]', params: { id: job.bookingId } })}>
+            Details
+          </Button>
+          <Button size="xs" variant="primary" loading={claiming} onPress={onClaim}>
+            Claim job
+          </Button>
+        </View>
+      </View>
+    </View>
+  );
+}
+
+function AssignedJobCard({ job }: { job: PartnerJobCard }) {
+  return (
+    <TouchableOpacity
+      style={styles.jobcard}
+      onPress={() => router.push({ pathname: '/job/[id]', params: { id: job.bookingId } })}
+    >
+      <View style={styles.jobcardTop}>
+        <PetAvatar name={job.petName} size={48} ringState={job.status === 'in_progress' ? 'active' : 'idle'} />
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <View style={styles.jobcardTitleRow}>
+            <Text style={styles.jobcardName} numberOfLines={1}>{job.packageName ?? `${job.durationMinutes ?? ''} min walk`}</Text>
+            <Text style={styles.jobcardPayout}>₹{job.partnerPayout}</Text>
+          </View>
+          <Text style={styles.jobcardMeta} numberOfLines={1}>{job.petName} · {job.petBreed} · {job.customerName}</Text>
+        </View>
+      </View>
+    </TouchableOpacity>
+  );
+}
+
+function Pill({ label, accent }: { label: string; accent?: boolean }) {
+  return (
+    <View style={[styles.pill, accent && styles.pillAccent]}>
+      <Text style={[styles.pillText, accent && styles.pillTextAccent]}>{label}</Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.canvas },
-  statusBar: { backgroundColor: colors.white, paddingHorizontal: spacing[5], paddingVertical: spacing[3], borderBottomWidth: 1, borderBottomColor: colors.borderLight },
-  onlineRow: { flexDirection: 'row', alignItems: 'center', gap: spacing[3], marginBottom: spacing[3] },
-  onlineDot: { width: 10, height: 10, borderRadius: 5 },
-  onlineLabel: { flex: 1, fontFamily: 'Inter', fontSize: 15, fontWeight: '700', color: colors.textPrimary },
-  modeSwitch: { flexDirection: 'row', gap: spacing[2] },
-  modeBtn: { flex: 1, paddingVertical: spacing[2], borderRadius: radii.lg, borderWidth: 1.5, borderColor: colors.borderLight, alignItems: 'center' },
-  modeBtnActive: { borderColor: colors.brandBrown, backgroundColor: colors.brandBrown },
-  modeBtnText: { fontFamily: 'Inter', fontSize: 13, fontWeight: '700', color: colors.textMuted },
-  modeBtnTextActive: { color: colors.white },
-  tabRow: { flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: colors.borderLight, backgroundColor: colors.white },
-  tab: { flex: 1, paddingVertical: spacing[3], alignItems: 'center' },
-  tabActive: { borderBottomWidth: 2.5, borderBottomColor: colors.brandBrown },
-  tabText: { fontFamily: 'Inter', fontSize: 14, fontWeight: '600', color: colors.textMuted },
-  tabTextActive: { color: colors.brandBrown, fontWeight: '800' },
-  offlineBanner: { backgroundColor: colors.warningLight, paddingHorizontal: spacing[5], paddingVertical: spacing[3] },
-  offlineText: { fontFamily: 'Inter', fontSize: 13, color: colors.warning, fontWeight: '600' },
-  list: { padding: spacing[4], gap: spacing[3] },
-  jobCard: { padding: spacing[4] },
-  jobHeader: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing[3], marginBottom: spacing[3] },
-  jobTypeIcon: { width: 44, height: 44, borderRadius: radii.md, backgroundColor: colors.marigoldBg, alignItems: 'center', justifyContent: 'center' },
-  jobMeta: { flex: 1 },
-  jobPet: { fontFamily: 'Inter', fontSize: 16, fontWeight: '800', color: colors.textPrimary },
-  jobCustomer: { fontFamily: 'Inter', fontSize: 13, color: colors.textMuted, marginTop: 2 },
-  payoutBox: { alignItems: 'flex-end' },
-  payoutAmt: { fontFamily: 'Inter', fontSize: 20, fontWeight: '800', color: colors.brandBrown },
-  payoutLabel: { fontFamily: 'Inter', fontSize: 11, color: colors.textMuted },
-  tagsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing[2], marginBottom: spacing[2] },
-  tag: { backgroundColor: colors.biscuitLight, borderRadius: radii.full, paddingHorizontal: spacing[3], paddingVertical: 3 },
-  tagHighlight: { backgroundColor: colors.marigoldBg },
-  tagText: { fontFamily: 'Inter', fontSize: 12, fontWeight: '600', color: colors.brandBrown },
-  tagTextHighlight: { color: colors.marigoldDark },
-  addons: { fontFamily: 'Inter', fontSize: 12, color: colors.textMuted, marginBottom: spacing[2] },
-  careNote: { flexDirection: 'row', gap: spacing[2], backgroundColor: colors.warningLight, borderRadius: radii.md, padding: spacing[3], marginBottom: spacing[3] },
-  careNoteIcon: { fontSize: 14 },
-  careNoteText: { flex: 1, fontFamily: 'Inter', fontSize: 13, color: colors.warning, lineHeight: 19 },
-  infoRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  infoText: { fontFamily: 'Inter', fontSize: 13, color: colors.textMuted, flex: 1 },
-  distanceText: { fontFamily: 'Inter', fontSize: 13, fontWeight: '700', color: colors.marigoldDark },
-  scheduledAt: { fontFamily: 'Inter', fontSize: 13, color: colors.textSecondary, marginTop: spacing[1], marginBottom: spacing[3] },
-  claimBtn: { backgroundColor: colors.brandBrown, borderRadius: radii.lg, paddingVertical: spacing[3], alignItems: 'center', marginTop: spacing[2] },
-  claimBtnText: { fontFamily: 'Inter', fontSize: 15, fontWeight: '800', color: colors.white },
-  statusRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: spacing[2] },
-  viewBtn: { fontFamily: 'Inter', fontSize: 13, fontWeight: '700', color: colors.marigoldDark },
-  empty: { alignItems: 'center', paddingTop: spacing[16] },
-  emptyText: { fontFamily: 'Inter', fontSize: 15, color: colors.textMuted, marginTop: spacing[3], textAlign: 'center', paddingHorizontal: spacing[8] },
+  scrollContent: { paddingBottom: spacing[10] },
+  pad: { paddingHorizontal: spacing[5] },
+  pagehead: { paddingHorizontal: spacing[5], paddingTop: spacing[3], paddingBottom: spacing[3] },
+  headRow: { flexDirection: 'row', alignItems: 'center', gap: spacing[3] },
+  eyebrow: { fontFamily: 'Inter', fontSize: 10.5, fontWeight: '700', letterSpacing: 1.2, textTransform: 'uppercase', color: colors.textMuted },
+  title: { fontFamily: 'Inter', fontSize: 26, fontWeight: '800', color: colors.textPrimary, marginTop: 2, letterSpacing: -0.5 },
+
+  rolebar: { flexDirection: 'row', gap: spacing[2], backgroundColor: colors.surfaceAlt, borderRadius: radii.md, padding: 5, marginBottom: spacing[4] },
+  roleBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing[1], paddingVertical: 11, borderRadius: radii.sm },
+  roleBtnActive: { backgroundColor: colors.brandBrown },
+  roleBtnText: { fontFamily: 'Inter', fontSize: 13.5, fontWeight: '600', color: colors.textMuted },
+  roleBtnTextActive: { color: colors.white },
+  roleBadge: { backgroundColor: colors.marigoldMid, borderRadius: 999, minWidth: 19, height: 19, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 5 },
+  roleBadgeText: { color: colors.white, fontSize: 10.5, fontWeight: '800' },
+
+  availbar: { flexDirection: 'row', alignItems: 'center', gap: spacing[3], padding: spacing[4], borderRadius: radii.lg, backgroundColor: colors.white, borderWidth: 1, borderColor: colors.borderLight, marginBottom: spacing[4] },
+  availbarOn: { backgroundColor: colors.brandBrown, borderColor: 'transparent' },
+  availTitle: { fontFamily: 'Inter', fontSize: 16, fontWeight: '700', color: colors.textPrimary, letterSpacing: -0.2 },
+  availTitleOn: { color: colors.white },
+  availSub: { fontFamily: 'Inter', fontSize: 11.5, color: colors.textMuted, marginTop: 2 },
+  availSubOn: { color: 'rgba(255,255,255,0.7)' },
+  switchTrack: { width: 46, height: 27, borderRadius: 999, backgroundColor: colors.borderMedium, padding: 3, justifyContent: 'center' },
+  switchTrackOn: { backgroundColor: colors.success },
+  switchThumb: { width: 21, height: 21, borderRadius: 999, backgroundColor: colors.white },
+  switchThumbOn: { transform: [{ translateX: 19 }] },
+
+  metrics: { flexDirection: 'row', backgroundColor: colors.borderLight, borderRadius: radii.lg, overflow: 'hidden', marginBottom: spacing[5] },
+  metric: { flex: 1, backgroundColor: colors.white, paddingVertical: spacing[3], alignItems: 'center', gap: 3 },
+  metricV: { fontFamily: 'Inter', fontSize: 20, fontWeight: '800', color: colors.textPrimary, letterSpacing: -0.5 },
+  metricK: { fontFamily: 'Inter', fontSize: 10.5, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5, color: colors.textMuted },
+
+  sectionHead: { marginBottom: spacing[3], marginTop: spacing[2] },
+  sectionTitle: { fontFamily: 'Inter', fontSize: 17, fontWeight: '700', color: colors.textPrimary, letterSpacing: -0.25 },
+  sectionSub: { fontFamily: 'Inter', fontSize: 12.5, color: colors.textMuted, marginTop: 2 },
+
+  empty: { alignItems: 'center', paddingVertical: spacing[8] },
+  emptyArt: { width: 60, height: 60, borderRadius: 999, backgroundColor: colors.biscuitLighter, alignItems: 'center', justifyContent: 'center', marginBottom: spacing[3] },
+  emptyTitle: { fontFamily: 'Inter', fontSize: 15, fontWeight: '700', color: colors.textPrimary },
+  emptySub: { fontFamily: 'Inter', fontSize: 12.5, color: colors.textMuted, marginTop: 4, textAlign: 'center' },
+
+  jobcard: { backgroundColor: colors.white, borderWidth: 1, borderColor: colors.borderLight, borderRadius: radii.lg, padding: spacing[4], marginBottom: spacing[3] },
+  jobcardTop: { flexDirection: 'row', gap: spacing[3] },
+  jobcardTitleRow: { flexDirection: 'row', justifyContent: 'space-between', gap: spacing[2] },
+  jobcardName: { flex: 1, fontFamily: 'Inter', fontSize: 15, fontWeight: '700', color: colors.textPrimary },
+  jobcardPayout: { fontFamily: 'Inter', fontSize: 15, fontWeight: '800', color: colors.marigoldDark },
+  jobcardMeta: { fontFamily: 'Inter', fontSize: 12, color: colors.textMuted, marginTop: 2 },
+  pillRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing[2], marginTop: spacing[2] },
+  pill: { backgroundColor: colors.surfaceAlt, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 },
+  pillAccent: { backgroundColor: colors.marigoldBg },
+  pillText: { fontFamily: 'Inter', fontSize: 11, fontWeight: '600', color: colors.textMuted },
+  pillTextAccent: { color: colors.marigoldDark },
+  jobcardFooter: { marginTop: spacing[3], gap: spacing[2] },
+  jobcardDim: { fontFamily: 'Inter', fontSize: 12, color: colors.textMuted },
+  jobcardActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: spacing[2] },
 });

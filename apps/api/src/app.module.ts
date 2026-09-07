@@ -18,6 +18,7 @@ import { PayoutsModule } from './payouts/payouts.module.js';
 import { CouponsModule } from './coupons/coupons.module.js';
 import { MessagingModule } from './messaging/messaging.module.js';
 import { NotificationsModule } from './notifications/notifications.module.js';
+import { SupportModule } from './support/support.module.js';
 import { MapsLocationModule } from './maps-location/maps-location.module.js';
 import { AiPetChatModule } from './ai-pet-chat/ai-pet-chat.module.js';
 import { FilesModule } from './files/files.module.js';
@@ -50,6 +51,7 @@ import { RealtimeGateway } from './realtime/realtime.gateway.js';
     CouponsModule,
     MessagingModule,
     NotificationsModule,
+    SupportModule,
     MapsLocationModule,
     AiPetChatModule,
     FilesModule,

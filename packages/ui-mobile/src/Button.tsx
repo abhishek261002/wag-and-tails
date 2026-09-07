@@ -10,8 +10,22 @@ import {
 } from 'react-native';
 import { colors, radii, spacing } from '@wag/design-tokens';
 
-export type ButtonVariant = 'primary' | 'secondary' | 'outline' | 'ghost' | 'danger' | 'destructive';
-export type ButtonSize = 'sm' | 'md' | 'lg';
+/**
+ * Matches the prototype's .btn variants exactly (styles.css):
+ * primary = solid brand brown, accent = solid marigold, secondary =
+ * light brand tint with a border, outline = transparent with a
+ * neutral border, ghost/quiet = sunken tint, danger = a soft red
+ * tint (never a loud solid red — the prototype never uses one).
+ */
+export type ButtonVariant =
+  | 'primary'
+  | 'accent'
+  | 'secondary'
+  | 'outline'
+  | 'ghost'
+  | 'danger'
+  | 'destructive';
+export type ButtonSize = 'xs' | 'sm' | 'md' | 'lg';
 
 export interface ButtonProps {
   variant?: ButtonVariant;
@@ -30,40 +44,44 @@ export interface ButtonProps {
 
 const variantContainerStyle: Record<ButtonVariant, ViewStyle> = {
   primary: { backgroundColor: colors.brandBrown },
-  secondary: { backgroundColor: colors.marigold },
+  accent: { backgroundColor: colors.marigoldMid },
+  secondary: {
+    backgroundColor: colors.biscuitLighter,
+    borderWidth: 1,
+    borderColor: colors.borderMedium,
+  },
   outline: {
     backgroundColor: 'transparent',
-    borderWidth: 2,
-    borderColor: colors.brandBrown,
+    borderWidth: 1.5,
+    borderColor: colors.borderMedium,
   },
-  ghost: { backgroundColor: 'transparent' },
-  danger: { backgroundColor: colors.error },
-  destructive: { backgroundColor: colors.error },
+  ghost: { backgroundColor: colors.surfaceAlt },
+  danger: { backgroundColor: colors.errorLight },
+  destructive: { backgroundColor: colors.errorLight },
 };
 
 const variantTextStyle: Record<ButtonVariant, TextStyle> = {
   primary: { color: colors.white },
-  secondary: { color: colors.white },
-  outline: { color: colors.brandBrown },
-  ghost: { color: colors.brandBrown },
-  danger: { color: colors.white },
-  destructive: { color: colors.white },
+  accent: { color: colors.white },
+  secondary: { color: colors.brandBrown },
+  outline: { color: colors.textPrimary },
+  ghost: { color: colors.textPrimary },
+  danger: { color: colors.error },
+  destructive: { color: colors.error },
 };
 
-const sizePadding: Record<ButtonSize, ViewStyle> = {
-  sm: { paddingHorizontal: spacing[3], paddingVertical: spacing[2] - 2, borderRadius: radii.sm },
-  md: { paddingHorizontal: spacing[5], paddingVertical: spacing[3], borderRadius: radii.md },
-  lg: {
-    paddingHorizontal: spacing[6],
-    paddingVertical: spacing[4] - 2,
-    borderRadius: radii.md,
-  },
+const sizeStyle: Record<ButtonSize, ViewStyle> = {
+  xs: { paddingHorizontal: spacing[3], paddingVertical: 7, borderRadius: radii.xs, minHeight: 34 },
+  sm: { paddingHorizontal: spacing[4], paddingVertical: 10, borderRadius: radii.sm, minHeight: 40 },
+  md: { paddingHorizontal: spacing[5], paddingVertical: spacing[3] + 2, borderRadius: radii.md, minHeight: 52 },
+  lg: { paddingHorizontal: spacing[6], paddingVertical: spacing[4], borderRadius: radii.md, minHeight: 56 },
 };
 
 const sizeFontSize: Record<ButtonSize, number> = {
-  sm: 13,
+  xs: 12.5,
+  sm: 13.5,
   md: 15,
-  lg: 17,
+  lg: 16,
 };
 
 export function Button({
@@ -93,7 +111,7 @@ export function Button({
       style={[
         styles.base,
         variantContainerStyle[variant],
-        sizePadding[size],
+        sizeStyle[size],
         fullWidth && styles.fullWidth,
         isDisabled && styles.disabled,
         style,
@@ -102,7 +120,13 @@ export function Button({
       {loading ? (
         <ActivityIndicator
           size="small"
-          color={variant === 'outline' || variant === 'ghost' ? colors.brandBrown : colors.white}
+          color={
+            variant === 'outline' || variant === 'ghost' || variant === 'secondary'
+              ? colors.brandBrown
+              : variant === 'danger' || variant === 'destructive'
+                ? colors.error
+                : colors.white
+          }
         />
       ) : (
         leftIcon && <View style={styles.icon}>{leftIcon}</View>
@@ -139,6 +163,7 @@ const styles = StyleSheet.create({
   text: {
     fontWeight: '600',
     fontFamily: 'Inter',
+    letterSpacing: -0.1,
   },
   icon: {
     flexShrink: 0,

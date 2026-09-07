@@ -39,7 +39,7 @@ export default function WorkingHoursScreen() {
       const availability = DAYS.filter((d) => schedule[d]?.active).map((d) => ({
         day: d, startTime: schedule[d]!.start, endTime: schedule[d]!.end,
       }));
-      await wagApi.client.put('/partners/me/availability', { availability });
+      await wagApi.partner.upsertAvailability(availability);
       Alert.alert('Saved!', 'Working hours updated.');
     } catch (err: any) {
       Alert.alert('Error', err?.message ?? 'Could not save');

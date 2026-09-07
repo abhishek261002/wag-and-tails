@@ -13,7 +13,7 @@ export default function AddressesScreen() {
   const [saving, setSaving] = useState(false);
 
   const load = () => {
-    wagApi.client.get<any[]>('/users/addresses').then(setAddresses).catch(() => {});
+    wagApi.client.get<any>('/users/me').then((u) => setAddresses(u?.addresses ?? [])).catch(() => {});
   };
 
   useEffect(() => { load(); }, []);
@@ -25,7 +25,7 @@ export default function AddressesScreen() {
     }
     setSaving(true);
     try {
-      await wagApi.client.post('/users/addresses', {
+      await wagApi.client.post('/users/me/addresses', {
         ...newAddr,
         lat: 12.9716,
         lng: 77.5946,
@@ -46,7 +46,7 @@ export default function AddressesScreen() {
       { text: 'Cancel', style: 'cancel' },
       { text: 'Delete', style: 'destructive', onPress: async () => {
         try {
-          await wagApi.client.delete(`/users/addresses/${id}`);
+          await wagApi.client.delete(`/users/me/addresses/${id}`);
           load();
         } catch {}
       }},

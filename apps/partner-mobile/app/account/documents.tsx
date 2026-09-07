@@ -17,9 +17,9 @@ export default function DocumentsScreen() {
   const [documents, setDocuments] = useState<any[]>([]);
   const [uploading, setUploading] = useState<string | null>(null);
 
-  useEffect(() => {
-    wagApi.client.get<any[]>('/partners/me/documents').then(setDocuments).catch(() => {});
-  }, []);
+  const reload = () => wagApi.partner.getDocuments().then(setDocuments).catch(() => {});
+
+  useEffect(() => { reload(); }, []);
 
   const uploadDoc = async (docType: string) => {
     const res = await ImagePicker.launchImageLibraryAsync({ mediaTypes: ImagePicker.MediaTypeOptions.Images, quality: 0.8 });
@@ -29,10 +29,14 @@ export default function DocumentsScreen() {
     try {
       const formData = new FormData();
       formData.append('file', { uri: res.assets[0].uri, type: 'image/jpeg', name: `${docType}.jpg` } as any);
-      formData.append('docType', docType);
-      await wagApi.client.post('/partners/me/documents', formData);
+      formData.append('entity', 'partner_document');
+      formData.append('entityId', docType);
+      const uploaded = await wagApi.client.post<{ url: string }>('/files/upload', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+      });
+      await wagApi.partner.uploadDocument(docType, uploaded.url);
       Alert.alert('Uploaded!', 'Document submitted for verification.');
-      wagApi.client.get<any[]>('/partners/me/documents').then(setDocuments).catch(() => {});
+      reload();
     } catch (err: any) {
       Alert.alert('Upload failed', err?.message ?? 'Please try again');
     } finally { setUploading(null); }

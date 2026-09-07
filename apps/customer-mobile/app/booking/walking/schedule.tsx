@@ -19,7 +19,8 @@ export default function WalkScheduleScreen() {
   const [loading, setLoading] = useState(false);
 
   React.useEffect(() => {
-    wagApi.client.get<any[]>('/users/addresses').then((data) => {
+    wagApi.client.get<any>('/users/me').then((u) => {
+      const data = u?.addresses ?? [];
       setAddresses(data);
       const def = data.find((a: any) => a.isDefault) ?? data[0];
       if (def) setSelectedAddressId(def.id);

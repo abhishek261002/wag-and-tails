@@ -72,6 +72,14 @@ export class CouponsService {
     return this.prisma.coupon.findMany({ orderBy: { createdAt: 'desc' } });
   }
 
+  async listActive() {
+    const now = new Date();
+    return this.prisma.coupon.findMany({
+      where: { isActive: true, validFrom: { lte: now }, validUntil: { gte: now } },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
   async create(data: {
     code: string; description: string; discountType: string; discountValue: number;
     maxDiscount?: number; minOrderValue?: number; applicableServices: string[];

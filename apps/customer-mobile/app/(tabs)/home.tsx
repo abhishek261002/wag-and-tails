@@ -1,43 +1,43 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  RefreshControl, FlatList,
+  RefreshControl,
 } from 'react-native';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { PetAvatar } from '@wag/ui-mobile';
-import { Card } from '@wag/ui-mobile';
-import { Badge } from '@wag/ui-mobile';
-import { colors, spacing, typography, radii } from '@wag/design-tokens';
+import { PetAvatar, Card } from '@wag/ui-mobile';
+import { colors, spacing, radii } from '@wag/design-tokens';
 import { wagApi } from '../../src/lib/api';
 import type { Pet, GroomingBooking, WalkingBooking } from '@wag/shared-types';
-import { bookingStatusVariantMobile } from '../../src/utils/booking';
 import { formatRelativeDate } from '../../src/utils/date';
+
+type AnyBooking = GroomingBooking | WalkingBooking;
 
 export default function HomeScreen() {
   const [pets, setPets] = useState<Pet[]>([]);
-  const [upcomingBooking, setUpcomingBooking] = useState<GroomingBooking | WalkingBooking | null>(null);
+  const [selectedPetId, setSelectedPetId] = useState<string | null>(null);
+  const [activeBooking, setActiveBooking] = useState<AnyBooking | null>(null);
+  const [pastBookings, setPastBookings] = useState<AnyBooking[]>([]);
   const [refreshing, setRefreshing] = useState(false);
-  const [greeting, setGreeting] = useState('');
 
   const hour = new Date().getHours();
-  useEffect(() => {
-    setGreeting(hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening');
-  }, []);
+  const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
 
   const load = useCallback(async () => {
     try {
-      const [petsData, bookingsData] = await Promise.all([
+      const [petsData, activeData, pastData] = await Promise.all([
         wagApi.pets.list(),
         wagApi.bookings.list({ page: 1, pageSize: 1, status: 'confirmed' }),
+        wagApi.bookings.list({ page: 1, pageSize: 4, status: 'completed' }),
       ]);
       setPets(petsData);
-      const upcoming = bookingsData.data?.[0] ?? null;
-      setUpcomingBooking(upcoming);
+      if (!selectedPetId && petsData.length > 0) setSelectedPetId(petsData[0]!.id);
+      setActiveBooking(activeData.data?.[0] ?? null);
+      setPastBookings(pastData.data ?? []);
     } catch {
       // silent — offline state shown by empty data
     }
-  }, []);
+  }, [selectedPetId]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
@@ -45,228 +45,287 @@ export default function HomeScreen() {
     setRefreshing(false);
   }, [load]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const pet = pets.find((p) => p.id === selectedPetId) ?? pets[0] ?? null;
+  const startGroom = () => router.push(pets.length === 0 ? '/pet/add' : '/booking/grooming/select-pet');
+  const startWalk = () => router.push(pets.length === 0 ? '/pet/add' : '/booking/walking/select-dog');
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={styles.safe} edges={['top']}>
       <ScrollView
-        style={styles.scroll}
-        contentContainerStyle={styles.content}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.brandBrown} />}
+        contentContainerStyle={styles.scrollContent}
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.marigold} />}
         showsVerticalScrollIndicator={false}
       >
-        {/* Header */}
-        <View style={styles.header}>
-          <View>
-            <Text style={styles.greeting}>{greeting} 👋</Text>
-            <Text style={styles.headerSub}>What would you like to do today?</Text>
-          </View>
-          <TouchableOpacity
-            onPress={() => router.push('/(tabs)/account')}
-            style={styles.notifBtn}
-            accessibilityLabel="Account"
-          >
-            <Text style={{ fontSize: 22 }}>👤</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Pets Row */}
-        {pets.length > 0 && (
-          <View style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Your Pets</Text>
-              <TouchableOpacity onPress={() => router.push('/pet/add')}>
-                <Text style={styles.sectionAction}>+ Add</Text>
-              </TouchableOpacity>
+        {/* Brand-brown hero, matching the prototype's .homehero */}
+        <View style={styles.hero}>
+          <View style={styles.heroTop}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.heroGreet}>{greeting}</Text>
+              <Text style={styles.heroName}>{pet ? 'Hey there' : 'Welcome'} 👋</Text>
             </View>
-            <FlatList
-              data={pets}
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              keyExtractor={(p) => p.id}
-              contentContainerStyle={{ paddingLeft: spacing[1] }}
-              renderItem={({ item: pet }) => {
-                const hasActiveBooking = upcomingBooking?.petId === pet.id && ['in_progress', 'arrived', 'partner_on_the_way'].includes(upcomingBooking.status);
-                const ringState = hasActiveBooking && upcomingBooking.type === 'walking' ? 'walking' : hasActiveBooking ? 'inProgress' : 'idle';
+            <TouchableOpacity
+              style={styles.bellBtn}
+              onPress={() => router.push('/account/notifications')}
+              accessibilityLabel="Notifications"
+            >
+              <Text style={{ fontSize: 19 }}>🔔</Text>
+            </TouchableOpacity>
+          </View>
+
+          {pets.length > 0 && (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.petSwitch} contentContainerStyle={{ gap: spacing[4] }}>
+              {pets.map((p) => {
+                const isActive = activeBooking?.petId === p.id;
+                const ringState = isActive
+                  ? (activeBooking!.type === 'walking' ? 'walking' : 'active')
+                  : 'idle';
                 return (
-                  <TouchableOpacity
-                    style={styles.petItem}
-                    onPress={() => router.push({ pathname: '/pet/[id]', params: { id: pet.id } })}
-                    accessibilityLabel={`View ${pet.name}'s profile`}
-                  >
-                    <PetAvatar name={pet.name} imageUrl={pet.avatarUrl} size={64} ringState={ringState} />
-                    <Text style={styles.petName} numberOfLines={1}>{pet.name}</Text>
-                    <Text style={styles.petBreed} numberOfLines={1}>{pet.breed}</Text>
+                  <TouchableOpacity key={p.id} style={styles.petItem} onPress={() => setSelectedPetId(p.id)}>
+                    <PetAvatar name={p.name} imageUrl={p.avatarUrl} size={62} ringState={ringState as any} />
+                    <Text style={[styles.petLabel, p.id === selectedPetId && styles.petLabelActive]} numberOfLines={1}>{p.name}</Text>
                   </TouchableOpacity>
                 );
-              }}
-              ListFooterComponent={
-                <TouchableOpacity
-                  style={styles.addPetBtn}
-                  onPress={() => router.push('/pet/add')}
-                  accessibilityLabel="Add a new pet"
-                >
-                  <Text style={{ fontSize: 28, color: colors.textMuted }}>＋</Text>
-                </TouchableOpacity>
-              }
-            />
-          </View>
-        )}
+              })}
+              <TouchableOpacity style={styles.petItem} onPress={() => router.push('/pet/add')}>
+                <View style={styles.addRing}><Text style={{ fontSize: 20, color: 'rgba(255,255,255,0.7)' }}>+</Text></View>
+                <Text style={styles.petLabelAdd}>Add pet</Text>
+              </TouchableOpacity>
+            </ScrollView>
+          )}
+        </View>
 
-        {/* No pets empty state */}
-        {pets.length === 0 && (
-          <Card style={styles.emptyPets} onPress={() => router.push('/pet/add')}>
-            <Text style={{ fontSize: 40 }}>🐶</Text>
-            <Text style={styles.emptyTitle}>Add your first pet</Text>
-            <Text style={styles.emptyBody}>Get grooming, walks and more for your furry friend</Text>
-          </Card>
-        )}
-
-        {/* Upcoming Booking */}
-        {upcomingBooking && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Upcoming</Text>
-            <Card
-              style={styles.bookingCard}
-              onPress={() => router.push({ pathname: '/booking/[id]', params: { id: upcomingBooking.id } })}
-            >
-              <View style={styles.bookingRow}>
-                <View style={styles.bookingIcon}>
-                  <Text style={{ fontSize: 28 }}>
-                    {upcomingBooking.type === 'grooming' ? '✂️' : '🐾'}
+        <View style={styles.body}>
+          {/* status card, overlapping the hero like the prototype */}
+          {pets.length === 0 ? (
+            <Card style={styles.emptyPets} onPress={() => router.push('/pet/add')}>
+              <Text style={{ fontSize: 36 }}>🐶</Text>
+              <Text style={styles.emptyTitle}>Add your first pet</Text>
+              <Text style={styles.emptyBody}>Get grooming, walks and more for your furry friend.</Text>
+            </Card>
+          ) : activeBooking ? (
+            <Card style={styles.liveCard} onPress={() => router.push({ pathname: '/booking/[id]', params: { id: activeBooking.id } })}>
+              <View style={styles.liveTop}>
+                <Text style={styles.eyebrow}>Happening now</Text>
+                <View style={styles.livePill}><View style={styles.liveDot} /><Text style={styles.livePillText}>Live</Text></View>
+              </View>
+              <View style={styles.liveRow}>
+                <PetAvatar name={pets.find((p) => p.id === activeBooking.petId)?.name ?? '?'} size={48} ringState="active" />
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text style={styles.liveTitle} numberOfLines={1}>
+                    {activeBooking.type === 'grooming' ? 'Grooming' : 'Dog walk'} · {activeBooking.petName}
+                  </Text>
+                  <Text style={styles.liveSub} numberOfLines={1}>
+                    {activeBooking.scheduledAt ? formatRelativeDate(activeBooking.scheduledAt) : activeBooking.status.replace(/_/g, ' ')}
                   </Text>
                 </View>
-                <View style={styles.bookingInfo}>
-                  <Text style={styles.bookingTitle}>
-                    {upcomingBooking.type === 'grooming' ? 'Grooming' : 'Dog Walk'}
-                    {' — '}{upcomingBooking.petName}
-                  </Text>
-                  <Text style={styles.bookingDate}>
-                    {upcomingBooking.scheduledAt
-                      ? formatRelativeDate(upcomingBooking.scheduledAt)
-                      : 'Scheduled'}
-                  </Text>
-                </View>
-                <Badge
-                  variant={bookingStatusVariantMobile(upcomingBooking.status)}
-                  label={upcomingBooking.status.replace(/_/g, ' ')}
-                />
               </View>
             </Card>
-          </View>
-        )}
+          ) : pet ? (
+            <Card style={styles.liveCard} onPress={startGroom}>
+              <View style={styles.liveRow}>
+                <PetAvatar name={pet.name} imageUrl={pet.avatarUrl} size={48} ringState="idle" />
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.liveTitle}>Nothing booked for {pet.name}</Text>
+                  <Text style={styles.liveSub}>Book a groom or a walk to get started</Text>
+                </View>
+                <View style={styles.miniBtn}><Text style={styles.miniBtnText}>Book</Text></View>
+              </View>
+            </Card>
+          ) : null}
 
-        {/* Service Cards */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Services</Text>
-          <View style={styles.serviceGrid}>
-            <ServiceCard
-              emoji="✂️"
-              title="Grooming"
-              subtitle="Bath, cut & style"
-              color="#FEF3EA"
-              accent={colors.marigold}
-              onPress={() => {
-                if (pets.length === 0) {
-                  router.push('/pet/add');
-                } else {
-                  router.push('/booking/grooming/select-pet');
-                }
-              }}
-            />
-            <ServiceCard
-              emoji="🐾"
-              title="Dog Walking"
-              subtitle="30, 45 or 60 mins"
-              color="#E8F5E9"
-              accent="#2E7D32"
-              onPress={() => {
-                if (pets.length === 0) {
-                  router.push('/pet/add');
-                } else {
-                  router.push('/booking/walking/select-dog');
-                }
-              }}
-            />
+          {/* Book a service */}
+          <SectionHead title="Book a service" sub="At your home, 7 days a week" />
+          <View style={styles.svcRow}>
+            <TouchableOpacity style={[styles.svcCard, styles.svcGroom]} onPress={startGroom} activeOpacity={0.9}>
+              <Text style={{ fontSize: 30 }}>✂️</Text>
+              <View>
+                <Text style={styles.svcTitle}>Grooming</Text>
+                <Text style={styles.svcSub}>Bath, trim and styling at home</Text>
+              </View>
+              <Text style={styles.svcCta}>From ₹999 →</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.svcCard, styles.svcWalk]} onPress={startWalk} activeOpacity={0.9}>
+              <Text style={{ fontSize: 30 }}>🐾</Text>
+              <View>
+                <Text style={[styles.svcTitle, styles.svcTitleDark]}>Dog walking</Text>
+                <Text style={[styles.svcSub, styles.svcSubDark]}>On demand, tracked live</Text>
+              </View>
+              <Text style={[styles.svcCta, styles.svcCtaDark]}>From ₹249 →</Text>
+            </TouchableOpacity>
           </View>
-          <View style={styles.serviceGrid}>
-            <ServiceCard
-              emoji="🛒"
-              title="Pet Store"
-              subtitle="Food, toys & more"
-              color="#E3F2FD"
-              accent="#1565C0"
-              onPress={() => router.push('/(tabs)/store')}
-            />
-            <ServiceCard
-              emoji="🤖"
-              title="Pet AI Chat"
-              subtitle="Ask your pet anything"
-              color="#F3E5F5"
-              accent="#7B1FA2"
-              onPress={() => {
-                if (pets.length > 0) {
-                  router.push({ pathname: '/chat/[petId]', params: { petId: pets[0]!.id } });
-                } else {
-                  router.push('/pet/add');
-                }
-              }}
-            />
-          </View>
+
+          {/* Promo banner */}
+          <TouchableOpacity style={styles.promo} onPress={() => router.push('/account/offers')} activeOpacity={0.9}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.promoTitle}>20% off your first groom</Text>
+              <Text style={styles.promoSub}>Valid until the end of the month</Text>
+            </View>
+            <View style={styles.promoCode}><Text style={styles.promoCodeText}>FIRST20</Text></View>
+          </TouchableOpacity>
+
+          {/* Ask about pet */}
+          {pet && (
+            <TouchableOpacity
+              style={styles.askCard}
+              onPress={() => router.push({ pathname: '/chat/[petId]', params: { petId: pet.id } })}
+              activeOpacity={0.85}
+            >
+              <View style={styles.askIcon}><Text style={{ fontSize: 18 }}>✨</Text></View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.askTitle}>Ask about {pet.name}</Text>
+                <Text style={styles.askSub}>Coat care, weight, grooming frequency</Text>
+              </View>
+              <Text style={styles.chev}>›</Text>
+            </TouchableOpacity>
+          )}
+
+          {/* Book again */}
+          {pastBookings.length > 0 && (
+            <>
+              <SectionHead title="Book again" sub="Past services" />
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: spacing[3] }}>
+                {pastBookings.map((b) => (
+                  <TouchableOpacity
+                    key={b.id}
+                    style={styles.rebookCard}
+                    onPress={() => router.push({ pathname: '/booking/[id]', params: { id: b.id } })}
+                  >
+                    <PetAvatar name={b.petName} size={38} />
+                    <Text style={styles.rebookTitle} numberOfLines={1}>{b.type === 'grooming' ? 'Groom' : 'Walk'} · {b.petName}</Text>
+                    <View style={styles.rebookBadge}><Text style={styles.rebookBadgeText}>Rebook</Text></View>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </>
+          )}
+
+          {/* Trust card */}
+          <Card style={styles.trustCard}>
+            <View style={styles.trustRow}>
+              <View style={styles.trustIcon}><Text style={{ fontSize: 17 }}>🛡️</Text></View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.trustTitle}>Every partner is verified</Text>
+                <Text style={styles.trustSub}>ID checked, police verified and trained on handling anxious dogs.</Text>
+              </View>
+            </View>
+            <View style={styles.metrics}>
+              <Metric v="4.9" k="Avg rating" />
+              <Metric v="12k+" k="Grooms done" />
+              <Metric v="98%" k="On time" />
+            </View>
+          </Card>
+
+          <TouchableOpacity style={styles.helpRow} onPress={() => router.push('/support')}>
+            <Text style={styles.helpIcon}>❓</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.helpTitle}>Help & support</Text>
+              <Text style={styles.helpSub}>FAQs, booking issues, contact us</Text>
+            </View>
+            <Text style={styles.chev}>›</Text>
+          </TouchableOpacity>
         </View>
       </ScrollView>
     </SafeAreaView>
   );
 }
 
-function ServiceCard({
-  emoji, title, subtitle, color, accent, onPress,
-}: {
-  emoji: string; title: string; subtitle: string;
-  color: string; accent: string; onPress: () => void;
-}) {
+function SectionHead({ title, sub }: { title: string; sub: string }) {
   return (
-    <TouchableOpacity
-      style={[styles.serviceCard, { backgroundColor: color }]}
-      onPress={onPress}
-      activeOpacity={0.85}
-      accessibilityRole="button"
-      accessibilityLabel={title}
-    >
-      <Text style={{ fontSize: 32, marginBottom: spacing[2] }}>{emoji}</Text>
-      <Text style={[styles.serviceTitle, { color: accent }]}>{title}</Text>
-      <Text style={styles.serviceSubtitle}>{subtitle}</Text>
-    </TouchableOpacity>
+    <View style={styles.sectionHead}>
+      <Text style={styles.sectionTitle}>{title}</Text>
+      <Text style={styles.sectionSub}>{sub}</Text>
+    </View>
+  );
+}
+
+function Metric({ v, k }: { v: string; k: string }) {
+  return (
+    <View style={styles.metric}>
+      <Text style={styles.metricV}>{v}</Text>
+      <Text style={styles.metricK}>{k}</Text>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.canvas },
-  scroll: { flex: 1 },
-  content: { paddingHorizontal: spacing[5], paddingBottom: spacing[10] },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', paddingTop: spacing[5], paddingBottom: spacing[4] },
-  greeting: { fontFamily: 'Inter', fontSize: typography.fontSize['2xl'], fontWeight: '800', color: colors.textPrimary },
-  headerSub: { fontFamily: 'Inter', fontSize: typography.fontSize.sm, color: colors.textMuted, marginTop: 2 },
-  notifBtn: { width: 40, height: 40, borderRadius: radii.full, backgroundColor: colors.white, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: colors.borderLight },
-  section: { marginBottom: spacing[6] },
-  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing[3] },
-  sectionTitle: { fontFamily: 'Inter', fontSize: typography.fontSize.lg, fontWeight: '700', color: colors.textPrimary },
-  sectionAction: { fontFamily: 'Inter', fontSize: typography.fontSize.sm, color: colors.marigoldDark, fontWeight: '700' },
-  petItem: { alignItems: 'center', marginRight: spacing[4], width: 72 },
-  petName: { fontFamily: 'Inter', fontSize: typography.fontSize.xs, fontWeight: '700', color: colors.textPrimary, marginTop: spacing[1], textAlign: 'center' },
-  petBreed: { fontFamily: 'Inter', fontSize: 10, color: colors.textMuted, textAlign: 'center' },
-  addPetBtn: { width: 64, height: 64, borderRadius: radii.full, borderWidth: 2, borderColor: colors.borderLight, borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center', marginRight: spacing[2] },
-  emptyPets: { alignItems: 'center', paddingVertical: spacing[8], marginBottom: spacing[5] },
-  emptyTitle: { fontFamily: 'Inter', fontSize: typography.fontSize.lg, fontWeight: '700', color: colors.textPrimary, marginTop: spacing[3] },
-  emptyBody: { fontFamily: 'Inter', fontSize: typography.fontSize.sm, color: colors.textMuted, textAlign: 'center', marginTop: spacing[1] },
-  bookingCard: { padding: spacing[4] },
-  bookingRow: { flexDirection: 'row', alignItems: 'center', gap: spacing[3] },
-  bookingIcon: { width: 48, height: 48, borderRadius: radii.md, backgroundColor: colors.marigoldBg, alignItems: 'center', justifyContent: 'center' },
-  bookingInfo: { flex: 1 },
-  bookingTitle: { fontFamily: 'Inter', fontSize: typography.fontSize.base, fontWeight: '700', color: colors.textPrimary },
-  bookingDate: { fontFamily: 'Inter', fontSize: typography.fontSize.sm, color: colors.textMuted, marginTop: 2 },
-  serviceGrid: { flexDirection: 'row', gap: spacing[3], marginBottom: spacing[3] },
-  serviceCard: { flex: 1, borderRadius: radii.xl, padding: spacing[5], minHeight: 120 },
-  serviceTitle: { fontFamily: 'Inter', fontSize: typography.fontSize.base, fontWeight: '700', marginBottom: 2 },
-  serviceSubtitle: { fontFamily: 'Inter', fontSize: typography.fontSize.xs, color: colors.textSecondary },
+  scrollContent: { paddingBottom: spacing[10] },
+
+  hero: { backgroundColor: colors.brandBrown, paddingHorizontal: spacing[5], paddingTop: spacing[2], paddingBottom: spacing[6] },
+  heroTop: { flexDirection: 'row', alignItems: 'flex-start' },
+  heroGreet: { fontFamily: 'Inter', fontSize: 12.5, color: 'rgba(255,255,255,0.62)' },
+  heroName: { fontFamily: 'Inter', fontSize: 23, fontWeight: '800', color: colors.white, marginTop: 2, letterSpacing: -0.4 },
+  bellBtn: { width: 38, height: 38, borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.14)', alignItems: 'center', justifyContent: 'center' },
+  petSwitch: { marginTop: spacing[4] },
+  petItem: { alignItems: 'center', width: 66 },
+  petLabel: { fontFamily: 'Inter', fontSize: 11.5, fontWeight: '600', marginTop: spacing[2], color: 'rgba(255,255,255,0.62)' },
+  petLabelActive: { color: colors.white },
+  petLabelAdd: { fontFamily: 'Inter', fontSize: 11.5, fontWeight: '600', marginTop: spacing[2], color: 'rgba(255,255,255,0.55)' },
+  addRing: { width: 62, height: 62, borderRadius: 999, borderWidth: 2, borderColor: 'rgba(255,255,255,0.35)', borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center' },
+
+  body: { paddingHorizontal: spacing[5], marginTop: -16 },
+  emptyPets: { alignItems: 'center', paddingVertical: spacing[7] },
+  emptyTitle: { fontFamily: 'Inter', fontSize: 16, fontWeight: '700', color: colors.textPrimary, marginTop: spacing[3] },
+  emptyBody: { fontFamily: 'Inter', fontSize: 13, color: colors.textMuted, textAlign: 'center', marginTop: spacing[1] },
+
+  liveCard: { padding: spacing[4] },
+  liveTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing[3] },
+  eyebrow: { fontFamily: 'Inter', fontSize: 10.5, fontWeight: '700', letterSpacing: 1, textTransform: 'uppercase', color: colors.textMuted },
+  livePill: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: colors.marigoldMid, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4 },
+  liveDot: { width: 5, height: 5, borderRadius: 3, backgroundColor: colors.white },
+  livePillText: { color: colors.white, fontSize: 10.5, fontWeight: '700' },
+  liveRow: { flexDirection: 'row', alignItems: 'center', gap: spacing[3] },
+  liveTitle: { fontFamily: 'Inter', fontSize: 14.5, fontWeight: '700', color: colors.textPrimary },
+  liveSub: { fontFamily: 'Inter', fontSize: 12, color: colors.textMuted, marginTop: 2 },
+  miniBtn: { backgroundColor: colors.brandBrown, borderRadius: radii.sm, paddingHorizontal: spacing[3], paddingVertical: spacing[2] },
+  miniBtnText: { color: colors.white, fontFamily: 'Inter', fontSize: 12.5, fontWeight: '700' },
+
+  sectionHead: { marginTop: spacing[6], marginBottom: spacing[3] },
+  sectionTitle: { fontFamily: 'Inter', fontSize: 17, fontWeight: '700', color: colors.textPrimary, letterSpacing: -0.25 },
+  sectionSub: { fontFamily: 'Inter', fontSize: 12.5, color: colors.textMuted, marginTop: 2 },
+
+  svcRow: { flexDirection: 'row', gap: spacing[3] },
+  svcCard: { flex: 1, borderRadius: radii.lg, padding: spacing[4], minHeight: 158, justifyContent: 'space-between' },
+  svcGroom: { backgroundColor: colors.brandBrownSecondary },
+  svcWalk: { backgroundColor: colors.biscuitLight },
+  svcTitle: { fontFamily: 'Inter', fontSize: 17, fontWeight: '800', color: colors.white, letterSpacing: -0.3 },
+  svcTitleDark: { color: colors.brand800 ?? colors.textPrimary },
+  svcSub: { fontFamily: 'Inter', fontSize: 11, color: 'rgba(255,255,255,0.74)', marginTop: 4 },
+  svcSubDark: { color: colors.textSecondary },
+  svcCta: { fontFamily: 'Inter', fontSize: 12, fontWeight: '700', color: colors.white },
+  svcCtaDark: { color: colors.brandBrown },
+
+  promo: { flexDirection: 'row', alignItems: 'center', gap: spacing[3], backgroundColor: colors.marigoldMid, borderRadius: radii.lg, padding: spacing[4], marginTop: spacing[4] },
+  promoTitle: { fontFamily: 'Inter', fontSize: 14.5, fontWeight: '700', color: colors.white },
+  promoSub: { fontFamily: 'Inter', fontSize: 11.5, color: 'rgba(255,255,255,0.85)', marginTop: 2 },
+  promoCode: { backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: radii.xs, borderWidth: 1, borderColor: 'rgba(255,255,255,0.5)', borderStyle: 'dashed', paddingHorizontal: 10, paddingVertical: 5 },
+  promoCodeText: { fontFamily: 'Inter', fontSize: 13, fontWeight: '800', color: colors.white, letterSpacing: 0.5 },
+
+  askCard: { flexDirection: 'row', alignItems: 'center', gap: spacing[3], backgroundColor: colors.white, borderWidth: 1, borderColor: colors.borderLight, borderRadius: radii.lg, padding: spacing[4], marginTop: spacing[4] },
+  askIcon: { width: 38, height: 38, borderRadius: radii.sm, backgroundColor: colors.marigoldBg, alignItems: 'center', justifyContent: 'center' },
+  askTitle: { fontFamily: 'Inter', fontSize: 14.5, fontWeight: '700', color: colors.textPrimary },
+  askSub: { fontFamily: 'Inter', fontSize: 11.5, color: colors.textMuted, marginTop: 2 },
+  chev: { fontSize: 20, color: colors.textDisabled },
+
+  rebookCard: { width: 170, backgroundColor: colors.white, borderWidth: 1, borderColor: colors.borderLight, borderRadius: radii.lg, padding: spacing[3], gap: spacing[2] },
+  rebookTitle: { fontFamily: 'Inter', fontSize: 13, fontWeight: '700', color: colors.textPrimary },
+  rebookBadge: { alignSelf: 'flex-start', backgroundColor: colors.biscuitLighter, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3 },
+  rebookBadgeText: { fontFamily: 'Inter', fontSize: 10.5, fontWeight: '700', color: colors.brandBrown },
+
+  trustCard: { backgroundColor: colors.surfaceAlt, borderColor: 'transparent', marginTop: spacing[6], padding: spacing[4] },
+  trustRow: { flexDirection: 'row', gap: spacing[3], marginBottom: spacing[3] },
+  trustIcon: { width: 36, height: 36, borderRadius: radii.sm, backgroundColor: colors.successLight, alignItems: 'center', justifyContent: 'center' },
+  trustTitle: { fontFamily: 'Inter', fontSize: 14, fontWeight: '700', color: colors.textPrimary },
+  trustSub: { fontFamily: 'Inter', fontSize: 11.5, color: colors.textMuted, marginTop: 2 },
+  metrics: { flexDirection: 'row', backgroundColor: colors.borderLight, borderRadius: radii.md, overflow: 'hidden' },
+  metric: { flex: 1, backgroundColor: colors.white, paddingVertical: spacing[3], alignItems: 'center', gap: 2 },
+  metricV: { fontFamily: 'Inter', fontSize: 18, fontWeight: '800', color: colors.textPrimary },
+  metricK: { fontFamily: 'Inter', fontSize: 9.5, fontWeight: '600', textTransform: 'uppercase', color: colors.textMuted },
+
+  helpRow: { flexDirection: 'row', alignItems: 'center', gap: spacing[3], marginTop: spacing[5] },
+  helpIcon: { fontSize: 18 },
+  helpTitle: { fontFamily: 'Inter', fontSize: 14, fontWeight: '600', color: colors.textPrimary },
+  helpSub: { fontFamily: 'Inter', fontSize: 11.5, color: colors.textMuted, marginTop: 1 },
 });

@@ -1,40 +1,47 @@
 // ─── Brand Colors ────────────────────────────────────────────────────────────
+// Values match the Wag & Tails prototype (styles.css :root) exactly.
 export const colors = {
-  // Primary browns
-  brandBrown: '#4A1E0B',
-  brandBrownSecondary: '#5E2A11',
-  biscuit: '#DCC3A9',
-  biscuitLight: '#EDD9C4',
-  biscuitLighter: '#F5EDE3',
+  // Primary browns (brand-900..50 in the prototype)
+  brandBrown: '#4A1E0B',        // --brand-700
+  brandBrownSecondary: '#5E2A11', // --brand-600
+  brand900: '#2B1206',
+  brand800: '#3A1808',
+  brand500: '#7A3D1C',
+  biscuit: '#DCC3A9',           // --brand-200
+  biscuitLight: '#F0E2D4',      // --brand-100
+  biscuitLighter: '#F9F1E9',    // --brand-50
 
-  // Accent
-  marigold: '#F07B2C',
-  marigoldDark: '#C25A12',
+  // Accent: marigold (accent-700..50 in the prototype)
+  marigold: '#F07B2C',          // --accent-400 (the hot accent)
+  marigoldMid: '#E86A1C',       // --accent-500
+  marigoldDark: '#C25A12',      // --accent-600 (accessible text tint)
+  marigoldDeep: '#A8480C',      // --accent-700
   marigoldLight: '#F9A96C',
-  marigoldBg: '#FEF3EA',
+  marigoldBg: '#FFF3E9',        // --accent-50
 
   // Canvas / backgrounds
   canvas: '#FBF7F2',
   white: '#FFFFFF',
   surfaceCard: '#FFFFFF',
-  surfaceAlt: '#F5EDE3',
+  surfaceAlt: '#F4EDE5',        // --sunken
 
   // Text
-  textPrimary: '#1A0A03',
-  textSecondary: '#5C3D2E',
-  textMuted: '#9E7B6A',
+  textPrimary: '#1C1006',       // --ink
+  textSecondary: '#4A3A2C',     // --ink-2
+  textMuted: '#6E5B4B',         // --ink-3
+  textDisabled: '#9A8878',      // --ink-4
   textOnDark: '#FFFFFF',
   textOnMarigold: '#FFFFFF',   // only for large/bold text - contrast insufficient for small
 
   // Status colors
-  success: '#2E7D32',
-  successLight: '#E8F5E9',
-  warning: '#F57C00',
-  warningLight: '#FFF3E0',
-  error: '#C62828',
-  errorLight: '#FFEBEE',
-  info: '#1565C0',
-  infoLight: '#E3F2FD',
+  success: '#1F7A4D',           // --ok-600
+  successLight: '#E7F4ED',      // --ok-50
+  warning: '#B4520F',           // --warn-600
+  warningLight: '#FFF1E4',      // --warn-50
+  error: '#B3261E',             // --danger-600
+  errorLight: '#FCECEA',        // --danger-50
+  info: '#1F5F8B',              // --info-600
+  infoLight: '#E9F2F8',         // --info-50
 
   // Neutrals
   gray50: '#FAFAFA',
@@ -49,12 +56,12 @@ export const colors = {
   gray900: '#212121',
 
   // Borders
-  borderLight: '#E8D8CC',
-  borderMedium: '#C8AA96',
-  borderDark: '#9E7B6A',
+  borderLight: '#EDE4D9',       // --line
+  borderMedium: '#E2D5C6',      // --line-2
+  borderDark: '#9A8878',        // --ink-4
 
   // Overlays
-  overlay: 'rgba(74, 30, 11, 0.5)',
+  overlay: 'rgba(28, 16, 6, 0.52)',
   overlayLight: 'rgba(74, 30, 11, 0.15)',
 } as const;
 
@@ -118,13 +125,14 @@ export const spacing = {
 } as const;
 
 // ─── Border Radius ────────────────────────────────────────────────────────────
+// Matches the prototype's --r-xs..--r-pill scale.
 export const radii = {
   none: 0,
-  xs: 4,
-  sm: 8,
-  md: 12,
-  lg: 16,
-  xl: 20,
+  xs: 8,
+  sm: 12,
+  md: 14,
+  lg: 18,
+  xl: 24,
   '2xl': 24,
   full: 9999,
 } as const;

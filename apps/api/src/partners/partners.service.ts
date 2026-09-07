@@ -147,6 +147,23 @@ export class PartnersService {
     });
   }
 
+  async startJob(bookingId: string, partnerId: string) {
+    const booking = await this.prisma.booking.findFirst({
+      where: { id: bookingId, partnerId, status: 'assigned' },
+    });
+    if (!booking) throw new NotFoundException('Assigned job not found');
+
+    return this.prisma.booking.update({
+      where: { id: bookingId },
+      data: {
+        status: 'in_progress',
+        statusHistory: {
+          create: { status: 'in_progress', changedBy: partnerId, note: 'Partner started job' },
+        },
+      },
+    });
+  }
+
   async completeJob(bookingId: string, partnerId: string, data: {
     checklistItems: string[]; beforePhotos: string[]; afterPhotos: string[];
   }) {

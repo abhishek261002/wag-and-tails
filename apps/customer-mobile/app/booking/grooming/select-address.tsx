@@ -12,7 +12,7 @@ export default function SelectAddressScreen() {
   const { groomingDraft, updateGroomingDraft } = useBookingStore();
 
   useEffect(() => {
-    wagApi.client.get<any[]>('/users/addresses').then(setAddresses).catch(() => {});
+    wagApi.client.get<any>('/users/me').then((u) => setAddresses(u?.addresses ?? [])).catch(() => {});
   }, []);
 
   const selectAddress = (addr: any) => {

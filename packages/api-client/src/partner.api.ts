@@ -33,7 +33,7 @@ export class PartnerApi {
   }
 
   startJob(bookingId: string): Promise<void> {
-    return this.client.patch(`/partner/jobs/${bookingId}/start`);
+    return this.client.patch(`/partner/jobs/${bookingId}/start`, {});
   }
 
   completeJob(
@@ -43,21 +43,23 @@ export class PartnerApi {
     return this.client.patch(`/partner/jobs/${bookingId}/complete`, data);
   }
 
-  // Walking-specific
+  // Walking-specific — a walk request is a booking a partner claims like any
+  // other job (POST /partner/jobs/:id/claim); the walk session itself lives
+  // on the walking module.
   acceptWalkRequest(bookingId: string): Promise<void> {
-    return this.client.post(`/partner/walks/${bookingId}/accept`);
+    return this.claimJob(bookingId);
   }
 
-  rejectWalkRequest(bookingId: string): Promise<void> {
-    return this.client.post(`/partner/walks/${bookingId}/reject`);
+  rejectWalkRequest(_bookingId: string): Promise<void> {
+    return Promise.resolve();
   }
 
   startWalk(bookingId: string): Promise<void> {
-    return this.client.patch(`/partner/walks/${bookingId}/start`);
+    return this.client.post(`/walking/${bookingId}/sessions/start`, {});
   }
 
   endWalk(bookingId: string, data: { photos: string[] }): Promise<void> {
-    return this.client.patch(`/partner/walks/${bookingId}/end`, data);
+    return this.client.patch(`/walking/${bookingId}/sessions/end`, data);
   }
 
   // Earnings
@@ -77,5 +79,30 @@ export class PartnerApi {
     return this.client.post(`/partner/jobs/${bookingId}/photos`, formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
+  }
+
+  // Availability
+  getAvailability(): Promise<Array<{ day: string; startTime: string; endTime: string }>> {
+    return this.client.get('/partner/availability');
+  }
+
+  upsertAvailability(
+    availability: Array<{ day: string; startTime: string; endTime: string }>
+  ): Promise<void> {
+    return this.client.put('/partner/availability', { availability });
+  }
+
+  // Documents
+  getDocuments(): Promise<Array<{ id: string; docType: string; fileUrl: string; verifiedAt: string | null }>> {
+    return this.client.get('/partner/documents');
+  }
+
+  uploadDocument(docType: string, fileUrl: string): Promise<{ id: string; docType: string; fileUrl: string }> {
+    return this.client.post('/partner/documents', { docType, fileUrl });
+  }
+
+  // Reviews
+  getReviews(): Promise<{ reviews: Array<{ id: string; reviewerName: string; rating: number; comment: string | null; tip: number | null; createdAt: string }>; avg: number; count: number }> {
+    return this.client.get('/partner/reviews');
   }
 }

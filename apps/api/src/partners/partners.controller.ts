@@ -1,5 +1,5 @@
 import {
-  Controller, Get, Post, Patch, Param, Body, Query, UseGuards
+  Controller, Get, Post, Patch, Put, Param, Body, Query, UseGuards
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
@@ -59,6 +59,12 @@ export class PartnersController {
     return this.partnersService.getMyJobs(user.sub, status);
   }
 
+  @Patch('jobs/:bookingId/start')
+  @Roles('partner')
+  startJob(@Param('bookingId') bookingId: string, @CurrentUser() user: { sub: string }) {
+    return this.partnersService.startJob(bookingId, user.sub);
+  }
+
   @Patch('jobs/:bookingId/complete')
   @Roles('partner')
   completeJob(
@@ -73,5 +79,41 @@ export class PartnersController {
   @Roles('partner')
   getEarnings(@CurrentUser() user: { sub: string }) {
     return this.partnersService.getEarnings(user.sub);
+  }
+
+  @Get('availability')
+  @Roles('partner')
+  getAvailability(@CurrentUser() user: { sub: string }) {
+    return this.partnersService.getAvailability(user.sub);
+  }
+
+  @Put('availability')
+  @Roles('partner')
+  upsertAvailability(
+    @CurrentUser() user: { sub: string },
+    @Body() body: { availability: Array<{ day: string; startTime: string; endTime: string }> }
+  ) {
+    return this.partnersService.upsertAvailability(user.sub, body.availability);
+  }
+
+  @Get('documents')
+  @Roles('partner')
+  getDocuments(@CurrentUser() user: { sub: string }) {
+    return this.partnersService.getDocuments(user.sub);
+  }
+
+  @Post('documents')
+  @Roles('partner')
+  uploadDocument(
+    @CurrentUser() user: { sub: string },
+    @Body() body: { docType: string; fileUrl: string }
+  ) {
+    return this.partnersService.uploadDocument(user.sub, body.docType, body.fileUrl);
+  }
+
+  @Get('reviews')
+  @Roles('partner')
+  getReviews(@CurrentUser() user: { sub: string }) {
+    return this.partnersService.getReviews(user.sub);
   }
 }

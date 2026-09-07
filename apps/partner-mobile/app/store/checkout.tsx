@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert 
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button } from '@wag/ui-mobile';
-import { colors, spacing, typography, radii } from '@wag/design-tokens';
+import { colors, spacing, radii } from '@wag/design-tokens';
 import { wagApi } from '../../src/lib/api';
 
 const PAYMENT_OPTIONS = [
@@ -12,7 +12,7 @@ const PAYMENT_OPTIONS = [
   { label: '💵 Cash on Delivery', value: 'cod' },
 ] as const;
 
-export default function CheckoutScreen() {
+export default function PartnerCheckoutScreen() {
   const [cart, setCart] = useState<any>(null);
   const [addresses, setAddresses] = useState<any[]>([]);
   const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null);
@@ -47,7 +47,7 @@ export default function CheckoutScreen() {
     }
   };
 
-  const subtotal = Number(cart?.subtotal ?? cart?.items?.reduce((s: number, i: any) => s + Number(i.unitPrice) * i.quantity, 0) ?? 0);
+  const subtotal = Number(cart?.subtotal ?? 0);
   const total = Number(cart?.total ?? subtotal - discount);
 
   const placeOrder = async () => {
@@ -77,7 +77,6 @@ export default function CheckoutScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Delivery address */}
         <SectionTitle title="Delivery Address" />
         {addresses.map((addr) => {
           const active = selectedAddressId === addr.id;
@@ -97,20 +96,23 @@ export default function CheckoutScreen() {
             </TouchableOpacity>
           );
         })}
+        {addresses.length === 0 && (
+          <TouchableOpacity style={styles.addAddrBtn} onPress={() => Alert.alert('Add an address', 'Add a delivery address from your account first.')}>
+            <Text style={styles.addAddrText}>+ No saved address — add one first</Text>
+          </TouchableOpacity>
+        )}
 
-        {/* Order items */}
         <SectionTitle title="Order Summary" />
         <View style={styles.itemsList}>
           {cart?.items?.map((item: any) => (
             <View key={item.id} style={styles.orderItem}>
-              <Text style={styles.orderItemName} numberOfLines={1}>{item.product?.name}</Text>
+              <Text style={styles.orderItemName} numberOfLines={1}>{item.productName}</Text>
               <Text style={styles.orderItemQty}>×{item.quantity}</Text>
               <Text style={styles.orderItemPrice}>₹{Number(item.unitPrice) * item.quantity}</Text>
             </View>
           ))}
         </View>
 
-        {/* Coupon */}
         <SectionTitle title="Coupon" />
         <View style={styles.couponRow}>
           <TextInput
@@ -127,7 +129,6 @@ export default function CheckoutScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Payment */}
         <SectionTitle title="Payment Method" />
         <View style={styles.paymentGrid}>
           {PAYMENT_OPTIONS.map((opt) => (
@@ -138,14 +139,11 @@ export default function CheckoutScreen() {
               accessibilityRole="radio"
               accessibilityState={{ selected: paymentMethod === opt.value }}
             >
-              <Text style={[styles.payBtnText, paymentMethod === opt.value && styles.payBtnTextActive]}>
-                {opt.label}
-              </Text>
+              <Text style={[styles.payBtnText, paymentMethod === opt.value && styles.payBtnTextActive]}>{opt.label}</Text>
             </TouchableOpacity>
           ))}
         </View>
 
-        {/* Total */}
         <View style={styles.totalBox}>
           <PriceRow label="Subtotal" value={`₹${subtotal}`} />
           {discount > 0 && <PriceRow label="Coupon discount" value={`-₹${discount}`} accent={colors.success} />}
@@ -187,6 +185,8 @@ const styles = StyleSheet.create({
   addrCardActive: { borderColor: colors.success },
   addrLabel: { fontFamily: 'Inter', fontSize: 14, fontWeight: '700', color: colors.textPrimary },
   addrLine: { fontFamily: 'Inter', fontSize: 13, color: colors.textMuted, marginTop: 2 },
+  addAddrBtn: { backgroundColor: colors.white, borderRadius: radii.lg, padding: spacing[4], borderWidth: 1.5, borderColor: colors.borderLight, borderStyle: 'dashed' },
+  addAddrText: { fontFamily: 'Inter', fontSize: 14, color: colors.marigoldDark, fontWeight: '600' },
   itemsList: { backgroundColor: colors.white, borderRadius: radii.xl, padding: spacing[4], borderWidth: 1, borderColor: colors.borderLight, gap: spacing[2] },
   orderItem: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   orderItemName: { fontFamily: 'Inter', fontSize: 14, color: colors.textPrimary, flex: 1 },

@@ -11,7 +11,7 @@ export default function ReviewsScreen() {
   const [stats, setStats] = useState<{ avg: number; count: number } | null>(null);
 
   useEffect(() => {
-    wagApi.client.get<any>('/partners/me/reviews').then((data: any) => {
+    wagApi.partner.getReviews().then((data: any) => {
       setReviews(data.reviews ?? data ?? []);
       if (data.avg !== undefined) setStats({ avg: data.avg, count: data.count });
     }).catch(() => {});
