@@ -151,7 +151,6 @@ model User {
   reviews         Review[]                  @relation("ReviewerRelation")
   uploadedFiles   UploadedFile[]
   auditLogs       AuditLog[]
-  otpTokens       OtpToken[]
   payments        Payment[]
   supportTickets  SupportTicket[]
 
@@ -243,8 +242,6 @@ model OtpToken {
   used      Boolean  @default(false)
   expiresAt DateTime @map("expires_at")
   createdAt DateTime @default(now()) @map("created_at")
-
-  user User? @relation(fields: [phone], references: [phone])
 
   @@index([phone, used])
   @@map("otp_tokens")

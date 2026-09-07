@@ -15,7 +15,17 @@ config.resolver.nodeModulesPaths = [
   path.resolve(workspaceRoot, 'node_modules'),
 ];
 
-// 3. Keep critical singletons matched across packages
+// 3. Keep critical singletons matched across packages.
+// Only native-module-backed packages belong here — the kind that break
+// with "Invalid hook call"/duplicate-context bugs if the app and a shared
+// workspace package (like @wag/ui-mobile) end up with two physical copies.
+// `expo`, `expo-router` and `expo-status-bar` must NOT be forced through
+// this path: `expo-router/entry` is also the file Expo's dev server uses
+// to compute the public bundle URL it serves to the browser, and routing
+// it through a raw require.resolve() here returns an OS-native (backslash,
+// on Windows) path that leaks into that URL instead of Metro's normal
+// resolver producing a proper "/node_modules/expo-router/entry.bundle"
+// path — the browser then 404/500s trying to fetch a backslash-y URL.
 const SINGLETON_MODULES = [
   'react',
   'react-dom',
@@ -24,9 +34,6 @@ const SINGLETON_MODULES = [
   'react-native-safe-area-context',
   'react-native-screens',
   'react-native-gesture-handler',
-  'expo',
-  'expo-router',
-  'expo-status-bar',
 ];
 
 const singletonMap = {};
