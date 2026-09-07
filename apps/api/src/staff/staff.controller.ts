@@ -6,6 +6,7 @@ import { BookingsService } from '../bookings/bookings.service.js';
 import { OrdersService } from '../orders/orders.service.js';
 import { CurrentUser, Roles } from '../common/decorators.js';
 import { RolesGuard } from '../common/roles.guard.js';
+import { parsePagination } from '../common/pagination.js';
 
 @ApiTags('staff')
 @ApiBearerAuth()
@@ -29,7 +30,7 @@ export class StaffController {
 
   @Get('bookings')
   listBookings(@Query() query: any) {
-    return this.bookingsService.listAll(query);
+    return this.bookingsService.listAll(parsePagination(query));
   }
 
   @Patch('bookings/:id/assign')
@@ -57,12 +58,12 @@ export class StaffController {
 
   @Get('customers')
   listCustomers(@Query() query: any) {
-    return this.staffService.listCustomers(query);
+    return this.staffService.listCustomers(parsePagination(query));
   }
 
   @Get('orders')
   listOrders(@Query() query: any) {
-    return this.ordersService.listAll(query);
+    return this.ordersService.listAll(parsePagination(query));
   }
 
   @Patch('orders/:id/pack')

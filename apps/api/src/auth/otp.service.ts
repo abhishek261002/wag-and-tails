@@ -44,7 +44,11 @@ export class OtpService {
     return {};
   }
 
-  async verifyOtp(phone: string, otp: string): Promise<boolean> {
+  // `consume: false` only checks validity (used by the standalone verify
+  // endpoint, which lets the client confirm the code before a later step —
+  // e.g. register — actually completes the action). Consuming steps use the
+  // default so the same code can't be replayed once an account is created.
+  async verifyOtp(phone: string, otp: string, options?: { consume?: boolean }): Promise<boolean> {
     const record = await this.prisma.otpToken.findFirst({
       where: {
         phone,
@@ -57,10 +61,12 @@ export class OtpService {
 
     if (!record) return false;
 
-    await this.prisma.otpToken.update({
-      where: { id: record.id },
-      data: { used: true },
-    });
+    if (options?.consume !== false) {
+      await this.prisma.otpToken.update({
+        where: { id: record.id },
+        data: { used: true },
+      });
+    }
 
     return true;
   }

@@ -109,3 +109,31 @@ function nestCompatibleMetroCacheKey() {
 if (nestCompatibleMetroCacheKey()) {
   console.log('patch-metro-cache: nested a compatible metro-cache-key under @expo/metro-config for partner-mobile.');
 }
+
+// This SDK51-era @expo/cli builds the dev-server URL for expo-router's
+// static/SSR HTML render via `path.relative(...)`, which returns
+// backslash-separated paths on Windows, then passes that straight into the
+// bundle URL without the slash-conversion every other code path in the same
+// file applies. The result is a bundle URL like
+// "/node_modules%5Cexpo-router%5Centry.bundle" that the browser can't fetch,
+// so the whole app fails to bundle on Windows. Only the root-hoisted
+// @expo/cli (shared by apps without their own nested copy, e.g.
+// partner-mobile) has this bug; newer versions already convert.
+function patchExpoCliWindowsPathBug() {
+  const file = path.join(
+    repoRoot,
+    'node_modules/@expo/cli/build/src/start/server/getStaticRenderFunctions.js'
+  );
+  if (!fs.existsSync(file)) return false;
+  let contents = fs.readFileSync(file, 'utf8');
+  const broken = 'path().default.relative(root, safeOtherFile).replace(/\\.[jt]sx?$/, "")';
+  const fixed = 'path().default.relative(root, safeOtherFile).replace(/\\\\/g, "/").replace(/\\.[jt]sx?$/, "")';
+  if (!contents.includes(broken)) return false;
+  contents = contents.replace(broken, fixed);
+  fs.writeFileSync(file, contents);
+  return true;
+}
+
+if (patchExpoCliWindowsPathBug()) {
+  console.log('patch-metro-cache: fixed @expo/cli Windows backslash bug in getStaticRenderFunctions.js.');
+}

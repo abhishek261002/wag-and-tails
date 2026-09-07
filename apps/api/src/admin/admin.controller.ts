@@ -7,6 +7,7 @@ import { PayoutsService } from '../payouts/payouts.service.js';
 import { CouponsService } from '../coupons/coupons.service.js';
 import { Roles } from '../common/decorators.js';
 import { RolesGuard } from '../common/roles.guard.js';
+import { parsePagination } from '../common/pagination.js';
 
 @ApiTags('admin')
 @ApiBearerAuth()
@@ -25,11 +26,11 @@ export class AdminController {
   getDashboard() { return this.adminService.getDashboardKpis(); }
 
   @Get('audit-logs')
-  getAuditLogs(@Query() query: any) { return this.adminService.getAuditLogs(query); }
+  getAuditLogs(@Query() query: any) { return this.adminService.getAuditLogs(parsePagination(query)); }
 
   // Partners
   @Get('partners')
-  listPartners(@Query() query: any) { return this.partnersService.listAll(query); }
+  listPartners(@Query() query: any) { return this.partnersService.listAll(parsePagination(query)); }
 
   @Patch('partners/:id/approve')
   approvePartner(@Param('id') id: string, @Body() body: { adminId: string }) {
@@ -43,7 +44,7 @@ export class AdminController {
 
   // Payouts
   @Get('payouts')
-  listPayouts(@Query() query: any) { return this.payoutsService.listAll(query); }
+  listPayouts(@Query() query: any) { return this.payoutsService.listAll(parsePagination(query)); }
 
   @Post('payouts/batch')
   approveBatch(@Body() body: { payoutIds: string[]; adminId: string }) {

@@ -45,8 +45,9 @@
     "@react-native/babel-plugin-codegen": "0.74.87",
     "@react-native/codegen": "0.74.83",
     "@react-native/metro-babel-transformer": "0.74.83",
-    "metro-cache-key": "0.80.12",
     "@types/react": "~18.2.79",
+    "metro-cache-key": "0.80.12",
+    "metro-resolver": "^0.80.12",
     "typescript": "^5.4.5"
   }
 }

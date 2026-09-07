@@ -26,7 +26,10 @@ export class AuthService {
   }
 
   async verifyOtp(phone: string, otp: string) {
-    const valid = await this.otpService.verifyOtp(phone, otp);
+    // Check-only: don't consume the code here, so the client can confirm it
+    // before a later step (register, or an OTP login) actually completes
+    // the action and consumes it.
+    const valid = await this.otpService.verifyOtp(phone, otp, { consume: false });
     if (!valid) throw new UnauthorizedException('Invalid or expired OTP');
     // Return a short-lived session token to be exchanged during register/login
     const sessionToken = this.jwtService.sign(

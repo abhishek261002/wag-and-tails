@@ -32,9 +32,25 @@ export class PetsApi {
     return this.client.post(`/pets/${petId}/vaccinations`, data);
   }
 
-  uploadAvatar(petId: string, formData: FormData): Promise<{ avatarUrl: string }> {
-    return this.client.post(`/pets/${petId}/avatar`, formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-    });
+  // The generic /files/upload endpoint stores the file and returns its URL;
+  // the pet's avatarUrl is then set in a separate call, since /pets/:id/avatar
+  // only accepts a URL, not a file body.
+  async uploadAvatar(
+    petId: string,
+    file: { uri: string; name: string; type: string }
+  ): Promise<{ avatarUrl: string }> {
+    const formData = new FormData();
+    formData.append('file', file as unknown as Blob);
+    formData.append('entity', 'pet');
+    formData.append('entityId', petId);
+
+    const uploaded = await this.client.post<{ url: string; id: string }>(
+      '/files/upload',
+      formData,
+      { headers: { 'Content-Type': 'multipart/form-data' } }
+    );
+
+    await this.client.patch(`/pets/${petId}/avatar`, { avatarUrl: uploaded.url });
+    return { avatarUrl: uploaded.url };
   }
 }

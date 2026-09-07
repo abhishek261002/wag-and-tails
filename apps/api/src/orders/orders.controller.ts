@@ -4,6 +4,7 @@ import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { OrdersService } from './orders.service.js';
 import { CurrentUser, Roles } from '../common/decorators.js';
 import { RolesGuard } from '../common/roles.guard.js';
+import { parsePagination } from '../common/pagination.js';
 
 @ApiTags('store-orders')
 @ApiBearerAuth()
@@ -18,7 +19,7 @@ export class OrdersController {
     if (user.role === 'customer' || user.role === 'partner') {
       return this.ordersService.listByUser(user.sub);
     }
-    return this.ordersService.listAll(query);
+    return this.ordersService.listAll(parsePagination(query));
   }
 
   @Get(':id')

@@ -7,6 +7,7 @@ import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { StoreService } from './store.service.js';
 import { CurrentUser, Roles } from '../common/decorators.js';
 import { RolesGuard } from '../common/roles.guard.js';
+import { parsePagination } from '../common/pagination.js';
 
 @ApiTags('store')
 @ApiBearerAuth()
@@ -21,7 +22,7 @@ export class StoreController {
 
   @Get('products')
   @Roles('customer', 'partner', 'staff', 'admin')
-  listProducts(@Query() query: any) { return this.storeService.listProducts(query); }
+  listProducts(@Query() query: any) { return this.storeService.listProducts(parsePagination(query)); }
 
   @Get('products/:id')
   @Roles('customer', 'partner', 'staff', 'admin')

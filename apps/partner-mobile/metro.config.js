@@ -13,15 +13,19 @@ config.resolver.nodeModulesPaths = [
   path.resolve(workspaceRoot, 'node_modules'),
 ];
 
+// `expo`, `expo-router` and `expo-status-bar` must NOT be forced through
+// this path: `expo-router/entry` is also the file Expo's dev server uses
+// to compute the public bundle URL it serves to the browser, and routing
+// it through a raw require.resolve() here returns an OS-native (backslash,
+// on Windows) path that leaks into that URL instead of Metro's normal
+// resolver producing a proper "/node_modules/expo-router/entry.bundle"
+// path — the browser then 404/500s trying to fetch a backslash-y URL.
 const SINGLETON_MODULES = [
   'react',
   'react-native',
   'react-native-safe-area-context',
   'react-native-screens',
   'react-native-gesture-handler',
-  'expo',
-  'expo-router',
-  'expo-status-bar',
 ];
 
 const singletonMap = {};
@@ -63,10 +67,5 @@ config.resolver.resolveRequest = (context, moduleName, platform) => {
   }
   return context.resolveRequest(context, moduleName, platform);
 };
-
-config.resolver.blockList = [
-  /node_modules\/react-native\/src\/private\/specs_DEPRECATED\/.*/,
-  /node_modules\/react-native\/src\/private\/components\/virtualview\/.*/,
-];
 
 module.exports = config;

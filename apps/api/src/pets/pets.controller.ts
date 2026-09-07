@@ -42,6 +42,16 @@ export class PetsController {
     return this.petsService.update(id, user.sub, body);
   }
 
+  @Patch(':id/avatar')
+  @Roles('customer')
+  updateAvatar(
+    @Param('id') id: string,
+    @CurrentUser() user: { sub: string },
+    @Body() body: { avatarUrl: string }
+  ) {
+    return this.petsService.updateAvatar(id, user.sub, body.avatarUrl);
+  }
+
   @Delete(':id')
   @Roles('customer')
   @HttpCode(HttpStatus.NO_CONTENT)

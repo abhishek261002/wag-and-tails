@@ -6,6 +6,7 @@ import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { BookingsService } from './bookings.service.js';
 import { CurrentUser, Roles } from '../common/decorators.js';
 import { RolesGuard } from '../common/roles.guard.js';
+import { parsePagination } from '../common/pagination.js';
 
 @ApiTags('bookings')
 @ApiBearerAuth()
@@ -17,10 +18,11 @@ export class BookingsController {
   @Get()
   @Roles('customer', 'staff', 'admin')
   list(@CurrentUser() user: { sub: string; role: string }, @Query() query: any) {
+    const filters = parsePagination(query);
     if (user.role === 'customer') {
-      return this.bookingsService.listByCustomer(user.sub, query);
+      return this.bookingsService.listByCustomer(user.sub, filters);
     }
-    return this.bookingsService.listAll(query);
+    return this.bookingsService.listAll(filters);
   }
 
   @Get(':id')
