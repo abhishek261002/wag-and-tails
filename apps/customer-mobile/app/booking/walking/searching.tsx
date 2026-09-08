@@ -73,10 +73,15 @@ export default function SearchingPartnerScreen() {
 
   const handleRetry = async () => {
     try {
-      await wagApi.client.post(`/walking/search/${bookingId}`);
+      // Was posting to the wrong path (/walking/search/:id, which doesn't
+      // exist) and silently swallowing the resulting 404 — "Try Again"
+      // looked like it worked but never actually re-dispatched to partners.
+      await wagApi.client.post(`/walking/${bookingId}/search-partners`);
       setStatus('searching');
       setSecondsLeft(SEARCH_TIMEOUT);
-    } catch {}
+    } catch (err: any) {
+      Alert.alert('Could not search again', err?.message ?? 'Please try once more.');
+    }
   };
 
   return (

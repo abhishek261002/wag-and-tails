@@ -39,26 +39,19 @@ async function bootstrap() {
   app.setGlobalPrefix('api/v1');
 
   // CORS
-  // In dev, Expo/Metro dev servers grab whichever localhost port is free
-  // (8081, 8082, 8083, ...) and it varies run to run, so a fixed origin
-  // list constantly falls out of sync and breaks every request with a CORS
-  // error. Allow any localhost/127.0.0.1 origin in development instead;
-  // production still uses an explicit, fixed CORS_ORIGINS list.
+  // In dev, requests come from wherever Metro/Expo happens to be serving —
+  // a localhost port that changes run to run, a LAN IP when testing on a
+  // physical device via Expo Go, a tunnel URL, etc. Reflecting the request's
+  // own Origin back (rather than pattern-matching or listing specific hosts)
+  // allows literally anything without needing to predict the origin ahead
+  // of time. Production still uses an explicit, fixed CORS_ORIGINS list.
   const isDev = process.env['NODE_ENV'] !== 'production';
   const explicitOrigins = (
     process.env['CORS_ORIGINS'] ??
     'http://localhost:8081,http://localhost:3002,http://localhost:3003,http://localhost:3004'
   ).split(',');
   app.enableCors({
-    origin: isDev
-      ? (origin, callback) => {
-          if (!origin || /^https?:\/\/(localhost|127\.0\.0\.1):\d+$/.test(origin)) {
-            callback(null, true);
-          } else {
-            callback(new Error('Not allowed by CORS'), false);
-          }
-        }
-      : explicitOrigins,
+    origin: isDev ? true : explicitOrigins,
     credentials: true,
   });
 

@@ -69,8 +69,16 @@ export default function WalkScheduleScreen() {
         // Dispatch to nearby online walkers now — without this call the
         // booking sits at searching_partner with nobody ever notified, and
         // the searching screen would spin until its timeout with no
-        // partner ever seeing the request.
-        await wagApi.client.post(`/walking/${booking.id}/search-partners`).catch(() => {});
+        // partner ever seeing the request. A failure here used to be
+        // swallowed completely (no log, no retry, no visible symptom other
+        // than "no partner ever showed up" 45s later) — log it now, and the
+        // searching screen's own timeout+"Try Again" still gives the user a
+        // recovery path without blocking navigation on this call.
+        try {
+          await wagApi.client.post(`/walking/${booking.id}/search-partners`);
+        } catch (dispatchErr) {
+          console.warn('Failed to dispatch walk request to nearby partners:', dispatchErr);
+        }
         router.replace({ pathname: '/booking/walking/searching', params: { id: booking.id } } as any);
       } else {
         router.replace({ pathname: '/booking/confirmed', params: { id: booking.id } } as any);

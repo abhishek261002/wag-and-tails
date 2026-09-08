@@ -83,8 +83,14 @@ export default function JobsScreen() {
       return;
     }
     wagApi.realtime.connect();
+    // The popup is easy to miss (dismissed, 20s auto-hide, tab not
+    // focused) — without also refreshing the list, a job the partner
+    // didn't act on the popup for simply vanishes: it was never added to
+    // `openJobs`, so "Open jobs" keeps showing 0 even though a booking
+    // really was just dispatched to this partner.
     const offJob = wagApi.realtime.on('job:available', (payload: IncomingJob) => {
       setIncomingJob(payload);
+      load();
     });
     const offWalk = wagApi.realtime.on('walk:request_sent', (payload: any) => {
       setIncomingJob({
@@ -95,13 +101,14 @@ export default function JobsScreen() {
         addressLine: payload.pickupAddress,
         partnerPayout: payload.partnerPayout,
       });
+      load();
     });
     return () => {
       offJob();
       offWalk();
       wagApi.realtime.disconnect();
     };
-  }, [isOnline]);
+  }, [isOnline, load]);
 
   useEffect(() => {
     if (!incomingJob) return;
