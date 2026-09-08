@@ -16,9 +16,23 @@ interface AuthenticatedSocket extends Socket {
   userRole?: string;
 }
 
+// Mirrors main.ts's HTTP CORS policy: in dev, Metro's port varies run to
+// run (8081, 8082, ...), so a fixed origin list constantly breaks the
+// socket handshake. Allow any localhost/127.0.0.1 origin in development.
+const isDev = process.env['NODE_ENV'] !== 'production';
+const explicitOrigins = (process.env['CORS_ORIGINS'] ?? '').split(',');
+
 @WebSocketGateway({
   cors: {
-    origin: (process.env['CORS_ORIGINS'] ?? '').split(','),
+    origin: isDev
+      ? (origin: string | undefined, callback: (err: Error | null, allow?: boolean) => void) => {
+          if (!origin || /^https?:\/\/(localhost|127\.0\.0\.1):\d+$/.test(origin)) {
+            callback(null, true);
+          } else {
+            callback(new Error('Not allowed by CORS'));
+          }
+        }
+      : explicitOrigins,
     credentials: true,
   },
   namespace: '/realtime',

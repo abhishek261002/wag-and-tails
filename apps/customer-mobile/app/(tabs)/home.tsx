@@ -7,7 +7,7 @@ import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { PetAvatar, Card } from '@wag/ui-mobile';
 import { colors, spacing, radii } from '@wag/design-tokens';
-import { wagApi } from '../../src/lib/api';
+import { wagApi, resolveMediaUrl } from '../../src/lib/api';
 import type { Pet, GroomingBooking, WalkingBooking } from '@wag/shared-types';
 import { formatRelativeDate } from '../../src/utils/date';
 
@@ -83,7 +83,7 @@ export default function HomeScreen() {
                   : 'idle';
                 return (
                   <TouchableOpacity key={p.id} style={styles.petItem} onPress={() => setSelectedPetId(p.id)}>
-                    <PetAvatar name={p.name} imageUrl={p.avatarUrl} size={62} ringState={ringState as any} />
+                    <PetAvatar name={p.name} imageUrl={resolveMediaUrl(p.avatarUrl)} size={62} ringState={ringState as any} />
                     <Text style={[styles.petLabel, p.id === selectedPetId && styles.petLabelActive]} numberOfLines={1}>{p.name}</Text>
                   </TouchableOpacity>
                 );
@@ -125,7 +125,7 @@ export default function HomeScreen() {
           ) : pet ? (
             <Card style={styles.liveCard} onPress={startGroom}>
               <View style={styles.liveRow}>
-                <PetAvatar name={pet.name} imageUrl={pet.avatarUrl} size={48} ringState="idle" />
+                <PetAvatar name={pet.name} imageUrl={resolveMediaUrl(pet.avatarUrl)} size={48} ringState="idle" />
                 <View style={{ flex: 1 }}>
                   <Text style={styles.liveTitle}>Nothing booked for {pet.name}</Text>
                   <Text style={styles.liveSub}>Book a groom or a walk to get started</Text>

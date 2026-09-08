@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  Alert, Linking, Image,
+  Alert, Linking, Image, TextInput,
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -9,6 +9,7 @@ import { Button, Card, SlideToComplete } from '@wag/ui-mobile';
 import { colors, spacing, typography, radii } from '@wag/design-tokens';
 import { wagApi } from '../../src/lib/api';
 import * as ImagePicker from 'expo-image-picker';
+import { useJobLocationBroadcast } from '../../src/hooks/useJobLocationBroadcast';
 
 export default function JobDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -18,6 +19,8 @@ export default function JobDetailScreen() {
   const [beforePhotos, setBeforePhotos] = useState<string[]>([]);
   const [afterPhotos, setAfterPhotos] = useState<string[]>([]);
   const [completing, setCompleting] = useState(false);
+  const [transitioning, setTransitioning] = useState(false);
+  const [otpInput, setOtpInput] = useState('');
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -55,15 +58,49 @@ export default function JobDetailScreen() {
     }
   };
 
-  const handleStart = async () => {
+  const handleOnTheWay = async () => {
     if (!id) return;
+    setTransitioning(true);
     try {
-      await wagApi.partner.startJob(id);
-      load();
+      await wagApi.partner.markOnTheWay(id);
+      await load();
     } catch (err: any) {
       Alert.alert('Error', err?.message);
+    } finally {
+      setTransitioning(false);
     }
   };
+
+  const handleArrived = async () => {
+    if (!id) return;
+    setTransitioning(true);
+    try {
+      await wagApi.partner.markArrived(id);
+      await load();
+    } catch (err: any) {
+      Alert.alert('Error', err?.message);
+    } finally {
+      setTransitioning(false);
+    }
+  };
+
+  const handleVerifyOtp = async () => {
+    if (!id || otpInput.length < 4) return;
+    setTransitioning(true);
+    try {
+      await wagApi.partner.verifyStartOtp(id, otpInput);
+      setOtpInput('');
+      await load();
+    } catch (err: any) {
+      Alert.alert('Incorrect code', err?.message ?? 'Ask the customer for the code again.');
+    } finally {
+      setTransitioning(false);
+    }
+  };
+
+  useJobLocationBroadcast(
+    !!booking && ['assigned', 'accepted', 'partner_on_the_way', 'arrived', 'in_progress'].includes(booking.status)
+  );
 
   const canComplete = checklist.length === 0 || (checklist.every((i) => checked.has(i)) && afterPhotos.length > 0);
 
@@ -260,10 +297,35 @@ export default function JobDetailScreen() {
 
         {/* Action buttons */}
         <View style={styles.actions}>
-          {status === 'assigned' && (
-            <Button onPress={handleStart} fullWidth>
-              Start Job
+          {(status === 'assigned' || status === 'accepted') && (
+            <Button onPress={handleOnTheWay} loading={transitioning} fullWidth>
+              I'm on my way
             </Button>
+          )}
+
+          {status === 'partner_on_the_way' && (
+            <Button onPress={handleArrived} loading={transitioning} fullWidth>
+              I've arrived
+            </Button>
+          )}
+
+          {status === 'arrived' && (
+            <View style={styles.otpCard}>
+              <Text style={styles.otpTitle}>Ask the customer for their code</Text>
+              <Text style={styles.otpSubtitle}>They see a 4-digit code once you're assigned. Enter it to start.</Text>
+              <TextInput
+                style={styles.otpInput}
+                value={otpInput}
+                onChangeText={setOtpInput}
+                placeholder="0000"
+                keyboardType="number-pad"
+                maxLength={4}
+                accessibilityLabel="Start code"
+              />
+              <Button onPress={handleVerifyOtp} loading={transitioning} disabled={otpInput.length < 4} fullWidth>
+                Start session
+              </Button>
+            </View>
           )}
 
           {status === 'in_progress' && (
@@ -341,6 +403,15 @@ const styles = StyleSheet.create({
   cannotCompleteText: { fontFamily: 'Inter', fontSize: 14, fontWeight: '600', color: colors.warning },
   completedBanner: { backgroundColor: colors.successLight, borderRadius: radii.xl, padding: spacing[4], alignItems: 'center' },
   completedText: { fontFamily: 'Inter', fontSize: 16, fontWeight: '800', color: colors.success },
+  otpCard: { backgroundColor: colors.white, borderRadius: radii.xl, padding: spacing[5], borderWidth: 1, borderColor: colors.borderLight, gap: spacing[3] },
+  otpTitle: { fontFamily: 'Inter', fontSize: 16, fontWeight: '800', color: colors.textPrimary },
+  otpSubtitle: { fontFamily: 'Inter', fontSize: 13, color: colors.textMuted, marginTop: -spacing[2] },
+  otpInput: {
+    borderWidth: 1.5, borderColor: colors.borderLight, borderRadius: radii.md,
+    paddingVertical: spacing[3], paddingHorizontal: spacing[4], fontSize: 24,
+    fontWeight: '800', letterSpacing: 8, textAlign: 'center', color: colors.textPrimary,
+    fontFamily: 'Inter', backgroundColor: colors.white,
+  },
   infoRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: spacing[2], borderBottomWidth: 1, borderBottomColor: colors.borderLight },
   infoLabel: { fontFamily: 'Inter', fontSize: 13, color: colors.textMuted },
   infoValue: { fontFamily: 'Inter', fontSize: 13, fontWeight: '600', color: colors.textPrimary, maxWidth: '60%', textAlign: 'right' },

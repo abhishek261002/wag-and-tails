@@ -1,11 +1,12 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, TextInput } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button, SlideToComplete } from '@wag/ui-mobile';
 import { colors, spacing, typography, radii } from '@wag/design-tokens';
 import { wagApi } from '../../src/lib/api';
 import * as ImagePicker from 'expo-image-picker';
+import { useJobLocationBroadcast } from '../../src/hooks/useJobLocationBroadcast';
 
 export default function WalkDetailScreen() {
   const { id: bookingId } = useLocalSearchParams<{ id: string }>();
@@ -13,6 +14,8 @@ export default function WalkDetailScreen() {
   const [elapsed, setElapsed] = useState(0);
   const [photos, setPhotos] = useState<string[]>([]);
   const [ending, setEnding] = useState(false);
+  const [transitioning, setTransitioning] = useState(false);
+  const [otpInput, setOtpInput] = useState('');
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const load = async () => {
@@ -33,14 +36,47 @@ export default function WalkDetailScreen() {
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
   }, [booking?.status]);
 
-  const handleStart = async () => {
+  const handleOnTheWay = async () => {
+    setTransitioning(true);
     try {
-      await wagApi.partner.startWalk(bookingId!);
-      load();
+      await wagApi.partner.markOnTheWay(bookingId!);
+      await load();
     } catch (err: any) {
-      Alert.alert('Error', err?.message ?? 'Could not start walk');
+      Alert.alert('Error', err?.message ?? 'Could not update status');
+    } finally {
+      setTransitioning(false);
     }
   };
+
+  const handleArrived = async () => {
+    setTransitioning(true);
+    try {
+      await wagApi.partner.markArrived(bookingId!);
+      await load();
+    } catch (err: any) {
+      Alert.alert('Error', err?.message ?? 'Could not update status');
+    } finally {
+      setTransitioning(false);
+    }
+  };
+
+  const handleVerifyOtp = async () => {
+    if (otpInput.length < 4) return;
+    setTransitioning(true);
+    try {
+      await wagApi.partner.verifyStartOtp(bookingId!, otpInput);
+      setOtpInput('');
+      await load();
+    } catch (err: any) {
+      Alert.alert('Incorrect code', err?.message ?? 'Ask the customer for the code again.');
+    } finally {
+      setTransitioning(false);
+    }
+  };
+
+  useJobLocationBroadcast(
+    ['accepted', 'partner_on_the_way', 'arrived', 'in_progress'].includes((booking as any)?.status ?? '')
+  );
 
   const pickPhoto = async () => {
     const res = await ImagePicker.launchCameraAsync({ quality: 0.7 });
@@ -53,7 +89,11 @@ export default function WalkDetailScreen() {
     if (timerRef.current) clearInterval(timerRef.current);
     setEnding(true);
     try {
-      await wagApi.partner.endWalk(bookingId!, { photos });
+      await wagApi.partner.completeJob(bookingId!, {
+        checklistItems: [],
+        beforePhotos: [],
+        afterPhotos: photos,
+      });
       Alert.alert('Walk complete! 🏁', 'Great job! The customer has been notified.', [
         { text: 'OK', onPress: () => router.replace('/(tabs)/jobs') },
       ]);
@@ -139,7 +179,28 @@ export default function WalkDetailScreen() {
         {/* Actions */}
         <View style={styles.actions}>
           {status === 'accepted' && (
-            <Button onPress={handleStart} fullWidth>Navigate to Pickup & Start</Button>
+            <Button onPress={handleOnTheWay} loading={transitioning} fullWidth>On my way to pickup</Button>
+          )}
+          {status === 'partner_on_the_way' && (
+            <Button onPress={handleArrived} loading={transitioning} fullWidth>I've arrived</Button>
+          )}
+          {status === 'arrived' && (
+            <View style={styles.otpCard}>
+              <Text style={styles.otpTitle}>Ask the customer for their code</Text>
+              <Text style={styles.otpSubtitle}>They see a 4-digit code once you accept. Enter it to start the walk.</Text>
+              <TextInput
+                style={styles.otpInput}
+                value={otpInput}
+                onChangeText={setOtpInput}
+                placeholder="0000"
+                keyboardType="number-pad"
+                maxLength={4}
+                accessibilityLabel="Start code"
+              />
+              <Button onPress={handleVerifyOtp} loading={transitioning} disabled={otpInput.length < 4} fullWidth>
+                Start walk
+              </Button>
+            </View>
           )}
           {status === 'in_progress' && (
             <SlideToComplete onComplete={handleEnd} label="Slide to end walk" />
@@ -184,4 +245,13 @@ const styles = StyleSheet.create({
   actions: { marginTop: spacing[2], gap: spacing[3] },
   completedBanner: { backgroundColor: colors.successLight, borderRadius: radii.xl, padding: spacing[5], alignItems: 'center' },
   completedText: { fontFamily: 'Inter', fontSize: 16, fontWeight: '800', color: colors.success },
+  otpCard: { backgroundColor: colors.white, borderRadius: radii.xl, padding: spacing[5], borderWidth: 1, borderColor: colors.borderLight, gap: spacing[3] },
+  otpTitle: { fontFamily: 'Inter', fontSize: 16, fontWeight: '800', color: colors.textPrimary },
+  otpSubtitle: { fontFamily: 'Inter', fontSize: 13, color: colors.textMuted, marginTop: -spacing[2] },
+  otpInput: {
+    borderWidth: 1.5, borderColor: colors.borderLight, borderRadius: radii.md,
+    paddingVertical: spacing[3], paddingHorizontal: spacing[4], fontSize: 24,
+    fontWeight: '800', letterSpacing: 8, textAlign: 'center', color: colors.textPrimary,
+    fontFamily: 'Inter', backgroundColor: colors.white,
+  },
 });

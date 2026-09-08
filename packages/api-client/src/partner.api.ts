@@ -32,8 +32,19 @@ export class PartnerApi {
     return this.client.get('/partner/jobs/mine', { params: { status } });
   }
 
-  startJob(bookingId: string): Promise<void> {
-    return this.client.patch(`/partner/jobs/${bookingId}/start`, {});
+  // Mirrors Uber's flow, shared by both grooming and walking bookings:
+  // assigned/accepted -> on the way -> arrived -> (OTP the customer shows)
+  // -> in progress -> completed.
+  markOnTheWay(bookingId: string): Promise<void> {
+    return this.client.patch(`/partner/jobs/${bookingId}/on-the-way`, {});
+  }
+
+  markArrived(bookingId: string): Promise<void> {
+    return this.client.patch(`/partner/jobs/${bookingId}/arrived`, {});
+  }
+
+  verifyStartOtp(bookingId: string, otp: string): Promise<void> {
+    return this.client.patch(`/partner/jobs/${bookingId}/verify-start`, { otp });
   }
 
   completeJob(
@@ -43,23 +54,18 @@ export class PartnerApi {
     return this.client.patch(`/partner/jobs/${bookingId}/complete`, data);
   }
 
-  // Walking-specific — a walk request is a booking a partner claims like any
-  // other job (POST /partner/jobs/:id/claim); the walk session itself lives
-  // on the walking module.
+  // Walking-specific — a walk request sits at `searching_partner`, not
+  // `needs_partner`, so it can't go through claimJob (that's grooming's
+  // /jobs/:id/claim, which only matches needs_partner). Once accepted here,
+  // the shared on-the-way/arrived/verify-start/complete endpoints above
+  // handle both job types identically (verifyStartOtp starts the
+  // WalkSession server-side, completeJob ends it).
   acceptWalkRequest(bookingId: string): Promise<void> {
-    return this.claimJob(bookingId);
+    return this.client.post(`/walking/${bookingId}/accept`);
   }
 
   rejectWalkRequest(_bookingId: string): Promise<void> {
     return Promise.resolve();
-  }
-
-  startWalk(bookingId: string): Promise<void> {
-    return this.client.post(`/walking/${bookingId}/sessions/start`, {});
-  }
-
-  endWalk(bookingId: string, data: { photos: string[] }): Promise<void> {
-    return this.client.patch(`/walking/${bookingId}/sessions/end`, data);
   }
 
   // Earnings

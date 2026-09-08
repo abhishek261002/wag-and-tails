@@ -2,15 +2,21 @@ import { Injectable, NotFoundException, BadRequestException } from '@nestjs/comm
 import { PrismaService } from '../prisma/prisma.service.js';
 import { MapsLocationService } from '../maps-location/maps-location.service.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
+import { RealtimeGateway } from '../realtime/realtime.gateway.js';
 import { BUSINESS_CONFIG } from '@wag/config';
 import { addSeconds } from 'date-fns';
+
+function generateOtp(): string {
+  return String(Math.floor(1000 + Math.random() * 9000));
+}
 
 @Injectable()
 export class WalkingService {
   constructor(
     private prisma: PrismaService,
     private mapsService: MapsLocationService,
-    private notificationsService: NotificationsService
+    private notificationsService: NotificationsService,
+    private realtime: RealtimeGateway
   ) {}
 
   async getPricing() {
@@ -40,7 +46,7 @@ export class WalkingService {
     const expiresAt = addSeconds(new Date(), BUSINESS_CONFIG.WALK_REQUEST_EXPIRY_SECONDS);
 
     for (const partner of eligiblePartners.slice(0, 5)) {
-      await this.notificationsService.sendWalkRequest(partner.id, {
+      const payload = {
         bookingId,
         petName: booking.petName,
         petBreed: booking.petBreed,
@@ -51,7 +57,12 @@ export class WalkingService {
         distanceKm: partner.distanceKm,
         partnerPayout: this.calculatePayout(Number(booking.subtotal)),
         expiresAt: expiresAt.toISOString(),
-      });
+      };
+      await this.notificationsService.sendWalkRequest(partner.id, payload);
+      // Push notifications land even when the app is backgrounded; this
+      // realtime event is what drives the in-app incoming-job popup while
+      // the partner is online and actively looking at the Jobs screen.
+      this.realtime.emitToUser(partner.id, 'walk:request_sent', payload);
     }
 
     return { partnersNotified: eligiblePartners.length, expiresAt };
@@ -64,11 +75,13 @@ export class WalkingService {
       throw new BadRequestException('Walk request no longer available');
     }
 
+    const startOtp = generateOtp();
     const updated = await this.prisma.booking.update({
       where: { id: bookingId },
       data: {
         partnerId,
         status: 'accepted',
+        startOtp,
         statusHistory: {
           create: { status: 'accepted', changedBy: partnerId, note: 'Partner accepted walk request' },
         },
@@ -82,63 +95,18 @@ export class WalkingService {
       data: { bookingId, type: 'walk:accepted' },
     });
 
-    return updated;
-  }
-
-  async startWalkSession(bookingId: string, partnerId: string) {
-    const booking = await this.prisma.booking.findFirst({
-      where: { id: bookingId, partnerId },
+    const partner = await this.prisma.partnerProfile.findUnique({
+      where: { userId: partnerId },
+      include: { user: { include: { profile: true } } },
     });
-    if (!booking) throw new NotFoundException('Booking not found');
-
-    const session = await this.prisma.walkSession.create({
-      data: { bookingId, partnerId, startedAt: new Date() },
-    });
-
-    await this.prisma.booking.update({
-      where: { id: bookingId },
-      data: {
-        status: 'in_progress',
-        statusHistory: {
-          create: { status: 'in_progress', changedBy: partnerId, note: 'Walk started' },
-        },
-      },
-    });
-
-    return session;
-  }
-
-  async endWalkSession(bookingId: string, partnerId: string, photos: string[]) {
-    const session = await this.prisma.walkSession.findFirst({
-      where: { bookingId, partnerId, endedAt: null },
-    });
-    if (!session) throw new NotFoundException('Active walk session not found');
-
-    const endedAt = new Date();
-    const durationSeconds = Math.floor((endedAt.getTime() - session.startedAt!.getTime()) / 1000);
-
-    const updated = await this.prisma.walkSession.update({
-      where: { id: session.id },
-      data: { endedAt, durationSeconds, photos },
-    });
-
-    await this.prisma.booking.update({
-      where: { id: bookingId },
-      data: {
-        status: 'completed',
-        completedAt: endedAt,
-        statusHistory: {
-          create: { status: 'completed', changedBy: partnerId, note: 'Walk completed' },
-        },
-      },
-    });
-
-    const booking = await this.prisma.booking.findUniqueOrThrow({ where: { id: bookingId } });
-
-    await this.notificationsService.sendPush(booking.customerId, {
-      title: 'Walk Complete! 🏁',
-      body: `${booking.petName}'s walk is done. Great job today!`,
-      data: { bookingId, type: 'walk:completed' },
+    this.realtime.emitToBooking(bookingId, 'booking:status_changed', {
+      bookingId,
+      status: 'accepted',
+      partnerId,
+      partnerName: partner?.user.profile
+        ? `${partner.user.profile.firstName} ${partner.user.profile.lastName}`
+        : 'Your walker',
+      updatedAt: updated.updatedAt.toISOString(),
     });
 
     return updated;

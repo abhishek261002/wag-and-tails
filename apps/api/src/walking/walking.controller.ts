@@ -22,23 +22,19 @@ export class WalkingController {
     return this.walkingService.searchNearbyPartners(bookingId);
   }
 
-  @Post(':bookingId/sessions/start')
+  // A walk request sits at `searching_partner`, not `needs_partner`, so it
+  // can't go through PartnersController's generic /jobs/:id/claim (that
+  // only matches needs_partner, i.e. grooming). This is the walking-specific
+  // equivalent — accepting is what generates its start OTP and moves it to
+  // `accepted`, from which the shared on-the-way/arrived/verify-start/
+  // complete endpoints on PartnersController take over for both job types.
+  @Post(':bookingId/accept')
   @Roles('partner')
-  startSession(
+  acceptWalkRequest(
     @Param('bookingId') bookingId: string,
     @CurrentUser() user: { sub: string }
   ) {
-    return this.walkingService.startWalkSession(bookingId, user.sub);
-  }
-
-  @Patch(':bookingId/sessions/end')
-  @Roles('partner')
-  endSession(
-    @Param('bookingId') bookingId: string,
-    @CurrentUser() user: { sub: string },
-    @Body() body: { photos?: string[] }
-  ) {
-    return this.walkingService.endWalkSession(bookingId, user.sub, body.photos ?? []);
+    return this.walkingService.acceptWalkRequest(bookingId, user.sub);
   }
 
   @Post('sessions/:sessionId/location')

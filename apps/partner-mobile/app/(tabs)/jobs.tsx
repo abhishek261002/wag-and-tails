@@ -29,6 +29,17 @@ type PartnerJobCard = {
   status: string;
 };
 
+type IncomingJob = {
+  bookingId: string;
+  type: string;
+  petName: string;
+  petBreed: string;
+  addressLine: string;
+  partnerPayout: number;
+};
+
+const INCOMING_JOB_TIMEOUT_MS = 20000;
+
 export default function JobsScreen() {
   const { mode, isOnline, setMode, setOnline } = useModeStore();
   const [openJobs, setOpenJobs] = useState<PartnerJobCard[]>([]);
@@ -36,6 +47,7 @@ export default function JobsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [togglingOnline, setTogglingOnline] = useState(false);
   const [claimingId, setClaimingId] = useState<string | null>(null);
+  const [incomingJob, setIncomingJob] = useState<IncomingJob | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -49,6 +61,70 @@ export default function JobsScreen() {
   }, [mode]);
 
   useEffect(() => { load(); }, [load]);
+
+  // `isOnline` is local-only UI state (never persisted), so a fresh app
+  // launch always starts it at `false` regardless of what the backend
+  // actually has recorded from a previous session. Sync it once on mount
+  // so the toggle reflects reality instead of silently drifting out of
+  // sync with server state (which is what getOpenJobs() actually checks).
+  useEffect(() => {
+    wagApi.partner.getProfile()
+      .then((profile: any) => setOnline(!!profile.isOnline))
+      .catch(() => {});
+  }, []);
+
+  // Uber-style incoming-job popup: while online, a live socket connection
+  // listens for jobs the backend is actively dispatching to this partner
+  // (job:available for grooming, walk:request_sent for walking) and surfaces
+  // them immediately rather than waiting for the next poll/refresh.
+  useEffect(() => {
+    if (!isOnline) {
+      wagApi.realtime.disconnect();
+      return;
+    }
+    wagApi.realtime.connect();
+    const offJob = wagApi.realtime.on('job:available', (payload: IncomingJob) => {
+      setIncomingJob(payload);
+    });
+    const offWalk = wagApi.realtime.on('walk:request_sent', (payload: any) => {
+      setIncomingJob({
+        bookingId: payload.bookingId,
+        type: 'walking',
+        petName: payload.petName,
+        petBreed: payload.petBreed,
+        addressLine: payload.pickupAddress,
+        partnerPayout: payload.partnerPayout,
+      });
+    });
+    return () => {
+      offJob();
+      offWalk();
+      wagApi.realtime.disconnect();
+    };
+  }, [isOnline]);
+
+  useEffect(() => {
+    if (!incomingJob) return;
+    const t = setTimeout(() => setIncomingJob(null), INCOMING_JOB_TIMEOUT_MS);
+    return () => clearTimeout(t);
+  }, [incomingJob]);
+
+  const handleAcceptIncoming = async () => {
+    if (!incomingJob) return;
+    const bookingId = incomingJob.bookingId;
+    setIncomingJob(null);
+    try {
+      if (incomingJob.type === 'walking') {
+        await wagApi.partner.acceptWalkRequest(bookingId);
+      } else {
+        await wagApi.partner.claimJob(bookingId);
+      }
+      await load();
+      router.push({ pathname: '/job/[id]', params: { id: bookingId } });
+    } catch (err: any) {
+      Alert.alert('Could not accept', err?.message ?? 'This job may have just been taken.');
+    }
+  };
 
   const onRefresh = async () => { setRefreshing(true); await load(); setRefreshing(false); };
 
@@ -171,6 +247,27 @@ export default function JobsScreen() {
               )}
             </View>
       </ScrollView>
+
+      {incomingJob && (
+        <View style={styles.incomingOverlay}>
+          <View style={styles.incomingCard}>
+            <Text style={styles.incomingLabel}>
+              {incomingJob.type === 'grooming' ? '✂️ New grooming job' : '🐾 New walk request'}
+            </Text>
+            <Text style={styles.incomingPet}>{incomingJob.petName} · {incomingJob.petBreed}</Text>
+            <Text style={styles.incomingAddress}>📍 {incomingJob.addressLine}</Text>
+            <Text style={styles.incomingPayout}>₹{incomingJob.partnerPayout}</Text>
+            <View style={styles.incomingActions}>
+              <Button variant="outline" size="sm" onPress={() => setIncomingJob(null)} style={{ flex: 1 }}>
+                Dismiss
+              </Button>
+              <Button size="sm" onPress={handleAcceptIncoming} style={{ flex: 1 }}>
+                Accept
+              </Button>
+            </View>
+          </View>
+        </View>
+      )}
     </SafeAreaView>
   );
 }
@@ -321,4 +418,18 @@ const styles = StyleSheet.create({
   jobcardFooter: { marginTop: spacing[3], gap: spacing[2] },
   jobcardDim: { fontFamily: 'Inter', fontSize: 12, color: colors.textMuted },
   jobcardActions: { flexDirection: 'row', justifyContent: 'flex-end', gap: spacing[2] },
+
+  incomingOverlay: {
+    position: 'absolute', left: 0, right: 0, bottom: 0, top: 0,
+    backgroundColor: 'rgba(28,16,6,0.45)', justifyContent: 'flex-end', padding: spacing[5],
+  },
+  incomingCard: {
+    backgroundColor: colors.white, borderRadius: radii.xl, padding: spacing[5], gap: spacing[2],
+    shadowColor: '#000', shadowOffset: { width: 0, height: -2 }, shadowOpacity: 0.15, shadowRadius: 12, elevation: 8,
+  },
+  incomingLabel: { fontFamily: 'Inter', fontSize: 13, fontWeight: '700', color: colors.marigoldDark, textTransform: 'uppercase', letterSpacing: 0.5 },
+  incomingPet: { fontFamily: 'Inter', fontSize: 20, fontWeight: '800', color: colors.textPrimary },
+  incomingAddress: { fontFamily: 'Inter', fontSize: 13, color: colors.textMuted },
+  incomingPayout: { fontFamily: 'Inter', fontSize: 24, fontWeight: '800', color: colors.success, marginTop: 2 },
+  incomingActions: { flexDirection: 'row', gap: spacing[3], marginTop: spacing[3] },
 });

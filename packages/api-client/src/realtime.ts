@@ -1,93 +1,58 @@
-import type { RealtimeEvent, RealtimeEventType } from '@wag/shared-types';
+import { io, Socket } from 'socket.io-client';
+import type { RealtimeEventType } from '@wag/shared-types';
 
-type Listener<T = unknown> = (event: RealtimeEvent<T>) => void;
+type Listener<T = unknown> = (payload: T) => void;
 
+// The backend (RealtimeGateway) is a NestJS Socket.IO gateway on the
+// `/realtime` namespace, authenticating via `handshake.auth.token`. This
+// must speak actual Socket.IO — a plain `WebSocket` client (the previous
+// implementation here) cannot complete the Socket.IO handshake at all, so
+// no realtime event has ever been deliverable end-to-end until this.
 export class RealtimeClient {
-  private socket: WebSocket | null = null;
-  private listeners = new Map<string, Set<Listener>>();
-  private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
-  private reconnectAttempts = 0;
-  private maxReconnectAttempts = 5;
-  private reconnectDelayMs = 2000;
-  private url: string;
+  private socket: Socket | null = null;
+  private baseUrl: string;
   private getToken: () => string | null;
 
-  constructor(url: string, getToken: () => string | null) {
-    this.url = url;
+  constructor(baseUrl: string, getToken: () => string | null) {
+    // baseUrl is the REST API base (e.g. http://localhost:3001/api/v1);
+    // the socket server lives at the API's origin, not under /api/v1.
+    this.baseUrl = baseUrl.replace(/\/api\/v1\/?$/, '');
     this.getToken = getToken;
   }
 
   connect() {
+    if (this.socket?.connected) return;
     const token = this.getToken();
-    const wsUrl = token ? `${this.url}?token=${token}` : this.url;
-
-    this.socket = new WebSocket(wsUrl);
-
-    this.socket.onopen = () => {
-      this.reconnectAttempts = 0;
-      this.emit('connection:open', {});
-    };
-
-    this.socket.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data as string) as RealtimeEvent;
-        const handlers = this.listeners.get(data.type) ?? new Set();
-        handlers.forEach((fn) => fn(data));
-
-        // Also fire wildcard listeners
-        const wildcards = this.listeners.get('*') ?? new Set();
-        wildcards.forEach((fn) => fn(data));
-      } catch {
-        // Ignore parse errors
-      }
-    };
-
-    this.socket.onclose = () => {
-      this.scheduleReconnect();
-    };
-
-    this.socket.onerror = () => {
-      this.socket?.close();
-    };
-  }
-
-  private scheduleReconnect() {
-    if (this.reconnectAttempts >= this.maxReconnectAttempts) return;
-    const delay = this.reconnectDelayMs * Math.pow(2, this.reconnectAttempts);
-    this.reconnectTimer = setTimeout(() => {
-      this.reconnectAttempts++;
-      this.connect();
-    }, delay);
+    this.socket = io(`${this.baseUrl}/realtime`, {
+      auth: { token },
+      transports: ['websocket'],
+      reconnection: true,
+      reconnectionAttempts: Infinity,
+      reconnectionDelay: 1000,
+      reconnectionDelayMax: 10000,
+    });
   }
 
   disconnect() {
-    if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
-    this.socket?.close();
+    this.socket?.disconnect();
     this.socket = null;
   }
 
-  on<T = unknown>(event: RealtimeEventType | '*', listener: Listener<T>) {
-    if (!this.listeners.has(event)) {
-      this.listeners.set(event, new Set());
-    }
-    this.listeners.get(event)!.add(listener as Listener);
-    return () => this.off(event, listener as Listener);
+  joinBooking(bookingId: string) {
+    this.socket?.emit('join:booking', { bookingId });
+  }
+
+  on<T = unknown>(event: RealtimeEventType | string, listener: Listener<T>) {
+    const handler = listener as (...args: unknown[]) => void;
+    this.socket?.on(event, handler);
+    return () => this.off(event, handler);
   }
 
   off(event: string, listener: Listener) {
-    this.listeners.get(event)?.delete(listener);
+    this.socket?.off(event, listener as (...args: unknown[]) => void);
   }
 
-  private emit(type: string, payload: unknown) {
-    const handlers = this.listeners.get(type) ?? new Set();
-    handlers.forEach((fn) =>
-      fn({ type: type as RealtimeEventType, payload, timestamp: new Date().toISOString() })
-    );
-  }
-
-  send(type: string, payload: unknown) {
-    if (this.socket?.readyState === WebSocket.OPEN) {
-      this.socket.send(JSON.stringify({ type, payload }));
-    }
+  send(event: string, payload: unknown) {
+    this.socket?.emit(event, payload);
   }
 }

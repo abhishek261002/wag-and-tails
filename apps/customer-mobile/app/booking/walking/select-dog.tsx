@@ -4,7 +4,7 @@ import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { PetAvatar } from '@wag/ui-mobile';
 import { colors, spacing, typography, radii } from '@wag/design-tokens';
-import { wagApi } from '../../../src/lib/api';
+import { wagApi, resolveMediaUrl } from '../../../src/lib/api';
 import { useBookingStore } from '../../../src/store/booking.store';
 import type { Pet } from '@wag/shared-types';
 
@@ -43,7 +43,7 @@ export default function WalkSelectDogScreen() {
             accessibilityRole="button"
             accessibilityLabel={`Select ${pet.name} for walk`}
           >
-            <PetAvatar name={pet.name} imageUrl={pet.avatarUrl} size={56} ringState="idle" />
+            <PetAvatar name={pet.name} imageUrl={resolveMediaUrl(pet.avatarUrl)} size={56} ringState="idle" />
             <View style={styles.petInfo}>
               <Text style={styles.petName}>{pet.name}</Text>
               <Text style={styles.petBreed}>{pet.breed} · {pet.size}</Text>

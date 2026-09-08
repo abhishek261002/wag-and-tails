@@ -137,3 +137,66 @@ function patchExpoCliWindowsPathBug() {
 if (patchExpoCliWindowsPathBug()) {
   console.log('patch-metro-cache: fixed @expo/cli Windows backslash bug in getStaticRenderFunctions.js.');
 }
+
+// react-native-web ships Alert.alert() as a total no-op on web (browsers
+// can't replicate a native multi-button dialog), which silently breaks
+// every confirm/cancel flow built on Alert.alert — logout confirmations,
+// delete confirmations, etc. — since the buttons' onPress callbacks never
+// fire. Shim both the ESM and CJS builds with window.confirm/alert.
+const ALERT_SHIM_BODY = `class Alert {
+  static alert(title, message, buttons, _options) {
+    if (typeof window === 'undefined') return;
+
+    const btns = buttons && buttons.length > 0 ? buttons : [{ text: 'OK' }];
+    const text = [title, message].filter(Boolean).join('\\n\\n');
+
+    if (btns.length <= 1) {
+      window.alert(text);
+      const btn = btns[0];
+      if (btn && typeof btn.onPress === 'function') btn.onPress();
+      return;
+    }
+
+    const cancelBtn = btns.find((b) => b.style === 'cancel');
+    const confirmBtn = btns.find((b) => b !== cancelBtn) || btns[btns.length - 1];
+
+    if (window.confirm(text)) {
+      if (confirmBtn && typeof confirmBtn.onPress === 'function') confirmBtn.onPress();
+    } else {
+      if (cancelBtn && typeof cancelBtn.onPress === 'function') cancelBtn.onPress();
+    }
+  }
+
+  static prompt() {}
+}`;
+
+function patchReactNativeWebAlert() {
+  const esmFile = path.join(repoRoot, 'node_modules/react-native-web/dist/exports/Alert/index.js');
+  const cjsFile = path.join(repoRoot, 'node_modules/react-native-web/dist/cjs/exports/Alert/index.js');
+  let patched = 0;
+
+  if (fs.existsSync(esmFile)) {
+    let contents = fs.readFileSync(esmFile, 'utf8');
+    if (/class Alert \{\s*static alert\(\) \{\}\s*\}/.test(contents)) {
+      contents = contents.replace(/class Alert \{\s*static alert\(\) \{\}\s*\}/, ALERT_SHIM_BODY);
+      fs.writeFileSync(esmFile, contents);
+      patched++;
+    }
+  }
+
+  if (fs.existsSync(cjsFile)) {
+    let contents = fs.readFileSync(cjsFile, 'utf8');
+    if (/class Alert \{\s*static alert\(\) \{\}\s*\}/.test(contents)) {
+      contents = contents.replace(/class Alert \{\s*static alert\(\) \{\}\s*\}/, ALERT_SHIM_BODY);
+      fs.writeFileSync(cjsFile, contents);
+      patched++;
+    }
+  }
+
+  return patched;
+}
+
+const alertPatchCount = patchReactNativeWebAlert();
+if (alertPatchCount > 0) {
+  console.log(`patch-metro-cache: shimmed react-native-web's no-op Alert.alert() in ${alertPatchCount} build(s).`);
+}

@@ -25,7 +25,7 @@ import { FilesModule } from './files/files.module.js';
 import { StaffModule } from './staff/staff.module.js';
 import { AdminModule } from './admin/admin.module.js';
 import { AuditLogModule } from './audit-log/audit-log.module.js';
-import { RealtimeGateway } from './realtime/realtime.gateway.js';
+import { RealtimeModule } from './realtime/realtime.module.js';
 
 @Module({
   imports: [
@@ -58,8 +58,8 @@ import { RealtimeGateway } from './realtime/realtime.gateway.js';
     StaffModule,
     AdminModule,
     AuditLogModule,
+    RealtimeModule,
   ],
-  providers: [RealtimeGateway],
   controllers: [HealthController],
 })
 export class AppModule {}

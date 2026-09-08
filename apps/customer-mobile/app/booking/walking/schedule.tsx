@@ -66,6 +66,11 @@ export default function WalkScheduleScreen() {
       });
 
       if (scheduleNow) {
+        // Dispatch to nearby online walkers now — without this call the
+        // booking sits at searching_partner with nobody ever notified, and
+        // the searching screen would spin until its timeout with no
+        // partner ever seeing the request.
+        await wagApi.client.post(`/walking/${booking.id}/search-partners`).catch(() => {});
         router.replace({ pathname: '/booking/walking/searching', params: { id: booking.id } } as any);
       } else {
         router.replace({ pathname: '/booking/confirmed', params: { id: booking.id } } as any);

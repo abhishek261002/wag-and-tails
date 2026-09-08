@@ -13,6 +13,7 @@ export type RealtimeEventType =
   | 'walk:started'
   | 'walk:completed'
   | 'walk:photo_added'
+  | 'job:available'
   | 'message:sent'
   | 'payment:completed'
   | 'order:status_changed'
@@ -53,6 +54,16 @@ export interface WalkRequestPayload {
   distanceKm: number;
   partnerPayout: number;
   expiresAt: string;
+}
+
+export interface JobAvailablePayload {
+  bookingId: string;
+  type: string;
+  petName: string;
+  petBreed: string;
+  scheduledAt: string | null;
+  addressLine: string;
+  partnerPayout: number;
 }
 
 export interface MessagePayload {

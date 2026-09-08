@@ -452,6 +452,11 @@ model Booking {
   // Notes
   notes String?
 
+  // A short code shown to the customer once a partner is assigned; the
+  // partner enters it on arrival to unlock starting the session (mirrors
+  // Uber's pickup-PIN pattern). Generated on assignment, cleared once used.
+  startOtp String? @map("start_otp")
+
   // Pricing
   subtotal Decimal @default(0) @db.Decimal(10, 2)
   discount Decimal @default(0) @db.Decimal(10, 2)

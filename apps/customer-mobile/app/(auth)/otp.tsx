@@ -79,15 +79,15 @@ export default function OtpScreen() {
 
     setLoading(true);
     try {
-      // Try direct login first (existing user)
-      try {
-        const { sessionToken } = await wagApi.auth.verifyOtp({ phone: phone!, otp: code });
-        // Existing customer — try to get auth response
-        // For new users, redirect to register
+      const res: any = await wagApi.auth.verifyOtp({ phone: phone!, otp: code });
+      if (res.isNewUser) {
+        // No account for this phone yet — collect the rest of their
+        // details; register() re-verifies (and consumes) this same code.
         router.push({ pathname: '/(auth)/register', params: { phone: phone!, otp: code } });
-        return;
-      } catch (e: any) {
-        if (e?.statusCode !== 404) throw e;
+      } else {
+        // Returning customer — the OTP check already logged them in.
+        await setTokens(res.tokens.accessToken, res.tokens.refreshToken, res.user.id, res.user.role);
+        router.replace('/(tabs)/home');
       }
     } catch (err: any) {
       Alert.alert('Invalid OTP', err?.message ?? 'Please check the code and try again.');

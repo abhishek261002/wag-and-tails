@@ -1,6 +1,6 @@
 import {
   Controller, Post, Req,
-  UseGuards,
+  UseGuards, BadRequestException,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiTags, ApiBearerAuth, ApiConsumes } from '@nestjs/swagger';
@@ -32,7 +32,10 @@ export class FilesController {
     const data = await (req as any).file?.() ?? null;
 
     if (!data) {
-      return { error: 'No file uploaded' };
+      // Previously returned { error: '...' } with a 2xx status, so a failed
+      // upload looked identical to a successful one to the caller — the
+      // avatarUrl PATCH that follows would silently set it to undefined.
+      throw new BadRequestException('No file uploaded');
     }
 
     const chunks: Buffer[] = [];

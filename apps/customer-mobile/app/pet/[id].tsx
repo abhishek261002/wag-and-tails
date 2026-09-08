@@ -6,7 +6,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { PetAvatar, Card, Badge } from '@wag/ui-mobile';
 import { colors, spacing, typography, radii } from '@wag/design-tokens';
-import { wagApi } from '../../src/lib/api';
+import { wagApi, resolveMediaUrl } from '../../src/lib/api';
 import type { PetDetail } from '@wag/shared-types';
 import { format } from 'date-fns';
 
@@ -66,7 +66,7 @@ export default function PetDetailScreen() {
 
         {/* Pet hero */}
         <View style={styles.hero}>
-          <PetAvatar name={pet.name} imageUrl={pet.avatarUrl} size={96} ringState="idle" />
+          <PetAvatar name={pet.name} imageUrl={resolveMediaUrl(pet.avatarUrl)} size={96} ringState="idle" />
           <Text style={styles.petName}>{pet.name}</Text>
           <Text style={styles.petBreed}>{pet.breed}</Text>
           <View style={styles.tagsRow}>

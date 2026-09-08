@@ -1,5 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { MapsLocationService } from '../maps-location/maps-location.service.js';
+import { RealtimeGateway } from '../realtime/realtime.gateway.js';
 
 // Payment provider abstraction
 export interface PaymentProvider {
@@ -26,7 +28,11 @@ export class PaymentsService {
   private readonly logger = new Logger(PaymentsService.name);
   private provider: PaymentProvider;
 
-  constructor(private prisma: PrismaService) {
+  constructor(
+    private prisma: PrismaService,
+    private mapsService: MapsLocationService,
+    private realtime: RealtimeGateway
+  ) {
     const providerName = process.env['PAYMENT_PROVIDER'] ?? 'mock';
     if (providerName === 'mock') {
       this.provider = new MockPaymentProvider();
@@ -64,10 +70,18 @@ export class PaymentsService {
 
     // Update related booking/order payment status
     if (payment.bookingId) {
-      await this.prisma.booking.update({
+      const booking = await this.prisma.booking.update({
         where: { id: payment.bookingId },
         data: { paymentStatus: 'paid', status: 'confirmed' },
       });
+
+      // Grooming bookings have no separate "search partners" step the way
+      // walking does — once paid, they're immediately ready for a partner
+      // to claim. Move straight to needs_partner and notify eligible
+      // online partners in real time, same as the walking dispatch does.
+      if (booking.type === 'grooming') {
+        await this.dispatchGroomingBooking(booking.id);
+      }
     }
     if (payment.orderId) {
       await this.prisma.storeOrder.update({
@@ -77,6 +91,42 @@ export class PaymentsService {
     }
 
     return payment;
+  }
+
+  private async dispatchGroomingBooking(bookingId: string) {
+    const existing = await this.prisma.booking.findUniqueOrThrow({ where: { id: bookingId } });
+    const booking = await this.prisma.booking.update({
+      where: { id: bookingId },
+      data: {
+        status: 'needs_partner',
+        // changedBy is a UUID column with no "system" actor to attribute
+        // this automatic transition to, so it's recorded against the
+        // customer whose payment triggered it.
+        statusHistory: { create: { status: 'needs_partner', changedBy: existing.customerId, note: 'Payment confirmed' } },
+      },
+      include: { address: true },
+    });
+
+    if (!booking.address) return;
+
+    const nearbyPartners = await this.mapsService.findNearbyPartners(
+      booking.address.lat,
+      booking.address.lng,
+      15
+    );
+    const eligible = nearbyPartners.filter((p) => p.modes.includes('grooming'));
+
+    for (const partner of eligible.slice(0, 10)) {
+      this.realtime.emitToUser(partner.id, 'job:available', {
+        bookingId: booking.id,
+        type: 'grooming',
+        petName: booking.petName,
+        petBreed: booking.petBreed,
+        scheduledAt: booking.scheduledAt ? booking.scheduledAt.toISOString() : null,
+        addressLine: booking.addressLine,
+        partnerPayout: Math.round(Number(booking.total) * 0.8),
+      });
+    }
   }
 
   async refund(paymentId: string, amount: number, reason: string) {

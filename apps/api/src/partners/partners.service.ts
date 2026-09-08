@@ -1,11 +1,21 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { RealtimeGateway } from '../realtime/realtime.gateway.js';
+import { NotificationsService } from '../notifications/notifications.service.js';
 import { BUSINESS_CONFIG } from '@wag/config';
 import { BookingType, PartnerStatus, Prisma } from '@prisma/client';
 
+function generateOtp(): string {
+  return String(Math.floor(1000 + Math.random() * 9000));
+}
+
 @Injectable()
 export class PartnersService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private realtime: RealtimeGateway,
+    private notificationsService: NotificationsService
+  ) {}
 
   async getProfile(partnerId: string) {
     const partner = await this.prisma.partnerProfile.findUnique({
@@ -46,6 +56,27 @@ export class PartnersService {
       update: { lat, lng, heading: heading ?? null, updatedAt: new Date() },
       create: { partnerId, lat, lng, heading: heading ?? null },
     });
+
+    // Broadcast to whichever booking this partner is actively on, so the
+    // customer's tracking screen (and the partner's own, for the mirrored
+    // view) updates live instead of polling.
+    const activeBooking = await this.prisma.booking.findFirst({
+      where: {
+        partnerId,
+        status: { in: ['assigned', 'accepted', 'partner_on_the_way', 'arrived', 'in_progress'] },
+      },
+      select: { id: true },
+    });
+    if (activeBooking) {
+      this.realtime.emitToBooking(activeBooking.id, 'partner:location_updated', {
+        partnerId,
+        bookingId: activeBooking.id,
+        lat,
+        lng,
+        heading: heading ?? null,
+        timestamp: new Date().toISOString(),
+      });
+    }
   }
 
   async getOpenJobs(partnerId: string) {
@@ -118,15 +149,38 @@ export class PartnersService {
     });
     if (!booking) throw new NotFoundException('Job not available');
 
-    return this.prisma.booking.update({
+    const startOtp = generateOtp();
+    const updated = await this.prisma.booking.update({
       where: { id: bookingId },
       data: {
         partnerId,
         status: 'assigned',
+        startOtp,
         statusHistory: {
           create: { status: 'assigned', changedBy: partnerId, note: 'Partner claimed job' },
         },
       },
+    });
+
+    await this.notifyAssigned(bookingId, partnerId);
+    return updated;
+  }
+
+  private async notifyAssigned(bookingId: string, partnerId: string) {
+    const partner = await this.prisma.partnerProfile.findUnique({
+      where: { userId: partnerId },
+      include: { user: { include: { profile: true } } },
+    });
+    const partnerName = partner?.user.profile
+      ? `${partner.user.profile.firstName} ${partner.user.profile.lastName}`
+      : 'Your partner';
+
+    this.realtime.emitToBooking(bookingId, 'booking:status_changed', {
+      bookingId,
+      status: 'assigned',
+      partnerId,
+      partnerName,
+      updatedAt: new Date().toISOString(),
     });
   }
 
@@ -134,7 +188,7 @@ export class PartnersService {
     const where: Record<string, unknown> = { partnerId };
     if (status) where['status'] = status;
 
-    return this.prisma.booking.findMany({
+    const bookings = await this.prisma.booking.findMany({
       where,
       include: {
         pet: { include: { careNotes: { orderBy: { createdAt: 'desc' }, take: 3 } } },
@@ -145,23 +199,115 @@ export class PartnersService {
       },
       orderBy: { scheduledAt: 'asc' },
     });
+
+    // Flattened to the same card shape getOpenJobs() returns, since both
+    // feed the same list-card components on the partner app (which key
+    // navigation off `bookingId`, not Prisma's raw `id`).
+    return bookings.map((b) => ({
+      bookingId: b.id,
+      type: b.type,
+      petName: b.petName,
+      petBreed: b.petBreed,
+      petSize: b.petSize,
+      petWeightKg: b.pet?.weightKg ?? null,
+      petCareNotes: b.petCareNotes,
+      customerName: b.customer?.profile
+        ? `${b.customer.profile.firstName} ${b.customer.profile.lastName}`
+        : 'Customer',
+      customerRating: 4.8,
+      addressLine: b.addressLine,
+      distanceKm: 0,
+      scheduledAt: b.scheduledAt,
+      packageName: b.package?.name,
+      addOns: b.addOns.map((a) => a.addOn.name),
+      durationMinutes: b.durationMinutes,
+      partnerPayout: Math.round(Number(b.total) * (1 - BUSINESS_CONFIG.PLATFORM_COMMISSION_RATE)),
+      status: b.status,
+    }));
   }
 
-  async startJob(bookingId: string, partnerId: string) {
+  // Mirrors Uber's flow: assigned/accepted -> on the way -> arrived (OTP
+  // shown to customer, entered by partner) -> in progress -> completed.
+  // Each step broadcasts to the booking room so both apps' live-tracking
+  // screens update without polling.
+
+  async markOnTheWay(bookingId: string, partnerId: string) {
     const booking = await this.prisma.booking.findFirst({
-      where: { id: bookingId, partnerId, status: 'assigned' },
+      where: { id: bookingId, partnerId, status: { in: ['assigned', 'accepted'] } },
     });
     if (!booking) throw new NotFoundException('Assigned job not found');
 
-    return this.prisma.booking.update({
+    const updated = await this.prisma.booking.update({
       where: { id: bookingId },
       data: {
-        status: 'in_progress',
+        status: 'partner_on_the_way',
         statusHistory: {
-          create: { status: 'in_progress', changedBy: partnerId, note: 'Partner started job' },
+          create: { status: 'partner_on_the_way', changedBy: partnerId, note: 'Partner is on the way' },
         },
       },
     });
+
+    this.realtime.emitToBooking(bookingId, 'booking:status_changed', {
+      bookingId, status: 'partner_on_the_way', partnerId, updatedAt: updated.updatedAt.toISOString(),
+    });
+    return updated;
+  }
+
+  async markArrived(bookingId: string, partnerId: string) {
+    const booking = await this.prisma.booking.findFirst({
+      where: { id: bookingId, partnerId, status: 'partner_on_the_way' },
+    });
+    if (!booking) throw new NotFoundException('Job not on the way');
+
+    const updated = await this.prisma.booking.update({
+      where: { id: bookingId },
+      data: {
+        status: 'arrived',
+        statusHistory: {
+          create: { status: 'arrived', changedBy: partnerId, note: 'Partner has arrived' },
+        },
+      },
+    });
+
+    this.realtime.emitToBooking(bookingId, 'booking:status_changed', {
+      bookingId, status: 'arrived', partnerId, updatedAt: updated.updatedAt.toISOString(),
+    });
+    return updated;
+  }
+
+  async verifyStartOtp(bookingId: string, partnerId: string, otp: string) {
+    const booking = await this.prisma.booking.findFirst({
+      where: { id: bookingId, partnerId, status: 'arrived' },
+    });
+    if (!booking) throw new NotFoundException('Job not awaiting start');
+    if (!booking.startOtp || booking.startOtp !== otp) {
+      throw new BadRequestException('Incorrect code');
+    }
+
+    const updated = await this.prisma.booking.update({
+      where: { id: bookingId },
+      data: {
+        status: 'in_progress',
+        startOtp: null,
+        statusHistory: {
+          create: { status: 'in_progress', changedBy: partnerId, note: 'Session started (OTP verified)' },
+        },
+      },
+    });
+
+    // Walking sessions track a live GPS trail via WalkSession/WalkLocationPoint;
+    // start one here so `partner:location_updated` events have somewhere to
+    // land without coupling PartnersModule to WalkingModule.
+    if (booking.type === 'walking') {
+      await this.prisma.walkSession.create({
+        data: { bookingId, partnerId, startedAt: new Date() },
+      });
+    }
+
+    this.realtime.emitToBooking(bookingId, 'booking:status_changed', {
+      bookingId, status: 'in_progress', partnerId, updatedAt: updated.updatedAt.toISOString(),
+    });
+    return updated;
   }
 
   async completeJob(bookingId: string, partnerId: string, data: {
@@ -172,7 +318,7 @@ export class PartnersService {
     });
     if (!booking) throw new NotFoundException('Active job not found');
 
-    return this.prisma.booking.update({
+    const updated = await this.prisma.booking.update({
       where: { id: bookingId },
       data: {
         status: 'completed',
@@ -185,6 +331,30 @@ export class PartnersService {
         },
       },
     });
+
+    if (booking.type === 'walking') {
+      const session = await this.prisma.walkSession.findFirst({
+        where: { bookingId, partnerId, endedAt: null },
+      });
+      if (session) {
+        const endedAt = new Date();
+        const durationSeconds = Math.floor((endedAt.getTime() - session.startedAt!.getTime()) / 1000);
+        await this.prisma.walkSession.update({
+          where: { id: session.id },
+          data: { endedAt, durationSeconds, photos: data.afterPhotos },
+        });
+      }
+      await this.notificationsService.sendPush(booking.customerId, {
+        title: 'Walk Complete! 🏁',
+        body: `${booking.petName}'s walk is done. Great job today!`,
+        data: { bookingId, type: 'walk:completed' },
+      });
+    }
+
+    this.realtime.emitToBooking(bookingId, 'booking:status_changed', {
+      bookingId, status: 'completed', partnerId, updatedAt: updated.updatedAt.toISOString(),
+    });
+    return updated;
   }
 
   async getEarnings(partnerId: string) {

@@ -15,7 +15,13 @@ export class AuthApi {
     return this.client.post('/auth/otp/request', data);
   }
 
-  verifyOtp(data: OtpVerify): Promise<{ sessionToken: string }> {
+  // New phone: check-only, returns a session token to pass into register().
+  // Existing phone: this check *is* the login, so it consumes the code and
+  // returns full tokens directly.
+  verifyOtp(data: OtpVerify): Promise<
+    | { isNewUser: true; sessionToken: string }
+    | ({ isNewUser: false } & AuthResponse)
+  > {
     return this.client.post('/auth/otp/verify', data);
   }
 

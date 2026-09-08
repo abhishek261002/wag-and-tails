@@ -26,17 +26,28 @@ export class AuthService {
   }
 
   async verifyOtp(phone: string, otp: string) {
-    // Check-only: don't consume the code here, so the client can confirm it
-    // before a later step (register, or an OTP login) actually completes
-    // the action and consumes it.
+    const existing = await this.prisma.user.findUnique({ where: { phone } });
+
+    if (existing) {
+      // Returning user: this OTP check *is* the login, so consume it now
+      // and hand back full tokens — there's no separate registration step
+      // to consume it later, and leaving it unconsumed would let the same
+      // code be replayed.
+      const valid = await this.otpService.verifyOtp(phone, otp);
+      if (!valid) throw new UnauthorizedException('Invalid or expired OTP');
+      const session = await this.issueTokens(existing.id, existing.role);
+      return { isNewUser: false, ...session };
+    }
+
+    // New user: check-only, so the client can confirm the code before the
+    // register step actually completes the account and consumes it.
     const valid = await this.otpService.verifyOtp(phone, otp, { consume: false });
     if (!valid) throw new UnauthorizedException('Invalid or expired OTP');
-    // Return a short-lived session token to be exchanged during register/login
     const sessionToken = this.jwtService.sign(
       { phone, purpose: 'otp_verified' },
       { expiresIn: '10m', secret: process.env['JWT_SECRET'] }
     );
-    return { sessionToken };
+    return { isNewUser: true, sessionToken };
   }
 
   async registerCustomer(data: {

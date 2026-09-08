@@ -13,16 +13,11 @@ config.resolver.nodeModulesPaths = [
   path.resolve(workspaceRoot, 'node_modules'),
 ];
 
-// `expo`, `expo-router` and `expo-status-bar` must NOT be forced through
-// this path: `expo-router/entry` is also the file Expo's dev server uses
-// to compute the public bundle URL it serves to the browser, and routing
-// it through a raw require.resolve() here returns an OS-native (backslash,
-// on Windows) path that leaks into that URL instead of Metro's normal
-// resolver producing a proper "/node_modules/expo-router/entry.bundle"
-// path — the browser then 404/500s trying to fetch a backslash-y URL.
 const SINGLETON_MODULES = [
   'react',
+  'react-dom',
   'react-native',
+  'react-native-web',
   'react-native-safe-area-context',
   'react-native-screens',
   'react-native-gesture-handler',
@@ -30,13 +25,9 @@ const SINGLETON_MODULES = [
 
 const singletonMap = {};
 for (const mod of SINGLETON_MODULES) {
-  const localPath = path.resolve(projectRoot, 'node_modules', mod);
   try {
-    require.resolve(localPath);
-    singletonMap[mod] = localPath;
-  } catch {
-    // not locally installed
-  }
+    singletonMap[mod] = require.resolve(mod, { paths: [projectRoot, workspaceRoot] });
+  } catch {}
 }
 
 config.resolver.extraNodeModules = new Proxy(singletonMap, {
@@ -46,26 +37,40 @@ config.resolver.extraNodeModules = new Proxy(singletonMap, {
       : path.resolve(workspaceRoot, 'node_modules', name),
 });
 
+const VIRTUAL_VIEW_STUB = path.resolve(
+  projectRoot,
+  'metro-stubs/VirtualViewExperimentalNativeComponentStub.js'
+);
+
 const existingResolveRequest = config.resolver.resolveRequest;
 config.resolver.resolveRequest = (context, moduleName, platform) => {
   if (singletonMap[moduleName]) {
-    return {
-      filePath: require.resolve(singletonMap[moduleName]),
-      type: 'sourceFile',
-    };
+    return { filePath: singletonMap[moduleName], type: 'sourceFile' };
   }
+
   const topLevel = moduleName.split('/')[0];
   if (singletonMap[topLevel] && moduleName.startsWith(topLevel + '/')) {
-    const subPath = moduleName.slice(topLevel.length);
-    return {
-      filePath: require.resolve(singletonMap[topLevel] + subPath),
-      type: 'sourceFile',
-    };
+    try {
+      const resolvedSub = require.resolve(moduleName, { paths: [projectRoot, workspaceRoot] });
+      return { filePath: resolvedSub, type: 'sourceFile' };
+    } catch {}
   }
-  if (existingResolveRequest) {
-    return existingResolveRequest(context, moduleName, platform);
+
+  const result = existingResolveRequest
+    ? existingResolveRequest(context, moduleName, platform)
+    : context.resolveRequest(context, moduleName, platform);
+
+  if (result && result.type === 'sourceFile' && result.filePath) {
+    const resolved = result.filePath.replace(/\\/g, '/');
+    const isLegacySpec =
+      /\/react-native\/src\/private\/specs_DEPRECATED\//.test(resolved) ||
+      /\/react-native\/src\/private\/components\/virtualview\//.test(resolved);
+    if (isLegacySpec && /NativeComponent\.js$/.test(resolved)) {
+      return { filePath: VIRTUAL_VIEW_STUB, type: 'sourceFile' };
+    }
   }
-  return context.resolveRequest(context, moduleName, platform);
+
+  return result;
 };
 
 module.exports = config;

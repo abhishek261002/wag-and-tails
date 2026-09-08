@@ -52,8 +52,8 @@ export default function ScheduleScreen() {
               <Text style={styles.dayLabel}>{dateLabel(dateStr)}</Text>
               {(dayJobs as any[]).map((job) => (
                 <TouchableOpacity
-                  key={job.id}
-                  onPress={() => router.push({ pathname: '/job/[id]', params: { id: job.id } })}
+                  key={job.bookingId}
+                  onPress={() => router.push({ pathname: '/job/[id]', params: { id: job.bookingId } })}
                 >
                   <Card style={styles.jobCard}>
                     <View style={styles.jobRow}>

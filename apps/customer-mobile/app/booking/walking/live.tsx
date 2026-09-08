@@ -4,12 +4,13 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { PetAvatar } from '@wag/ui-mobile';
 import { colors, spacing, typography, radii } from '@wag/design-tokens';
-import { wagApi } from '../../../src/lib/api';
+import { wagApi, resolveMediaUrl } from '../../../src/lib/api';
 
 export default function LiveWalkScreen() {
   const { id: bookingId } = useLocalSearchParams<{ id: string }>();
   const [booking, setBooking] = useState<any>(null);
   const [elapsed, setElapsed] = useState(0);
+  const [partnerLoc, setPartnerLoc] = useState<{ lat: number; lng: number; timestamp: string } | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
@@ -24,7 +25,8 @@ export default function LiveWalkScreen() {
     };
     load();
 
-    // Poll every 5s for status updates
+    // Poll every 5s as a fallback in case the socket connection drops —
+    // the realtime events below are what actually drive live updates.
     const pollInterval = setInterval(async () => {
       try {
         const b = await wagApi.bookings.get(bookingId!);
@@ -42,6 +44,32 @@ export default function LiveWalkScreen() {
     return () => {
       clearInterval(pollInterval);
       if (timerRef.current) clearInterval(timerRef.current);
+    };
+  }, [bookingId]);
+
+  useEffect(() => {
+    if (!bookingId) return;
+    wagApi.realtime.connect();
+    wagApi.realtime.joinBooking(bookingId);
+
+    const offStatus = wagApi.realtime.on('booking:status_changed', (payload: any) => {
+      if (payload.bookingId !== bookingId) return;
+      setBooking((prev: any) => (prev ? { ...prev, status: payload.status } : prev));
+      if (payload.status === 'completed') {
+        setTimeout(() => {
+          router.replace({ pathname: '/booking/walking/summary', params: { id: bookingId } } as any);
+        }, 1000);
+      }
+    });
+    const offLocation = wagApi.realtime.on('partner:location_updated', (payload: any) => {
+      if (payload.bookingId !== bookingId) return;
+      setPartnerLoc({ lat: payload.lat, lng: payload.lng, timestamp: payload.timestamp });
+    });
+
+    return () => {
+      offStatus();
+      offLocation();
+      wagApi.realtime.disconnect();
     };
   }, [bookingId]);
 
@@ -78,19 +106,47 @@ export default function LiveWalkScreen() {
           <Text style={styles.statusMsg}>{STATUS_MSG[status] ?? 'Walk in progress'}</Text>
         </View>
 
-        {/* Map placeholder */}
+        {/* Live location — a lightweight coordinate readout rather than an
+            embedded native map, since react-native-maps has no web renderer
+            and this app is tested via --web; the map view itself is a
+            drop-in swap for a native build once that's the target. */}
         <View style={styles.mapPlaceholder}>
-          <Text style={{ fontSize: 48 }}>🗺️</Text>
-          <Text style={styles.mapText}>Live Map</Text>
-          <Text style={styles.mapSub}>Partner location updates every 5 seconds</Text>
+          {partnerLoc ? (
+            <>
+              <Text style={{ fontSize: 40 }}>📍</Text>
+              <Text style={styles.mapText}>{partnerName} is nearby</Text>
+              <Text style={styles.mapSub}>
+                {partnerLoc.lat.toFixed(5)}, {partnerLoc.lng.toFixed(5)}
+              </Text>
+              <Text style={styles.mapSub}>
+                Updated {new Date(partnerLoc.timestamp).toLocaleTimeString()}
+              </Text>
+            </>
+          ) : (
+            <>
+              <Text style={{ fontSize: 48 }}>🗺️</Text>
+              <Text style={styles.mapText}>Waiting for location…</Text>
+              <Text style={styles.mapSub}>Updates live once {partnerName} starts moving</Text>
+            </>
+          )}
         </View>
+
+        {/* Arrival code — the customer reads this out to the walker once
+            they arrive; entering it server-side is what starts the walk. */}
+        {(status === 'partner_on_the_way' || status === 'arrived') && booking?.startOtp && (
+          <View style={styles.otpCard}>
+            <Text style={styles.otpLabel}>Your start code</Text>
+            <Text style={styles.otpValue}>{booking.startOtp}</Text>
+            <Text style={styles.otpHint}>Share this with {partnerName} when they arrive</Text>
+          </View>
+        )}
 
         {/* Timer */}
         {status === 'in_progress' && (
           <View style={styles.timerCard}>
             <PetAvatar
               name={booking?.petName ?? 'Your Pet'}
-              imageUrl={booking?.pet?.avatarUrl}
+              imageUrl={resolveMediaUrl(booking?.pet?.avatarUrl)}
               size={80}
               ringState="walking"
               style={{ marginBottom: spacing[4] }}
@@ -161,4 +217,8 @@ const styles = StyleSheet.create({
   careNote: { backgroundColor: colors.warningLight, borderRadius: radii.xl, padding: spacing[4] },
   careNoteTitle: { fontFamily: 'Inter', fontSize: 12, fontWeight: '800', color: colors.warning, marginBottom: 4 },
   careNoteText: { fontFamily: 'Inter', fontSize: 13, color: colors.warning },
+  otpCard: { backgroundColor: colors.brandBrown, borderRadius: radii.xl, padding: spacing[5], alignItems: 'center', marginBottom: spacing[4] },
+  otpLabel: { fontFamily: 'Inter', fontSize: 13, color: 'rgba(255,255,255,0.7)' },
+  otpValue: { fontFamily: 'Inter', fontSize: 40, fontWeight: '800', color: colors.white, letterSpacing: 8, marginVertical: spacing[1] },
+  otpHint: { fontFamily: 'Inter', fontSize: 12, color: 'rgba(255,255,255,0.7)', textAlign: 'center' },
 });

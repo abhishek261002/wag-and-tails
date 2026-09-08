@@ -59,10 +59,26 @@ export class PartnersController {
     return this.partnersService.getMyJobs(user.sub, status);
   }
 
-  @Patch('jobs/:bookingId/start')
+  @Patch('jobs/:bookingId/on-the-way')
   @Roles('partner')
-  startJob(@Param('bookingId') bookingId: string, @CurrentUser() user: { sub: string }) {
-    return this.partnersService.startJob(bookingId, user.sub);
+  markOnTheWay(@Param('bookingId') bookingId: string, @CurrentUser() user: { sub: string }) {
+    return this.partnersService.markOnTheWay(bookingId, user.sub);
+  }
+
+  @Patch('jobs/:bookingId/arrived')
+  @Roles('partner')
+  markArrived(@Param('bookingId') bookingId: string, @CurrentUser() user: { sub: string }) {
+    return this.partnersService.markArrived(bookingId, user.sub);
+  }
+
+  @Patch('jobs/:bookingId/verify-start')
+  @Roles('partner')
+  verifyStartOtp(
+    @Param('bookingId') bookingId: string,
+    @CurrentUser() user: { sub: string },
+    @Body() body: { otp: string }
+  ) {
+    return this.partnersService.verifyStartOtp(bookingId, user.sub, body.otp);
   }
 
   @Patch('jobs/:bookingId/complete')

@@ -77,9 +77,16 @@ export class ApiClient {
               originalRequest.headers['Authorization'] = `Bearer ${accessToken}`;
             }
             return this.http(originalRequest);
-          } catch {
+          } catch (refreshError) {
             this.refreshQueue = [];
-            this.config.onAuthFailure();
+            // Only clear the session when the server actually rejected the
+            // refresh token (expired/revoked). A network blip or a
+            // temporarily-down API shouldn't destroy a still-valid session —
+            // the next request will simply retry the refresh.
+            const status = axios.isAxiosError(refreshError) ? refreshError.response?.status : undefined;
+            if (status === 401 || status === 403) {
+              this.config.onAuthFailure();
+            }
             return Promise.reject(error);
           } finally {
             this.isRefreshing = false;

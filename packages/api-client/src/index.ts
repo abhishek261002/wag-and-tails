@@ -8,6 +8,7 @@ export { StoreApi } from './store.api';
 export { PartnerApi } from './partner.api';
 export { MessagingApi } from './messaging.api';
 export { AiApi } from './ai.api';
+export { PaymentsApi } from './payments.api';
 export { RealtimeClient } from './realtime';
 
 // Convenience factory
@@ -19,6 +20,8 @@ import { StoreApi } from './store.api';
 import { PartnerApi } from './partner.api';
 import { MessagingApi } from './messaging.api';
 import { AiApi } from './ai.api';
+import { PaymentsApi } from './payments.api';
+import { RealtimeClient } from './realtime';
 import type { ApiClientConfig } from './client';
 
 export function createWagApiClient(config: ApiClientConfig) {
@@ -32,6 +35,8 @@ export function createWagApiClient(config: ApiClientConfig) {
     partner: new PartnerApi(client),
     messaging: new MessagingApi(client),
     ai: new AiApi(client),
+    payments: new PaymentsApi(client),
+    realtime: new RealtimeClient(config.baseURL, config.getAccessToken),
   };
 }
 

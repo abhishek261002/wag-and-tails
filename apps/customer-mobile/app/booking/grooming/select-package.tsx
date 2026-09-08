@@ -48,9 +48,9 @@ export default function SelectPackageScreen() {
               accessibilityLabel={`${pkg.name} package, ₹${pkg.price}`}
             >
               <View style={styles.cardHeader}>
-                <View>
+                <View style={styles.nameCol}>
                   <View style={styles.nameRow}>
-                    <Text style={styles.pkgName}>{pkg.name}</Text>
+                    <Text style={styles.pkgName} numberOfLines={1}>{pkg.name}</Text>
                     {Number(pkg.mrp) > Number(pkg.price) && (
                       <View style={styles.discountBadge}>
                         <Text style={styles.discountText}>
@@ -110,13 +110,14 @@ const styles = StyleSheet.create({
   content: { paddingHorizontal: spacing[5], paddingBottom: spacing[10] },
   card: { backgroundColor: colors.white, borderRadius: radii.xl, padding: spacing[5], marginBottom: spacing[3], borderWidth: 1.5, borderColor: colors.borderLight },
   cardSelected: { borderColor: colors.marigold, backgroundColor: colors.marigoldBg },
-  cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: spacing[3] },
+  cardHeader: { flexDirection: 'row', alignItems: 'flex-start', marginBottom: spacing[3] },
+  nameCol: { flex: 1, minWidth: 0, marginRight: spacing[3] },
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: spacing[2], marginBottom: 4 },
-  pkgName: { fontFamily: 'Inter', fontSize: typography.fontSize.lg, fontWeight: '800', color: colors.textPrimary },
-  discountBadge: { backgroundColor: colors.successLight, borderRadius: radii.full, paddingHorizontal: spacing[2], paddingVertical: 2 },
+  pkgName: { flexShrink: 1, fontFamily: 'Inter', fontSize: typography.fontSize.lg, fontWeight: '800', color: colors.textPrimary },
+  discountBadge: { flexShrink: 0, backgroundColor: colors.successLight, borderRadius: radii.full, paddingHorizontal: spacing[2], paddingVertical: 2 },
   discountText: { fontFamily: 'Inter', fontSize: 11, fontWeight: '700', color: colors.success },
-  pkgDesc: { fontFamily: 'Inter', fontSize: typography.fontSize.sm, color: colors.textMuted, maxWidth: '80%' },
-  priceCol: { alignItems: 'flex-end' },
+  pkgDesc: { fontFamily: 'Inter', fontSize: typography.fontSize.sm, color: colors.textMuted },
+  priceCol: { flexShrink: 0, alignItems: 'flex-end' },
   price: { fontFamily: 'Inter', fontSize: typography.fontSize.xl, fontWeight: '800', color: colors.brandBrown },
   mrp: { fontFamily: 'Inter', fontSize: typography.fontSize.sm, color: colors.textMuted, textDecorationLine: 'line-through' },
   inclusions: { borderTopWidth: 1, borderTopColor: colors.borderLight, paddingTop: spacing[3], marginBottom: spacing[3] },

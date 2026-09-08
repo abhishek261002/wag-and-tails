@@ -63,6 +63,14 @@ export default function ReviewGroomingBookingScreen() {
         paymentMethod: groomingDraft.paymentMethod,
         channel: 'app',
       });
+      // Confirming payment is what moves the booking to needs_partner and
+      // triggers the nearby-partner dispatch — without this it would sit at
+      // pending_payment forever and no partner would ever see it. The mock
+      // payment provider always succeeds, including for "cash after
+      // service", since a partner still needs to be dispatched regardless
+      // of when money actually changes hands.
+      const order = await wagApi.payments.createOrder(booking.id, Number(booking.total));
+      await wagApi.payments.confirm(order.payment.id, groomingDraft.paymentMethod);
       resetGroomingDraft();
       router.replace({ pathname: '/booking/confirmed', params: { id: booking.id } });
     } catch (err: any) {

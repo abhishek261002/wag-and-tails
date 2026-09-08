@@ -3,6 +3,9 @@ import { NestFactory } from '@nestjs/core';
 import { FastifyAdapter, NestFastifyApplication } from '@nestjs/platform-fastify';
 import { ValidationPipe, Logger } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
+import fastifyMultipart from '@fastify/multipart';
+import fastifyStatic from '@fastify/static';
+import * as path from 'path';
 import { AppModule } from './app.module.js';
 
 async function bootstrap() {
@@ -14,16 +17,48 @@ async function bootstrap() {
     { bufferLogs: true }
   );
 
+  // Without this, FilesController's `req.file()` is always undefined —
+  // every upload (pet avatars, documents, etc.) silently "succeeds" with
+  // no file ever saved, since the handler just falls through its
+  // no-file branch rather than throwing.
+  await app.register(fastifyMultipart as any);
+
+  // FilesService (local storage provider) writes uploads to disk and hands
+  // back a "/uploads/<file>" URL, but nothing was ever registered to
+  // actually serve that path — uploads "succeeded" yet every resulting URL
+  // 404'd when an <Image>/<img> tried to load it. Served at the bare
+  // "/uploads" prefix (not under the api/v1 prefix below, since that only
+  // applies to controller routes) to match the URLs FilesService returns.
+  const localUploadPath = process.env['STORAGE_LOCAL_PATH'] ?? './uploads';
+  await app.register(fastifyStatic as any, {
+    root: path.resolve(process.cwd(), localUploadPath),
+    prefix: '/uploads/',
+  });
+
   // Global prefix
   app.setGlobalPrefix('api/v1');
 
   // CORS
-  const origins = (
-  process.env['CORS_ORIGINS'] ??
-  'http://localhost:8081,http://localhost:3002,http://localhost:3003,http://localhost:3004'
-).split(',');
- app.enableCors({
-    origin: origins,
+  // In dev, Expo/Metro dev servers grab whichever localhost port is free
+  // (8081, 8082, 8083, ...) and it varies run to run, so a fixed origin
+  // list constantly falls out of sync and breaks every request with a CORS
+  // error. Allow any localhost/127.0.0.1 origin in development instead;
+  // production still uses an explicit, fixed CORS_ORIGINS list.
+  const isDev = process.env['NODE_ENV'] !== 'production';
+  const explicitOrigins = (
+    process.env['CORS_ORIGINS'] ??
+    'http://localhost:8081,http://localhost:3002,http://localhost:3003,http://localhost:3004'
+  ).split(',');
+  app.enableCors({
+    origin: isDev
+      ? (origin, callback) => {
+          if (!origin || /^https?:\/\/(localhost|127\.0\.0\.1):\d+$/.test(origin)) {
+            callback(null, true);
+          } else {
+            callback(new Error('Not allowed by CORS'), false);
+          }
+        }
+      : explicitOrigins,
     credentials: true,
   });
 
