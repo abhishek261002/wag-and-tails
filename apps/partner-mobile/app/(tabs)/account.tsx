@@ -38,9 +38,8 @@ export default function PartnerAccountScreen() {
         </View>
 
         <MenuSection title="Service Settings">
-          <MenuItem emoji="📍" label="Service Radius" onPress={() => router.push('/account/service-radius' as any)} />
+          <MenuItem emoji="🏙" label="Service City" onPress={() => router.push('/account/service-city' as any)} />
           <MenuItem emoji="🗓" label="Working Hours" onPress={() => router.push('/account/working-hours' as any)} />
-          <MenuItem emoji="🗺" label="Neighborhoods" onPress={() => router.push('/account/neighborhoods' as any)} />
         </MenuSection>
 
         <MenuSection title="Account">

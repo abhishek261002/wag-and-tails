@@ -1,9 +1,13 @@
-import { Injectable, NotFoundException, ForbiddenException } from '@nestjs/common';
+import { Injectable, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { RealtimeGateway } from '../realtime/realtime.gateway.js';
 
 @Injectable()
 export class MessagingService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private realtime: RealtimeGateway
+  ) {}
 
   async listConversations(userId: string) {
     return this.prisma.conversation.findMany({
@@ -73,7 +77,8 @@ export class MessagingService {
     senderId: string,
     senderRole: string,
     content: string,
-    attachmentUrl?: string
+    attachmentUrl?: string,
+    attachmentType?: string
   ) {
     const participant = await this.prisma.conversationParticipant.findFirst({
       where: { conversationId, userId: senderId },
@@ -95,16 +100,36 @@ export class MessagingService {
         senderRole,
         content,
         attachmentUrl: attachmentUrl ?? null,
+        attachmentType: attachmentType ?? null,
         isRead: false,
         sentAt: new Date(),
       },
     });
 
     // Update conversation updated time
-    await this.prisma.conversation.update({
+    const conversation = await this.prisma.conversation.update({
       where: { id: conversationId },
       data: { updatedAt: new Date() },
     });
+
+    // Booking-scoped room, not per-user: both participants (whoever is
+    // connected and has joined this booking's room, per the same pattern
+    // as partner:location_updated) get the message live instead of
+    // relying on the 4s poll as the primary delivery path.
+    if (conversation.bookingId) {
+      this.realtime.emitToBooking(conversation.bookingId, 'message:sent', {
+        conversationId,
+        bookingId: conversation.bookingId,
+        messageId: message.id,
+        senderId,
+        senderName: message.senderName,
+        senderRole,
+        content,
+        attachmentUrl: message.attachmentUrl,
+        attachmentType: message.attachmentType,
+        sentAt: message.sentAt.toISOString(),
+      });
+    }
 
     return message;
   }

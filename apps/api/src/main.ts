@@ -52,6 +52,11 @@ async function bootstrap() {
   ).split(',');
   app.enableCors({
     origin: isDev ? true : explicitOrigins,
+    // Explicit rather than relying on @fastify/cors's default method list,
+    // since any endpoint added later (PATCH/PUT/DELETE included) should
+    // never need a CORS config change to become reachable from the app.
+    methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
+    allowedHeaders: '*',
     credentials: true,
   });
 

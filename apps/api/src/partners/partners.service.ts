@@ -2,6 +2,9 @@ import { Injectable, NotFoundException, ForbiddenException, BadRequestException 
 import { PrismaService } from '../prisma/prisma.service.js';
 import { RealtimeGateway } from '../realtime/realtime.gateway.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
+import { MessagingService } from '../messaging/messaging.service.js';
+import { isLocationFilteringEnabled } from '../common/feature-flags.js';
+import { normalizeCity } from '../common/city.js';
 import { BUSINESS_CONFIG } from '@wag/config';
 import { BookingType, PartnerStatus, Prisma } from '@prisma/client';
 
@@ -14,7 +17,8 @@ export class PartnersService {
   constructor(
     private prisma: PrismaService,
     private realtime: RealtimeGateway,
-    private notificationsService: NotificationsService
+    private notificationsService: NotificationsService,
+    private messagingService: MessagingService
   ) {}
 
   async getProfile(partnerId: string) {
@@ -31,7 +35,7 @@ export class PartnersService {
   }
 
   async updateProfile(partnerId: string, data: Partial<{
-    serviceRadiusKm: number; modes: string[];
+    serviceRadiusKm: number; modes: string[]; city: string;
     bio: string; bankAccountNumber: string; ifscCode: string;
   }>) {
     return this.prisma.partnerProfile.update({ where: { userId: partnerId }, data });
@@ -109,16 +113,25 @@ export class PartnersService {
       take: 20,
     });
 
-    // Filter by radius (simple Euclidean — PostGIS used in prod via raw query)
+    // City match, not radius: operations run per-city (Kanpur, Lucknow,
+    // Delhi) — a partner sees every open job in their own city, full stop.
     const lat = partner.currentLat ?? null;
     const lng = partner.currentLng ?? null;
-    const radiusKm = Math.min(partner.serviceRadiusKm, BUSINESS_CONFIG.MAX_WALK_RADIUS_KM);
+    const locationFilteringEnabled = isLocationFilteringEnabled();
 
     return openBookings
       .filter((b) => {
-        if (!b.address || lat == null || lng == null) return true;
-        const dist = this.haversineKm(lat, lng, b.address.lat, b.address.lng);
-        return dist <= radiusKm;
+        // v1/dev bypass: every open job is visible to every online,
+        // mode-matched partner regardless of city. Set
+        // ENABLE_LOCATION_FILTERING=true (or unset it) to restore the
+        // real per-city matching below.
+        if (!locationFilteringEnabled) return true;
+        if (!b.address) return true;
+        // No city on file for this partner yet — conservatively show
+        // nothing rather than guess, rather than the old radius fallback
+        // of "show it anyway" when location data was missing.
+        if (!partner.city) return false;
+        return normalizeCity(b.address.city) === normalizeCity(partner.city);
       })
       .map((b) => ({
         bookingId: b.id,
@@ -163,6 +176,10 @@ export class PartnersService {
     });
 
     await this.notifyAssigned(bookingId, partnerId);
+    // Chat opens the moment a job is claimed, not on-demand when someone
+    // first opens the messaging screen — so both sides can message from
+    // the instant the partner is assigned.
+    await this.messagingService.getOrCreateConversation(bookingId, partnerId);
     return updated;
   }
 

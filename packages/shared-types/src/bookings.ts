@@ -1,3 +1,5 @@
+import type { Address } from './location.js';
+
 export type GroomingBookingStatus =
   | 'draft'
   | 'pending_payment'
@@ -68,6 +70,7 @@ export interface Booking {
   slotDurationMinutes: number | null;
   addressId: string;
   addressLine: string;
+  address?: Address;
   channel: BookingChannel;
   notes: string | null;
   subtotal: number;

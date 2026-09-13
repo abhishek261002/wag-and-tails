@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Share, Animated } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Button } from '@wag/ui-mobile';
+import { Button, LiveMapView } from '@wag/ui-mobile';
 import { colors, spacing, typography, radii } from '@wag/design-tokens';
 import { wagApi } from '../../src/lib/api';
 import { format } from 'date-fns';
@@ -112,22 +112,19 @@ export default function BookingConfirmedScreen() {
         )}
 
         {isTracking && (
-          <View style={styles.trackingCard}>
-            {partnerLoc ? (
-              <>
-                <Text style={{ fontSize: 32 }}>📍</Text>
-                <Text style={styles.trackingText}>Your groomer is on the way</Text>
-                <Text style={styles.trackingSub}>
-                  {partnerLoc.lat.toFixed(5)}, {partnerLoc.lng.toFixed(5)} · updated {new Date(partnerLoc.timestamp).toLocaleTimeString()}
-                </Text>
-              </>
-            ) : (
-              <>
-                <Text style={{ fontSize: 32 }}>🗺️</Text>
-                <Text style={styles.trackingText}>Live location will appear here once your groomer heads out</Text>
-              </>
-            )}
-          </View>
+          partnerLoc || booking?.address ? (
+            <View style={{ width: '100%', marginBottom: spacing[4] }}>
+              <LiveMapView
+                partner={partnerLoc ? { lat: partnerLoc.lat, lng: partnerLoc.lng, label: 'Groomer' } : null}
+                destination={booking?.address ? { lat: booking.address.lat, lng: booking.address.lng, label: 'You' } : null}
+              />
+            </View>
+          ) : (
+            <View style={styles.trackingCard}>
+              <Text style={{ fontSize: 32 }}>🗺️</Text>
+              <Text style={styles.trackingText}>Live location will appear here once your groomer heads out</Text>
+            </View>
+          )
         )}
 
         {booking && (

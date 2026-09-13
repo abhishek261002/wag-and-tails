@@ -32,4 +32,5 @@ export interface SendMessageInput {
   conversationId: string;
   content: string;
   attachmentUrl?: string;
+  attachmentType?: string;
 }

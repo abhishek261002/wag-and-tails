@@ -1,6 +1,6 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl, Alert,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl, Alert, AppState,
 } from 'react-native';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -8,6 +8,7 @@ import { PetAvatar, Button } from '@wag/ui-mobile';
 import { colors, spacing, radii } from '@wag/design-tokens';
 import { wagApi } from '../../src/lib/api';
 import { useModeStore } from '../../src/store/mode.store';
+import { configurePartnerNotifications, notifyIncomingJob } from '../../src/lib/notifications';
 
 type PartnerJobCard = {
   bookingId: string;
@@ -48,6 +49,15 @@ export default function JobsScreen() {
   const [togglingOnline, setTogglingOnline] = useState(false);
   const [claimingId, setClaimingId] = useState<string | null>(null);
   const [incomingJob, setIncomingJob] = useState<IncomingJob | null>(null);
+  const appStateRef = useRef(AppState.currentState);
+
+  useEffect(() => {
+    configurePartnerNotifications();
+    const sub = AppState.addEventListener('change', (next) => {
+      appStateRef.current = next;
+    });
+    return () => sub.remove();
+  }, []);
 
   const load = useCallback(async () => {
     try {
@@ -88,20 +98,34 @@ export default function JobsScreen() {
     // didn't act on the popup for simply vanishes: it was never added to
     // `openJobs`, so "Open jobs" keeps showing 0 even though a booking
     // really was just dispatched to this partner.
+    // In the foreground the in-app modal below is the notification. Only
+    // once the app is actually backgrounded does this also need to reach
+    // the OS notification tray via expo-notifications — otherwise a
+    // foregrounded partner would get both the modal AND a system banner
+    // for the same job.
+    const notifyIfBackgrounded = (title: string, job: IncomingJob) => {
+      if (appStateRef.current !== 'active') {
+        notifyIncomingJob({ title, ...job });
+      }
+    };
+
     const offJob = wagApi.realtime.on('job:available', (payload: IncomingJob) => {
       setIncomingJob(payload);
       load();
+      notifyIfBackgrounded('New grooming job available', payload);
     });
     const offWalk = wagApi.realtime.on('walk:request_sent', (payload: any) => {
-      setIncomingJob({
+      const job: IncomingJob = {
         bookingId: payload.bookingId,
         type: 'walking',
         petName: payload.petName,
         petBreed: payload.petBreed,
         addressLine: payload.pickupAddress,
         partnerPayout: payload.partnerPayout,
-      });
+      };
+      setIncomingJob(job);
       load();
+      notifyIfBackgrounded('New walk request', job);
     });
     return () => {
       offJob();

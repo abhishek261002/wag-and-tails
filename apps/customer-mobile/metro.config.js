@@ -6,8 +6,15 @@ const workspaceRoot = path.resolve(projectRoot, '../..');
 
 const config = getDefaultConfig(projectRoot);
 
-// 1. Watch monorepo root
-config.watchFolders = [workspaceRoot];
+// 1. Watch only what this app actually needs: itself and the shared
+// workspace packages. Watching the whole monorepo root (every sibling app,
+// including apps/api) is unnecessary and fragile — Metro's non-Watchman
+// fallback watcher on Windows crawls every directory it finds and then
+// fs.watch()'s each one, and a directory that existed at crawl time but is
+// gone by watch-setup time (e.g. apps/api/dist, recreated/removed by the
+// API's own build) throws an uncaught ENOENT that kills the whole Metro
+// process outright.
+config.watchFolders = [projectRoot, path.resolve(workspaceRoot, 'packages')];
 
 // 2. Resolve module search paths
 config.resolver.nodeModulesPaths = [

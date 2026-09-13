@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Button, Card, SlideToComplete } from '@wag/ui-mobile';
+import { Button, Card, SlideToComplete, LiveMapView } from '@wag/ui-mobile';
 import { colors, spacing, typography, radii } from '@wag/design-tokens';
 import { wagApi } from '../../src/lib/api';
 import * as ImagePicker from 'expo-image-picker';
@@ -98,7 +98,7 @@ export default function JobDetailScreen() {
     }
   };
 
-  useJobLocationBroadcast(
+  const myLocation = useJobLocationBroadcast(
     !!booking && ['assigned', 'accepted', 'partner_on_the_way', 'arrived', 'in_progress'].includes(booking.status)
   );
 
@@ -205,6 +205,17 @@ export default function JobDetailScreen() {
           </View>
           <Text style={styles.addressText}>📍 {booking.addressLine}</Text>
         </Card>
+
+        {/* Live map — see packages/ui-mobile/src/LiveMapView for the Ola
+            Maps integration point. */}
+        {['assigned', 'accepted', 'partner_on_the_way', 'arrived'].includes(status) && booking.address && (
+          <View style={{ marginHorizontal: spacing[4], marginBottom: spacing[3] }}>
+            <LiveMapView
+              partner={myLocation ? { ...myLocation, label: 'You' } : null}
+              destination={{ lat: booking.address.lat, lng: booking.address.lng, label: 'Customer' }}
+            />
+          </View>
+        )}
 
         {/* Package / service */}
         {isGrooming && (

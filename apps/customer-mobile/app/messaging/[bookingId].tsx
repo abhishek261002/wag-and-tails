@@ -1,8 +1,9 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity, TextInput,
-  KeyboardAvoidingView, Platform,
+  KeyboardAvoidingView, Platform, Image, Alert,
 } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
 import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, spacing, radii } from '@wag/design-tokens';
@@ -26,10 +27,27 @@ export default function MessagingScreen() {
     } catch {}
   }, []);
 
-  // Get-or-create conversation on mount, then start polling
+  // Get-or-create conversation, join the booking's realtime room for
+  // live delivery, and keep a 4s poll running as a fallback — same
+  // primary-socket/fallback-poll pattern used by the live tracking screen.
   useEffect(() => {
     if (!bookingId) return;
     let pollTimer: ReturnType<typeof setInterval> | null = null;
+
+    wagApi.realtime.connect();
+    wagApi.realtime.joinBooking(bookingId);
+
+    const offMessage = wagApi.realtime.on('message:sent', (payload: any) => {
+      if (payload.bookingId !== bookingId) return;
+      setMessages((prev) => {
+        if (prev.some((m) => m.id === payload.messageId)) return prev;
+        return [
+          { id: payload.messageId, conversationId: payload.conversationId, senderId: payload.senderId, senderName: payload.senderName, senderRole: payload.senderRole, content: payload.content, attachmentUrl: payload.attachmentUrl, attachmentType: payload.attachmentType, sentAt: payload.sentAt },
+          ...prev,
+        ];
+      });
+      setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 100);
+    });
 
     wagApi.messaging.getOrCreateConversation(bookingId)
       .then((conv: any) => {
@@ -40,7 +58,11 @@ export default function MessagingScreen() {
       })
       .catch(() => {});
 
-    return () => { if (pollTimer) clearInterval(pollTimer); };
+    return () => {
+      if (pollTimer) clearInterval(pollTimer);
+      offMessage();
+      wagApi.realtime.disconnect();
+    };
   }, [bookingId, refreshMessages]);
 
   const send = async () => {
@@ -54,6 +76,43 @@ export default function MessagingScreen() {
       setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 100);
     } catch {
       setText(content); // restore on failure
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const sendPhoto = async () => {
+    if (!conversationId) return;
+    const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      Alert.alert('Permission needed', 'Allow photo access to share a picture.');
+      return;
+    }
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ['images'],
+      allowsEditing: false,
+      quality: 0.7,
+    });
+    if (result.canceled || !result.assets?.[0]) return;
+
+    const asset = result.assets[0];
+    setSending(true);
+    try {
+      const { url } = await wagApi.messaging.uploadAttachment(conversationId, {
+        uri: asset.uri,
+        name: asset.fileName ?? 'photo.jpg',
+        type: asset.mimeType ?? 'image/jpeg',
+      });
+      await wagApi.messaging.sendMessage({
+        conversationId,
+        content: '📷 Photo',
+        attachmentUrl: url,
+        attachmentType: 'image',
+      });
+      await refreshMessages(conversationId);
+      setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 100);
+    } catch {
+      Alert.alert('Error', 'Could not send photo');
     } finally {
       setSending(false);
     }
@@ -85,7 +144,11 @@ export default function MessagingScreen() {
             return (
               <View style={[styles.bubble, isMe ? styles.bubbleMe : styles.bubbleThem]}>
                 {!isMe && <Text style={styles.senderName}>{msg.senderName}</Text>}
-                <Text style={[styles.msgText, isMe ? styles.msgTextMe : {}]}>{msg.content}</Text>
+                {msg.attachmentType === 'image' && msg.attachmentUrl ? (
+                  <Image source={{ uri: msg.attachmentUrl }} style={styles.attachmentImage} />
+                ) : (
+                  <Text style={[styles.msgText, isMe ? styles.msgTextMe : {}]}>{msg.content}</Text>
+                )}
                 <Text style={[styles.time, isMe ? styles.timeMe : {}]}>
                   {new Date(msg.sentAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
                 </Text>
@@ -101,6 +164,14 @@ export default function MessagingScreen() {
         />
 
         <View style={styles.inputRow}>
+          <TouchableOpacity
+            style={styles.attachBtn}
+            onPress={sendPhoto}
+            disabled={sending || !conversationId}
+            accessibilityLabel="Attach photo"
+          >
+            <Text style={{ fontSize: 20 }}>📷</Text>
+          </TouchableOpacity>
           <TextInput
             style={styles.input}
             value={text}
@@ -137,11 +208,13 @@ const styles = StyleSheet.create({
   senderName: { fontFamily: 'Inter', fontSize: 11, fontWeight: '700', color: colors.textMuted, marginBottom: 3 },
   msgText: { fontFamily: 'Inter', fontSize: 15, color: colors.textPrimary },
   msgTextMe: { color: colors.white },
+  attachmentImage: { width: 200, height: 200, borderRadius: radii.lg },
   time: { fontFamily: 'Inter', fontSize: 10, color: colors.textMuted, marginTop: 4, textAlign: 'right' },
   timeMe: { color: 'rgba(255,255,255,0.6)' },
   empty: { alignItems: 'center', paddingTop: spacing[16] },
   emptyText: { fontFamily: 'Inter', fontSize: 14, color: colors.textMuted, marginTop: spacing[2] },
   inputRow: { flexDirection: 'row', alignItems: 'flex-end', gap: spacing[2], padding: spacing[3], borderTopWidth: 1, borderTopColor: colors.borderLight, backgroundColor: colors.white },
+  attachBtn: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
   input: { flex: 1, backgroundColor: colors.canvas, borderRadius: radii.xl, borderWidth: 1, borderColor: colors.borderLight, paddingHorizontal: spacing[4], paddingVertical: spacing[2], fontFamily: 'Inter', fontSize: 15, color: colors.textPrimary, maxHeight: 100 },
   sendBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.brandBrown, alignItems: 'center', justifyContent: 'center' },
   sendBtnDisabled: { backgroundColor: colors.borderMedium },

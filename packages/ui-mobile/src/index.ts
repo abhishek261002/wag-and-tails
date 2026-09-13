@@ -12,3 +12,7 @@ export { Input } from './Input';
 export type { MobileInputProps } from './Input';
 export { SlideToComplete } from './SlideToComplete';
 export type { SlideToCompleteProps } from './SlideToComplete';
+export { LiveMapView } from './LiveMapView';
+export type { LiveMapViewProps, LiveMapMarker } from './LiveMapView.types';
+export { configureMaps, getOlaMapsApiKey } from './mapsConfig';
+export type { MapsConfig } from './mapsConfig';

@@ -21,7 +21,7 @@
     "web": {
       "bundler": "metro"
     },
-    "plugins": ["expo-router", "expo-secure-store", "expo-location"],
+    "plugins": ["expo-router", "expo-secure-store", "expo-location", "expo-notifications"],
     "scheme": "wagandtailspartner",
     "extra": { "apiUrl": "http://localhost:3001/api/v1" }
   }

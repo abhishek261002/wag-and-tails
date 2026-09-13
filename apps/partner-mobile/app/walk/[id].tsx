@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, TextInput } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Button, SlideToComplete } from '@wag/ui-mobile';
+import { Button, SlideToComplete, LiveMapView } from '@wag/ui-mobile';
 import { colors, spacing, typography, radii } from '@wag/design-tokens';
 import { wagApi } from '../../src/lib/api';
 import * as ImagePicker from 'expo-image-picker';
@@ -74,7 +74,7 @@ export default function WalkDetailScreen() {
     }
   };
 
-  useJobLocationBroadcast(
+  const myLocation = useJobLocationBroadcast(
     ['accepted', 'partner_on_the_way', 'arrived', 'in_progress'].includes((booking as any)?.status ?? '')
   );
 
@@ -150,6 +150,18 @@ export default function WalkDetailScreen() {
             <Text style={styles.messageBtnText}>💬 Message Customer</Text>
           </TouchableOpacity>
         </View>
+
+        {/* Live map — shows this partner's own position heading to the
+            customer's booking address; see packages/ui-mobile/src/LiveMapView
+            for the Ola Maps integration point. */}
+        {['accepted', 'partner_on_the_way', 'arrived'].includes(status) && (booking as any)?.address && (
+          <View style={{ marginBottom: spacing[3] }}>
+            <LiveMapView
+              partner={myLocation ? { ...myLocation, label: 'You' } : null}
+              destination={{ lat: (booking as any).address.lat, lng: (booking as any).address.lng, label: 'Customer' }}
+            />
+          </View>
+        )}
 
         {/* Timer */}
         {status === 'in_progress' && (

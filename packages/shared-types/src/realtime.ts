@@ -68,9 +68,13 @@ export interface JobAvailablePayload {
 
 export interface MessagePayload {
   conversationId: string;
+  bookingId: string | null;
   messageId: string;
   senderId: string;
   senderName: string;
+  senderRole: string;
   content: string;
+  attachmentUrl?: string | null;
+  attachmentType?: string | null;
   sentAt: string;
 }

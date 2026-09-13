@@ -4,9 +4,10 @@ import { WalkingController } from './walking.controller.js';
 import { MapsLocationModule } from '../maps-location/maps-location.module.js';
 import { NotificationsModule } from '../notifications/notifications.module.js';
 import { RealtimeModule } from '../realtime/realtime.module.js';
+import { MessagingModule } from '../messaging/messaging.module.js';
 
 @Module({
-  imports: [MapsLocationModule, NotificationsModule, RealtimeModule],
+  imports: [MapsLocationModule, NotificationsModule, RealtimeModule, MessagingModule],
   providers: [WalkingService],
   controllers: [WalkingController],
   exports: [WalkingService],

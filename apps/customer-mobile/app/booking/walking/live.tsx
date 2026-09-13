@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { PetAvatar } from '@wag/ui-mobile';
+import { PetAvatar, LiveMapView } from '@wag/ui-mobile';
 import { colors, spacing, typography, radii } from '@wag/design-tokens';
 import { wagApi, resolveMediaUrl } from '../../../src/lib/api';
 
@@ -106,30 +106,21 @@ export default function LiveWalkScreen() {
           <Text style={styles.statusMsg}>{STATUS_MSG[status] ?? 'Walk in progress'}</Text>
         </View>
 
-        {/* Live location — a lightweight coordinate readout rather than an
-            embedded native map, since react-native-maps has no web renderer
-            and this app is tested via --web; the map view itself is a
-            drop-in swap for a native build once that's the target. */}
-        <View style={styles.mapPlaceholder}>
-          {partnerLoc ? (
-            <>
-              <Text style={{ fontSize: 40 }}>📍</Text>
-              <Text style={styles.mapText}>{partnerName} is nearby</Text>
-              <Text style={styles.mapSub}>
-                {partnerLoc.lat.toFixed(5)}, {partnerLoc.lng.toFixed(5)}
-              </Text>
-              <Text style={styles.mapSub}>
-                Updated {new Date(partnerLoc.timestamp).toLocaleTimeString()}
-              </Text>
-            </>
-          ) : (
-            <>
-              <Text style={{ fontSize: 48 }}>🗺️</Text>
-              <Text style={styles.mapText}>Waiting for location…</Text>
-              <Text style={styles.mapSub}>Updates live once {partnerName} starts moving</Text>
-            </>
-          )}
-        </View>
+        {/* Live location, embedded — see packages/ui-mobile/src/LiveMapView
+            for the Ola Maps integration point (falls back to keyless OSM
+            tiles until real credentials are configured). */}
+        {partnerLoc || booking?.address ? (
+          <LiveMapView
+            partner={partnerLoc ? { lat: partnerLoc.lat, lng: partnerLoc.lng, label: partnerName } : null}
+            destination={booking?.address ? { lat: booking.address.lat, lng: booking.address.lng, label: 'Pickup' } : null}
+          />
+        ) : (
+          <View style={styles.mapPlaceholder}>
+            <Text style={{ fontSize: 48 }}>🗺️</Text>
+            <Text style={styles.mapText}>Waiting for location…</Text>
+            <Text style={styles.mapSub}>Updates live once {partnerName} starts moving</Text>
+          </View>
+        )}
 
         {/* Arrival code — the customer reads this out to the walker once
             they arrive; entering it server-side is what starts the walk. */}

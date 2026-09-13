@@ -190,6 +190,11 @@ model PartnerProfile {
   userId            String        @unique @map("user_id") @db.Uuid
   status            PartnerStatus @default(pending)
   modes             String[]      @default([]) // 'grooming' | 'walking'
+  // Operations are per-city (Kanpur, Lucknow, Delhi), not radius-based — a
+  // partner serves every booking in their assigned city, full stop. Kept
+  // alongside serviceRadiusKm/currentLat/currentLng rather than replacing
+  // them, since those still back the dev-only distance-based bypass path.
+  city              String?
   serviceRadiusKm   Int           @default(5) @map("service_radius_km")
   isOnline          Boolean       @default(false) @map("is_online")
   currentLat        Float?        @map("current_lat")

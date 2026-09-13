@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { MapsLocationService } from '../maps-location/maps-location.service.js';
 import { RealtimeGateway } from '../realtime/realtime.gateway.js';
+import { isLocationFilteringEnabled } from '../common/feature-flags.js';
 
 // Payment provider abstraction
 export interface PaymentProvider {
@@ -109,23 +110,35 @@ export class PaymentsService {
 
     if (!booking.address) return;
 
-    const nearbyPartners = await this.mapsService.findNearbyPartners(
-      booking.address.lat,
-      booking.address.lng,
-      15
-    );
-    const eligible = nearbyPartners.filter((p) => p.modes.includes('grooming'));
+    const payload = {
+      bookingId: booking.id,
+      type: 'grooming',
+      petName: booking.petName,
+      petBreed: booking.petBreed,
+      scheduledAt: booking.scheduledAt ? booking.scheduledAt.toISOString() : null,
+      addressLine: booking.addressLine,
+      partnerPayout: Math.round(Number(booking.total) * 0.8),
+    };
 
-    for (const partner of eligible.slice(0, 10)) {
-      this.realtime.emitToUser(partner.id, 'job:available', {
-        bookingId: booking.id,
-        type: 'grooming',
-        petName: booking.petName,
-        petBreed: booking.petBreed,
-        scheduledAt: booking.scheduledAt ? booking.scheduledAt.toISOString() : null,
-        addressLine: booking.addressLine,
-        partnerPayout: Math.round(Number(booking.total) * 0.8),
-      });
+    if (!isLocationFilteringEnabled()) {
+      // v1/dev bypass: skip nearby-partner matching entirely and
+      // broadcast to every connected partner (the `role:partner` socket
+      // room, joined by anyone toggled online) so testing works without
+      // needing matching lat/lng between test accounts. Set
+      // ENABLE_LOCATION_FILTERING=true (or leave it unset) for real
+      // geofenced, per-partner targeting in production.
+      this.realtime.emitToRole('partner', 'job:available', payload);
+      return;
+    }
+
+    // City-based dispatch: every partner assigned to the booking's city
+    // gets the job, not just the nearest few by distance — see
+    // WalkingService.searchNearbyPartners for the walking equivalent.
+    const cityPartners = await this.mapsService.findPartnersInCity(booking.address.city);
+    const eligible = cityPartners.filter((p) => p.modes.includes('grooming'));
+
+    for (const partner of eligible) {
+      this.realtime.emitToUser(partner.id, 'job:available', payload);
     }
   }
 

@@ -12,6 +12,7 @@ export interface Partner {
   avatarUrl: string | null;
   status: PartnerStatus;
   modes: PartnerMode[];
+  city: string | null;
   serviceRadiusKm: number;
   isOnline: boolean;
   currentLat: number | null;

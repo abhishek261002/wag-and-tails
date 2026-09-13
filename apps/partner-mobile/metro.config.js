@@ -6,7 +6,12 @@ const workspaceRoot = path.resolve(projectRoot, '../..');
 
 const config = getDefaultConfig(projectRoot);
 
-config.watchFolders = [workspaceRoot];
+// Watch only this app and the shared workspace packages, not the whole
+// monorepo root — see customer-mobile/metro.config.js for why (Metro's
+// Windows fallback watcher crashes the whole process with an uncaught
+// ENOENT if a sibling app's build artifact directory, e.g. apps/api/dist,
+// disappears between its initial crawl and fs.watch() setup).
+config.watchFolders = [projectRoot, path.resolve(workspaceRoot, 'packages')];
 
 config.resolver.nodeModulesPaths = [
   path.resolve(projectRoot, 'node_modules'),

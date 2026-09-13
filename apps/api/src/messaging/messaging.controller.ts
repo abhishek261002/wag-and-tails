@@ -44,9 +44,11 @@ export class MessagingController {
   sendMessage(
     @Param('id') id: string,
     @CurrentUser() user: { sub: string; role: string },
-    @Body() body: { content: string; attachmentUrl?: string }
+    @Body() body: { content: string; attachmentUrl?: string; attachmentType?: string }
   ) {
-    return this.messagingService.sendMessage(id, user.sub, user.role, body.content, body.attachmentUrl);
+    return this.messagingService.sendMessage(
+      id, user.sub, user.role, body.content, body.attachmentUrl, body.attachmentType
+    );
   }
 
   @Patch('conversations/:id/read')

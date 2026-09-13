@@ -95,6 +95,7 @@ export class BookingsService {
         customer: { include: { profile: true } },
         pet: { include: { careNotes: { orderBy: { createdAt: 'desc' } } } },
         partner: { include: { user: { include: { profile: true } } } },
+        address: true,
         addOns: { include: { addOn: true } },
         statusHistory: { orderBy: { changedAt: 'desc' } },
         payment: true,
