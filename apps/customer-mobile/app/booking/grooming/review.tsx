@@ -4,18 +4,18 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Button, Input } from '@wag/ui-mobile';
+import { Button, Input, Icon, type IconName } from '@wag/ui-mobile';
 import { colors, spacing, typography, radii } from '@wag/design-tokens';
 import { wagApi } from '../../../src/lib/api';
 import { useBookingStore } from '../../../src/store/booking.store';
 import { format } from 'date-fns';
 
-const PAYMENT_OPTIONS = [
-  { label: '📱 UPI', value: 'upi' },
-  { label: '💳 Card', value: 'card' },
-  { label: '👛 Wallet', value: 'wallet' },
-  { label: '💵 Cash after service', value: 'cash_after_service' },
-] as const;
+const PAYMENT_OPTIONS: { label: string; value: 'upi' | 'card' | 'wallet' | 'cash_after_service'; icon: IconName }[] = [
+  { label: 'UPI', value: 'upi', icon: 'phone' },
+  { label: 'Card', value: 'card', icon: 'card' },
+  { label: 'Wallet', value: 'wallet', icon: 'wallet' },
+  { label: 'Cash after service', value: 'cash_after_service', icon: 'bag' },
+];
 
 export default function ReviewGroomingBookingScreen() {
   const { groomingDraft, updateGroomingDraft, resetGroomingDraft } = useBookingStore();
@@ -123,7 +123,10 @@ export default function ReviewGroomingBookingScreen() {
             </TouchableOpacity>
           </View>
           {couponApplied && discount > 0 && (
-            <Text style={styles.couponSuccess}>🎉 ₹{discount} discount applied!</Text>
+            <View style={styles.couponSuccessRow}>
+              <Icon name="check" size={14} color={colors.success} />
+              <Text style={styles.couponSuccess}>₹{discount} discount applied!</Text>
+            </View>
           )}
         </Section>
 
@@ -138,6 +141,11 @@ export default function ReviewGroomingBookingScreen() {
                 accessibilityRole="radio"
                 accessibilityState={{ selected: groomingDraft.paymentMethod === opt.value }}
               >
+                <Icon
+                  name={opt.icon}
+                  size={16}
+                  color={groomingDraft.paymentMethod === opt.value ? colors.brandBrown : colors.textMuted}
+                />
                 <Text style={[styles.payOptText, groomingDraft.paymentMethod === opt.value && styles.payOptTextActive]}>
                   {opt.label}
                 </Text>
@@ -195,9 +203,10 @@ const styles = StyleSheet.create({
   couponRow: { flexDirection: 'row', gap: spacing[2], alignItems: 'flex-start' },
   applyBtn: { backgroundColor: colors.brandBrown, borderRadius: radii.md, paddingHorizontal: spacing[4], height: 52, justifyContent: 'center' },
   applyBtnText: { fontFamily: 'Inter', fontSize: typography.fontSize.sm, fontWeight: '700', color: colors.white },
-  couponSuccess: { fontFamily: 'Inter', fontSize: typography.fontSize.sm, color: colors.success, fontWeight: '600', marginTop: spacing[2] },
+  couponSuccessRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: spacing[2] },
+  couponSuccess: { fontFamily: 'Inter', fontSize: typography.fontSize.sm, color: colors.success, fontWeight: '600' },
   paymentGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing[2] },
-  payOpt: { paddingHorizontal: spacing[4], paddingVertical: spacing[3], borderRadius: radii.lg, borderWidth: 1.5, borderColor: colors.borderLight },
+  payOpt: { flexDirection: 'row', alignItems: 'center', gap: spacing[2], paddingHorizontal: spacing[4], paddingVertical: spacing[3], borderRadius: radii.lg, borderWidth: 1.5, borderColor: colors.borderLight },
   payOptActive: { borderColor: colors.brandBrown, backgroundColor: colors.brandBrown },
   payOptText: { fontFamily: 'Inter', fontSize: typography.fontSize.sm, fontWeight: '600', color: colors.textSecondary },
   payOptTextActive: { color: colors.white },

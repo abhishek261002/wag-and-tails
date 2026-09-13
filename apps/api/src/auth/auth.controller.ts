@@ -8,7 +8,7 @@ import {
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
-import { IsEmail, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { IsEmail, IsInt, IsNotEmpty, IsOptional, IsString, Min } from 'class-validator';
 import { AuthService } from './auth.service.js';
 import { CurrentUser } from '../common/decorators.js';
 
@@ -52,6 +52,44 @@ class RegisterDto {
   @IsString()
   @IsNotEmpty()
   dateOfBirth!: string;
+}
+
+class RegisterPartnerDto {
+  @IsEmail()
+  @IsNotEmpty()
+  email!: string;
+
+  @IsString()
+  @IsNotEmpty()
+  password!: string;
+
+  @IsString()
+  @IsNotEmpty()
+  phone!: string;
+
+  @IsString()
+  @IsNotEmpty()
+  firstName!: string;
+
+  @IsString()
+  @IsNotEmpty()
+  lastName!: string;
+
+  @IsInt()
+  @Min(18)
+  age!: number;
+
+  @IsString()
+  @IsNotEmpty()
+  address!: string;
+
+  @IsString()
+  @IsNotEmpty()
+  aadhaarNumber!: string;
+
+  @IsString()
+  @IsNotEmpty()
+  city!: string;
 }
 
 class LoginDto {
@@ -100,6 +138,11 @@ export class AuthController {
   @Post('register')
   register(@Body() body: RegisterDto) {
     return this.authService.registerCustomer(body);
+  }
+
+  @Post('register/partner')
+  registerPartner(@Body() body: RegisterPartnerDto) {
+    return this.authService.registerPartner(body);
   }
 
   @Post('login')

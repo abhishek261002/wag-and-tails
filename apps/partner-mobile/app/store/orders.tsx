@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity } from 'react-native';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Card, Badge } from '@wag/ui-mobile';
+import { Card, Badge, Icon } from '@wag/ui-mobile';
 import { colors, spacing, radii } from '@wag/design-tokens';
 import { wagApi } from '../../src/lib/api';
 import { format } from 'date-fns';
@@ -66,7 +66,7 @@ export default function PartnerOrdersScreen() {
         ListEmptyComponent={
           !loading ? (
             <View style={styles.empty}>
-              <Text style={{ fontSize: 48 }}>📦</Text>
+              <Icon name="bag" size={44} color={colors.textDisabled} />
               <Text style={styles.emptyText}>No orders yet</Text>
               <TouchableOpacity onPress={() => router.replace('/(tabs)/store' as any)}>
                 <Text style={styles.shopLink}>Shop now</Text>

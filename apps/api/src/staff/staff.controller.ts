@@ -4,6 +4,7 @@ import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { StaffService } from './staff.service.js';
 import { BookingsService } from '../bookings/bookings.service.js';
 import { OrdersService } from '../orders/orders.service.js';
+import { PartnersService } from '../partners/partners.service.js';
 import { CurrentUser, Roles } from '../common/decorators.js';
 import { RolesGuard } from '../common/roles.guard.js';
 import { parsePagination } from '../common/pagination.js';
@@ -17,7 +18,8 @@ export class StaffController {
   constructor(
     private staffService: StaffService,
     private bookingsService: BookingsService,
-    private ordersService: OrdersService
+    private ordersService: OrdersService,
+    private partnersService: PartnersService
   ) {}
 
   @Get('dashboard')
@@ -59,6 +61,21 @@ export class StaffController {
   @Get('customers')
   listCustomers(@Query() query: any) {
     return this.staffService.listCustomers(parsePagination(query));
+  }
+
+  @Get('partners')
+  listPartners(@Query() query: any) {
+    return this.partnersService.listAll(parsePagination(query));
+  }
+
+  @Patch('partners/:id/approve')
+  approvePartner(@Param('id') id: string, @CurrentUser() user: { sub: string }) {
+    return this.partnersService.approve(id, user.sub);
+  }
+
+  @Patch('partners/:id/suspend')
+  suspendPartner(@Param('id') id: string, @Body() body: { reason: string }) {
+    return this.partnersService.suspend(id, body.reason);
   }
 
   @Get('orders')

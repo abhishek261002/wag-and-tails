@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, FlatList, TouchableOpacity } from 'react-native
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, spacing, radii } from '@wag/design-tokens';
+import { Icon } from '@wag/ui-mobile';
 import { wagApi } from '../../src/lib/api';
 import { format } from 'date-fns';
 
@@ -47,7 +48,7 @@ export default function ReviewsScreen() {
         )}
         ListEmptyComponent={
           <View style={styles.empty}>
-            <Text style={{ fontSize: 48 }}>⭐</Text>
+            <Icon name="star" size={44} color={colors.textDisabled} />
             <Text style={styles.emptyText}>No reviews yet</Text>
           </View>
         }

@@ -4,7 +4,7 @@ import {
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Button, Card, Badge } from '@wag/ui-mobile';
+import { Button, Card, Badge, Icon } from '@wag/ui-mobile';
 import { colors, spacing, typography, radii } from '@wag/design-tokens';
 import { wagApi } from '../../src/lib/api';
 import { format } from 'date-fns';
@@ -109,7 +109,9 @@ export default function BookingDetailScreen() {
         {/* Status */}
         <Card style={styles.statusCard}>
           <View style={styles.statusRow}>
-            <Text style={styles.statusEmoji}>{isGrooming ? '✂️' : '🐾'}</Text>
+            <View style={styles.statusIconBox}>
+              <Icon name={isGrooming ? 'scissors' : 'route'} size={22} color={colors.marigoldDark} />
+            </View>
             <View style={{ flex: 1 }}>
               <Text style={styles.statusTitle}>{STATUS_LABELS[booking.status] ?? booking.status}</Text>
               <Text style={styles.bookingId}>Booking #{booking.id.slice(-8).toUpperCase()}</Text>
@@ -140,7 +142,10 @@ export default function BookingDetailScreen() {
         {/* Pet Care Notes — always visible */}
         {booking.petCareNotes && (
           <View style={styles.careNoteBlock}>
-            <Text style={styles.careNoteTitle}>📝 Pet Care Notes</Text>
+            <View style={styles.careNoteTitleRow}>
+              <Icon name="doc" size={13} color={colors.warning} />
+              <Text style={styles.careNoteTitle}>Pet Care Notes</Text>
+            </View>
             <Text style={styles.careNoteBody}>{booking.petCareNotes}</Text>
           </View>
         )}
@@ -149,7 +154,7 @@ export default function BookingDetailScreen() {
         {partnerName && (
           <Section title="Your Partner">
             <Row label="Name" value={partnerName} />
-            {booking.partner?.rating && <Row label="Rating" value={`⭐ ${booking.partner.rating}`} />}
+            {booking.partner?.rating && <Row label="Rating" value={`${booking.partner.rating} ★`} />}
             <Row label="Jobs done" value={`${booking.partner.completedJobs ?? 0} jobs`} />
           </Section>
         )}
@@ -188,18 +193,35 @@ export default function BookingDetailScreen() {
         {/* Actions */}
         <View style={styles.actions}>
           {partnerName && !isCompleted && !isCancelled && (
-            <Button onPress={handleMessage} variant="outline" fullWidth style={styles.actionBtn}>
-              💬 Message Partner
+            <Button
+              onPress={handleMessage}
+              variant="outline"
+              fullWidth
+              leftIcon={<Icon name="chat" size={16} color={colors.brandBrown} />}
+              style={styles.actionBtn}
+            >
+              Message Partner
             </Button>
           )}
           {RESCHEDULABLE.includes(booking.status) && (
-            <Button onPress={handleReschedule} variant="outline" fullWidth style={styles.actionBtn}>
-              🗓 Reschedule
+            <Button
+              onPress={handleReschedule}
+              variant="outline"
+              fullWidth
+              leftIcon={<Icon name="cal" size={16} color={colors.brandBrown} />}
+              style={styles.actionBtn}
+            >
+              Reschedule
             </Button>
           )}
           {isCompleted && !booking.review && (
-            <Button onPress={handleRate} fullWidth style={styles.actionBtn}>
-              ⭐ Rate & Review
+            <Button
+              onPress={handleRate}
+              fullWidth
+              leftIcon={<Icon name="star" size={16} color={colors.white} variant="fill" />}
+              style={styles.actionBtn}
+            >
+              Rate & Review
             </Button>
           )}
           {CANCELLABLE.includes(booking.status) && (
@@ -247,7 +269,7 @@ const styles = StyleSheet.create({
   content: { paddingHorizontal: spacing[5], paddingBottom: spacing[16] },
   statusCard: { marginBottom: spacing[4], padding: spacing[4] },
   statusRow: { flexDirection: 'row', alignItems: 'center', gap: spacing[3] },
-  statusEmoji: { fontSize: 32 },
+  statusIconBox: { width: 44, height: 44, borderRadius: radii.md, backgroundColor: colors.marigoldBg, alignItems: 'center', justifyContent: 'center' },
   statusTitle: { fontFamily: 'Inter', fontSize: 16, fontWeight: '800', color: colors.textPrimary },
   bookingId: { fontFamily: 'Inter', fontSize: 12, color: colors.textMuted, marginTop: 2 },
   section: { marginBottom: spacing[4] },
@@ -258,7 +280,8 @@ const styles = StyleSheet.create({
   rowValue: { fontFamily: 'Inter', fontSize: 13, color: colors.textPrimary, fontWeight: '500', maxWidth: '60%', textAlign: 'right' },
   rowBold: { fontWeight: '800', fontSize: 15, color: colors.brandBrown },
   careNoteBlock: { backgroundColor: colors.warningLight, borderRadius: radii.xl, padding: spacing[4], marginBottom: spacing[4] },
-  careNoteTitle: { fontFamily: 'Inter', fontSize: 13, fontWeight: '800', color: colors.warning, marginBottom: spacing[2] },
+  careNoteTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: spacing[2] },
+  careNoteTitle: { fontFamily: 'Inter', fontSize: 13, fontWeight: '800', color: colors.warning },
   careNoteBody: { fontFamily: 'Inter', fontSize: 14, color: colors.warning, lineHeight: 21 },
   timelineRow: { flexDirection: 'row', gap: spacing[3], paddingVertical: spacing[2], borderBottomWidth: 1, borderBottomColor: colors.borderLight },
   timelineDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: colors.marigold, marginTop: 4 },

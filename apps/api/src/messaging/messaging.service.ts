@@ -15,7 +15,18 @@ export class MessagingService {
         participants: { some: { userId } },
       },
       include: {
-        participants: { include: { user: { include: { profile: true } } } },
+        // `select` here, not `include: true` — the latter would also hand
+        // back every participant's passwordHash.
+        participants: {
+          include: {
+            user: {
+              select: {
+                id: true, phone: true, email: true, role: true,
+                profile: { select: { firstName: true, lastName: true, avatarUrl: true } },
+              },
+            },
+          },
+        },
         messages: { orderBy: { sentAt: 'desc' }, take: 1 },
       },
       orderBy: { updatedAt: 'desc' },

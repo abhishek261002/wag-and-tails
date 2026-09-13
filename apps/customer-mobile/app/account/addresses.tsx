@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert, TextInput } from 'react-native';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Button } from '@wag/ui-mobile';
+import { Button, Icon } from '@wag/ui-mobile';
 import { colors, spacing, typography, radii } from '@wag/design-tokens';
 import { wagApi } from '../../src/lib/api';
 
@@ -79,7 +79,7 @@ export default function AddressesScreen() {
               <Text style={styles.addrCity}>{addr.city}, {addr.state} {addr.pincode}</Text>
             </View>
             <TouchableOpacity onPress={() => deleteAddress(addr.id)} accessibilityLabel="Delete address">
-              <Text style={{ fontSize: 20 }}>🗑</Text>
+              <Icon name="trash" size={18} color={colors.error} />
             </TouchableOpacity>
           </View>
         )}

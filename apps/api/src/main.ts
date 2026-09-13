@@ -45,19 +45,39 @@ async function bootstrap() {
   // own Origin back (rather than pattern-matching or listing specific hosts)
   // allows literally anything without needing to predict the origin ahead
   // of time. Production still uses an explicit, fixed CORS_ORIGINS list.
+  // CORS Configuration
   const isDev = process.env['NODE_ENV'] !== 'production';
-  const explicitOrigins = (
-    process.env['CORS_ORIGINS'] ??
-    'http://localhost:8081,http://localhost:3002,http://localhost:3003,http://localhost:3004'
-  ).split(',');
+  
+  // Clean up trailing slashes from environment origins
+  const rawOrigins = process.env['CORS_ORIGINS'] ?? 'http://localhost:8081,http://localhost:8082,http://localhost:3002,http://localhost:3003,http://localhost:3004';
+  const allowedOrigins = rawOrigins
+    .split(',')
+    .map((origin) => origin.trim().replace(/\/$/, ''));
+
+  // Enable CORS with full method support & wildcard origin resolution for dev
+  // Enable CORS with full method support
   app.enableCors({
-    origin: isDev ? true : explicitOrigins,
-    // Explicit rather than relying on @fastify/cors's default method list,
-    // since any endpoint added later (PATCH/PUT/DELETE included) should
-    // never need a CORS config change to become reachable from the app.
+    origin: (origin, cb) => {
+      // Allow requests with no origin or any origin in development
+      if (!origin || isDev) {
+        return cb(null, true);
+      }
+      if (allowedOrigins.some((o) => origin.startsWith(o))) {
+        return cb(null, true);
+      }
+      cb(new Error('Not allowed by CORS'), false);
+    },
     methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
-    allowedHeaders: '*',
+    allowedHeaders: [
+      'Origin',
+      'X-Requested-With',
+      'Content-Type',
+      'Accept',
+      'Authorization',
+      'X-HTTP-Method-Override',
+    ],
     credentials: true,
+    optionsSuccessStatus: 204,
   });
 
   // Global validation pipe

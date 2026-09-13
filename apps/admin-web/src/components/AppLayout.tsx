@@ -5,7 +5,7 @@ import { useAuthStore } from '../store/auth.store';
 import {
   LayoutDashboard, CalendarCheck, Users, UserCheck,
   Wallet, Tag, Scissors, Package, ShoppingBag,
-  Shield, ScrollText, LogOut, Menu, X,
+  Shield, ScrollText, LifeBuoy, LogOut, Menu, X,
 } from 'lucide-react';
 
 const S = 18;
@@ -28,6 +28,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     { key: 'packages', label: 'Packages', icon: <Scissors size={S} />, onClick: () => navigate('/packages') },
     { key: 'products', label: 'Products', icon: <Package size={S} />, onClick: () => navigate('/products') },
     { key: 'staff', label: 'Staff Users', icon: <Shield size={S} />, onClick: () => navigate('/staff') },
+    { key: 'support', label: 'Escalated Support', icon: <LifeBuoy size={S} />, onClick: () => navigate('/support') },
     { key: 'audit-log', label: 'Audit Log', icon: <ScrollText size={S} />, onClick: () => navigate('/audit-log') },
   ];
 

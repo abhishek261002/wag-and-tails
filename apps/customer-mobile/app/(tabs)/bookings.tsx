@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, RefreshControl } from 'react-native';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Card, Badge } from '@wag/ui-mobile';
+import { Card, Badge, Icon } from '@wag/ui-mobile';
 import { colors, spacing, typography, radii } from '@wag/design-tokens';
 import { wagApi } from '../../src/lib/api';
 import { bookingStatusVariantMobile } from '../../src/utils/booking';
@@ -44,13 +44,20 @@ export default function BookingsScreen() {
         {(['all', 'grooming', 'walking'] as FilterType[]).map((f) => (
           <TouchableOpacity
             key={f}
-            style={[styles.filterTab, filter === f && styles.filterTabActive]}
+            style={[styles.filterTab, filter === f && styles.filterTabActive, f !== 'all' && { flexDirection: 'row', alignItems: 'center', gap: 5 }]}
             onPress={() => setFilter(f)}
             accessibilityRole="tab"
             accessibilityState={{ selected: filter === f }}
           >
+            {f !== 'all' && (
+              <Icon
+                name={f === 'grooming' ? 'scissors' : 'route'}
+                size={13}
+                color={filter === f ? colors.white : colors.textSecondary}
+              />
+            )}
             <Text style={[styles.filterTabText, filter === f && styles.filterTabTextActive]}>
-              {f === 'all' ? 'All' : f === 'grooming' ? '✂️ Grooming' : '🐾 Walking'}
+              {f === 'all' ? 'All' : f === 'grooming' ? 'Grooming' : 'Walking'}
             </Text>
           </TouchableOpacity>
         ))}
@@ -70,7 +77,7 @@ export default function BookingsScreen() {
             <Card style={styles.bookingCard}>
               <View style={styles.row}>
                 <View style={styles.typeIcon}>
-                  <Text style={{ fontSize: 22 }}>{b.type === 'grooming' ? '✂️' : '🐾'}</Text>
+                  <Icon name={b.type === 'grooming' ? 'scissors' : 'route'} size={20} color={colors.marigoldDark} />
                 </View>
                 <View style={styles.info}>
                   <Text style={styles.petName}>{b.petName}</Text>
@@ -93,7 +100,7 @@ export default function BookingsScreen() {
         )}
         ListEmptyComponent={
           <View style={styles.empty}>
-            <Text style={{ fontSize: 40 }}>📅</Text>
+            <Icon name="cal" size={40} color={colors.textDisabled} />
             <Text style={styles.emptyText}>No bookings yet</Text>
             <TouchableOpacity onPress={() => router.push('/(tabs)/home')}>
               <Text style={styles.bookNow}>Book a service</Text>

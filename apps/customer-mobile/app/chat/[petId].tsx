@@ -6,6 +6,7 @@ import {
 import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, spacing, typography, radii } from '@wag/design-tokens';
+import { Icon } from '@wag/ui-mobile';
 import { wagApi } from '../../src/lib/api';
 import type { AiChatMessage, Pet } from '@wag/shared-types';
 
@@ -72,7 +73,9 @@ export default function PetChatScreen() {
             <Text style={styles.backText}>←</Text>
           </TouchableOpacity>
           <View style={styles.headerCenter}>
-            <Text style={styles.petEmoji}>🐾</Text>
+            <View style={styles.petIconBox}>
+              <Icon name="paw" size={17} color={colors.marigoldDark} />
+            </View>
             <View>
               <Text style={styles.headerTitle}>{pet?.name ?? 'Pet Chat'}</Text>
               <Text style={styles.headerSub}>AI Pet Persona · Powered by Wag & Tails</Text>
@@ -90,7 +93,7 @@ export default function PetChatScreen() {
           onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
           ListEmptyComponent={
             <View style={styles.emptyChat}>
-              <Text style={{ fontSize: 48 }}>🐶</Text>
+              <Icon name="paw" size={44} color={colors.textDisabled} />
               <Text style={styles.emptyChatTitle}>Hi! I'm {pet?.name ?? 'your pet'}</Text>
               <Text style={styles.emptyChatSub}>
                 Ask me anything about my care, health, or what I've been up to!
@@ -115,7 +118,10 @@ export default function PetChatScreen() {
                 {msg.content}
               </Text>
               {msg.refusalReason && (
-                <Text style={styles.refusalNote}>🔒 {msg.refusalReason}</Text>
+                <View style={styles.refusalNoteRow}>
+                  <Icon name="key" size={11} color={colors.textMuted} />
+                  <Text style={styles.refusalNote}>{msg.refusalReason}</Text>
+                </View>
               )}
             </View>
           )}
@@ -158,7 +164,7 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: spacing[5], paddingVertical: spacing[3], borderBottomWidth: 1, borderBottomColor: colors.borderLight, backgroundColor: colors.white },
   backText: { fontSize: 22, color: colors.brandBrown, fontWeight: '700' },
   headerCenter: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: spacing[3], marginLeft: spacing[3] },
-  petEmoji: { fontSize: 32 },
+  petIconBox: { width: 34, height: 34, borderRadius: 17, backgroundColor: colors.marigoldBg, alignItems: 'center', justifyContent: 'center' },
   headerTitle: { fontFamily: 'Inter', fontSize: typography.fontSize.base, fontWeight: '700', color: colors.textPrimary },
   headerSub: { fontFamily: 'Inter', fontSize: 11, color: colors.textMuted },
   messageList: { padding: spacing[5], paddingBottom: spacing[4], gap: spacing[3] },
@@ -174,7 +180,8 @@ const styles = StyleSheet.create({
   bubbleText: { fontFamily: 'Inter', fontSize: typography.fontSize.base, lineHeight: 22 },
   userText: { color: colors.white },
   aiText: { color: colors.textPrimary },
-  refusalNote: { fontFamily: 'Inter', fontSize: typography.fontSize.xs, color: colors.textMuted, marginTop: spacing[2] },
+  refusalNoteRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: spacing[2] },
+  refusalNote: { fontFamily: 'Inter', fontSize: typography.fontSize.xs, color: colors.textMuted },
   inputBar: { flexDirection: 'row', alignItems: 'flex-end', gap: spacing[3], padding: spacing[4], backgroundColor: colors.white, borderTopWidth: 1, borderTopColor: colors.borderLight },
   textInput: { flex: 1, borderWidth: 1.5, borderColor: colors.borderLight, borderRadius: radii.xl, paddingHorizontal: spacing[4], paddingVertical: spacing[3], fontFamily: 'Inter', fontSize: typography.fontSize.base, color: colors.textPrimary, maxHeight: 100 },
   sendBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.brandBrown, alignItems: 'center', justifyContent: 'center' },

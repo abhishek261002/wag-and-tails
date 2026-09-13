@@ -34,6 +34,17 @@ export class ApiClient {
       if (token && reqConfig.headers) {
         reqConfig.headers['Authorization'] = `Bearer ${token}`;
       }
+
+      // A multipart body is only parseable if its Content-Type carries the
+      // boundary axios generates from the FormData itself. Both this
+      // client's JSON default and callers passing an explicit
+      // 'multipart/form-data' overwrite that header with a boundary-less
+      // value, so the server sees no parts at all — every upload silently
+      // stored nothing. Dropping the header lets axios set the real one.
+      if (typeof FormData !== 'undefined' && reqConfig.data instanceof FormData && reqConfig.headers) {
+        delete reqConfig.headers['Content-Type'];
+      }
+
       return reqConfig;
     });
 

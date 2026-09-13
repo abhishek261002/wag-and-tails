@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Button } from '@wag/ui-mobile';
+import { Button, Icon } from '@wag/ui-mobile';
 import { colors, spacing, typography, radii } from '@wag/design-tokens';
 import { wagApi } from '../../src/lib/api';
 
@@ -41,9 +41,10 @@ export default function AddPetNoteScreen() {
         </View>
 
         <View style={styles.content}>
-          <View style={styles.infoBox}>
+          <View style={[styles.infoBox, { flexDirection: 'row', gap: spacing[2] }]}>
+            <Icon name="doc" size={15} color={colors.marigoldDark} />
             <Text style={styles.infoText}>
-              📝 Care notes travel through the whole Wag & Tails ecosystem. Your groomer, walker, and staff will all see this note before every appointment.
+              Care notes travel through the whole Wag & Tails ecosystem. Your groomer, walker, and staff will all see this note before every appointment.
             </Text>
           </View>
 
@@ -81,7 +82,7 @@ const styles = StyleSheet.create({
   title: { fontFamily: 'Inter', fontSize: 17, fontWeight: '800', color: colors.textPrimary },
   content: { flex: 1, paddingHorizontal: spacing[5] },
   infoBox: { backgroundColor: colors.marigoldBg, borderRadius: radii.xl, padding: spacing[4], marginBottom: spacing[5] },
-  infoText: { fontFamily: 'Inter', fontSize: 14, color: colors.marigoldDark, lineHeight: 21 },
+  infoText: { flex: 1, fontFamily: 'Inter', fontSize: 14, color: colors.marigoldDark, lineHeight: 21 },
   label: { fontFamily: 'Inter', fontSize: 14, fontWeight: '700', color: colors.textPrimary, marginBottom: spacing[2] },
   textArea: { backgroundColor: colors.white, borderRadius: radii.xl, borderWidth: 1.5, borderColor: colors.borderLight, padding: spacing[4], fontFamily: 'Inter', fontSize: 15, color: colors.textPrimary, minHeight: 150 },
   charCount: { fontFamily: 'Inter', fontSize: 11, color: colors.textMuted, textAlign: 'right', marginTop: spacing[1] },

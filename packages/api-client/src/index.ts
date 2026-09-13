@@ -9,6 +9,8 @@ export { PartnerApi } from './partner.api';
 export { MessagingApi } from './messaging.api';
 export { AiApi } from './ai.api';
 export { PaymentsApi } from './payments.api';
+export { SupportApi } from './support.api';
+export type { SupportTicket, SupportMessage } from './support.api';
 export { RealtimeClient } from './realtime';
 
 // Convenience factory
@@ -21,6 +23,7 @@ import { PartnerApi } from './partner.api';
 import { MessagingApi } from './messaging.api';
 import { AiApi } from './ai.api';
 import { PaymentsApi } from './payments.api';
+import { SupportApi } from './support.api';
 import { RealtimeClient } from './realtime';
 import type { ApiClientConfig } from './client';
 
@@ -36,6 +39,7 @@ export function createWagApiClient(config: ApiClientConfig) {
     messaging: new MessagingApi(client),
     ai: new AiApi(client),
     payments: new PaymentsApi(client),
+    support: new SupportApi(client),
     realtime: new RealtimeClient(config.baseURL, config.getAccessToken),
   };
 }

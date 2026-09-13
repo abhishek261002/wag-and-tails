@@ -11,6 +11,23 @@ import { BUSINESS_CONFIG } from '@wag/config';
 import { isBefore, addHours } from 'date-fns';
 import { BookingType, BookingStatus, BookingChannel, PaymentMethod, Prisma } from '@prisma/client';
 
+// `include: { customer: ..., partner: { include: { user: ... } } }` pulls
+// the full User row on both sides — including passwordHash — straight
+// into a response every one of these methods sends to a client. Strips it
+// from both without needing to switch every query to an explicit `select`.
+function stripBookingPasswordHashes<T extends { customer?: any; partner?: { user?: any } | null }>(booking: T): T {
+  const result: any = { ...booking };
+  if (result.customer?.passwordHash !== undefined) {
+    const { passwordHash, ...rest } = result.customer;
+    result.customer = rest;
+  }
+  if (result.partner?.user?.passwordHash !== undefined) {
+    const { passwordHash, ...rest } = result.partner.user;
+    result.partner = { ...result.partner, user: rest };
+  }
+  return result;
+}
+
 @Injectable()
 export class BookingsService {
   constructor(
@@ -45,7 +62,7 @@ export class BookingsService {
       this.prisma.booking.count({ where }),
     ]);
 
-    return { data, total, page, pageSize };
+    return { data: data.map(stripBookingPasswordHashes), total, page, pageSize };
   }
 
   async listAll(filters: {
@@ -85,7 +102,7 @@ export class BookingsService {
       this.prisma.booking.count({ where }),
     ]);
 
-    return { data, total, page, pageSize };
+    return { data: data.map(stripBookingPasswordHashes), total, page, pageSize };
   }
 
   async getById(bookingId: string, requesterId: string, requesterRole: string) {
@@ -111,7 +128,7 @@ export class BookingsService {
       throw new ForbiddenException('Access denied');
     }
 
-    return booking;
+    return stripBookingPasswordHashes(booking);
   }
 
   async createGroomingBooking(customerId: string, data: {

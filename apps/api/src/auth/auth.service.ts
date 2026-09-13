@@ -87,6 +87,55 @@ export class AuthService {
     return this.issueTokens(user.id, user.role);
   }
 
+  // Partners sign up with email+password directly (no OTP step) — unlike
+  // registerCustomer, which is phone-first. The account is created
+  // immediately so the partner can log in and see their pending-approval
+  // status, but PartnerProfile.status stays 'pending' until a staff member
+  // reviews the KYC details below and calls PartnersService.approve.
+  async registerPartner(data: {
+    email: string;
+    password: string;
+    phone: string;
+    firstName: string;
+    lastName: string;
+    age: number;
+    address: string;
+    aadhaarNumber: string;
+    city: string;
+  }) {
+    const existing = await this.prisma.user.findFirst({
+      where: { OR: [{ phone: data.phone }, { email: data.email }] },
+    });
+    if (existing) throw new ConflictException('Account already exists with this phone or email');
+
+    const passwordHash = await bcrypt.hash(data.password, 12);
+
+    const user = await this.prisma.user.create({
+      data: {
+        phone: data.phone,
+        email: data.email,
+        passwordHash,
+        role: 'partner',
+        isActive: true,
+        profile: {
+          create: { firstName: data.firstName, lastName: data.lastName },
+        },
+        partnerProfile: {
+          create: {
+            status: 'pending',
+            age: data.age,
+            address: data.address,
+            aadhaarNumber: data.aadhaarNumber,
+            city: data.city,
+          },
+        },
+      },
+      include: { profile: true },
+    });
+
+    return this.issueTokens(user.id, user.role);
+  }
+
   async loginWithEmail(email: string, password: string) {
     const user = await this.prisma.user.findUnique({
       where: { email },

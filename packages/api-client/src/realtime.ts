@@ -42,6 +42,10 @@ export class RealtimeClient {
     this.socket?.emit('join:booking', { bookingId });
   }
 
+  joinSupportTicket(ticketId: string) {
+    this.socket?.emit('join:support', { ticketId });
+  }
+
   on<T = unknown>(event: RealtimeEventType | string, listener: Listener<T>) {
     const handler = listener as (...args: unknown[]) => void;
     this.socket?.on(event, handler);

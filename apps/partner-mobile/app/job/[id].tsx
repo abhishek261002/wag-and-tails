@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Button, Card, SlideToComplete, LiveMapView } from '@wag/ui-mobile';
+import { Button, Card, SlideToComplete, LiveMapView, Icon } from '@wag/ui-mobile';
 import { colors, spacing, typography, radii } from '@wag/design-tokens';
 import { wagApi } from '../../src/lib/api';
 import * as ImagePicker from 'expo-image-picker';
@@ -21,6 +21,7 @@ export default function JobDetailScreen() {
   const [completing, setCompleting] = useState(false);
   const [transitioning, setTransitioning] = useState(false);
   const [otpInput, setOtpInput] = useState('');
+  const [endOtpInput, setEndOtpInput] = useState('');
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -102,22 +103,26 @@ export default function JobDetailScreen() {
     !!booking && ['assigned', 'accepted', 'partner_on_the_way', 'arrived', 'in_progress'].includes(booking.status)
   );
 
-  const canComplete = checklist.length === 0 || (checklist.every((i) => checked.has(i)) && afterPhotos.length > 0);
+  // At least one after-photo is required regardless of checklist — the
+  // server enforces this too (see PartnersService.completeJob), which now
+  // also requires the end OTP the customer reads out once they have it.
+  const canComplete = (checklist.length === 0 || checklist.every((i) => checked.has(i))) && afterPhotos.length > 0;
 
   const handleComplete = async () => {
-    if (!id) return;
+    if (!id || endOtpInput.length < 4) return;
     setCompleting(true);
     try {
       await wagApi.partner.completeJob(id, {
+        otp: endOtpInput,
         checklistItems: [...checked],
         beforePhotos,
         afterPhotos,
       });
-      Alert.alert('Job Complete! 🎉', 'Great work! The customer has been notified.', [
+      Alert.alert('Job Complete!', 'Great work! The customer has been notified.', [
         { text: 'OK', onPress: () => router.replace('/(tabs)/jobs') },
       ]);
     } catch (err: any) {
-      Alert.alert('Error', err?.message);
+      Alert.alert('Incorrect code', err?.message ?? 'Ask the customer for the code again.');
     } finally {
       setCompleting(false);
     }
@@ -162,7 +167,10 @@ export default function JobDetailScreen() {
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         {/* Pet summary */}
         <Card style={styles.section}>
-          <Text style={styles.sectionTitle}>🐾 Pet Details</Text>
+          <View style={styles.sectionTitleRow}>
+            <Icon name="paw" size={15} color={colors.textPrimary} />
+            <Text style={styles.sectionTitle}>Pet Details</Text>
+          </View>
           <InfoRow label="Pet" value={`${booking.petName} — ${booking.petBreed}`} />
           <InfoRow label="Size" value={booking.petSize} />
           {booking.pet?.weightKg && <InfoRow label="Weight" value={`${booking.pet.weightKg} kg`} />}
@@ -172,13 +180,19 @@ export default function JobDetailScreen() {
           {/* Care notes — prominently shown */}
           {booking.petCareNotes && (
             <View style={styles.careNote}>
-              <Text style={styles.careNoteTitle}>📝 Care Notes (read carefully)</Text>
+              <View style={styles.careNoteTitleRow}>
+                <Icon name="doc" size={13} color={colors.warning} />
+                <Text style={styles.careNoteTitle}>Care Notes (read carefully)</Text>
+              </View>
               <Text style={styles.careNoteText}>{booking.petCareNotes}</Text>
             </View>
           )}
           {booking.pet?.allergies && (
             <View style={[styles.careNote, { backgroundColor: colors.errorLight }]}>
-              <Text style={[styles.careNoteTitle, { color: colors.error }]}>⚠️ Allergies</Text>
+              <View style={styles.careNoteTitleRow}>
+                <Icon name="alert" size={13} color={colors.error} />
+                <Text style={[styles.careNoteTitle, { color: colors.error }]}>Allergies</Text>
+              </View>
               <Text style={[styles.careNoteText, { color: colors.error }]}>{booking.pet.allergies}</Text>
             </View>
           )}
@@ -186,24 +200,30 @@ export default function JobDetailScreen() {
 
         {/* Customer */}
         <Card style={styles.section}>
-          <Text style={styles.sectionTitle}>👤 Customer</Text>
+          <View style={styles.sectionTitleRow}>
+            <Icon name="user" size={15} color={colors.textPrimary} />
+            <Text style={styles.sectionTitle}>Customer</Text>
+          </View>
           <View style={styles.customerRow}>
             <Text style={styles.customerName}>
               {booking.customer?.profile?.firstName} {booking.customer?.profile?.lastName}
             </Text>
             <View style={styles.customerActions}>
               <TouchableOpacity style={styles.iconBtn} onPress={callCustomer} accessibilityLabel="Call customer">
-                <Text style={{ fontSize: 20 }}>📞</Text>
+                <Icon name="phone" size={18} color={colors.brandBrown} />
               </TouchableOpacity>
               <TouchableOpacity style={styles.iconBtn} onPress={() => router.push({ pathname: '/messaging/[bookingId]', params: { bookingId: id! } } as any)} accessibilityLabel="Message customer">
-                <Text style={{ fontSize: 20 }}>💬</Text>
+                <Icon name="chat" size={18} color={colors.brandBrown} />
               </TouchableOpacity>
               <TouchableOpacity style={styles.iconBtn} onPress={openNavigation} accessibilityLabel="Navigate to customer">
-                <Text style={{ fontSize: 20 }}>🗺️</Text>
+                <Icon name="nav" size={18} color={colors.brandBrown} />
               </TouchableOpacity>
             </View>
           </View>
-          <Text style={styles.addressText}>📍 {booking.addressLine}</Text>
+          <View style={styles.addressRow}>
+            <Icon name="pin" size={13} color={colors.textMuted} />
+            <Text style={styles.addressText}>{booking.addressLine}</Text>
+          </View>
         </Card>
 
         {/* Live map — see packages/ui-mobile/src/LiveMapView for the Ola
@@ -220,7 +240,10 @@ export default function JobDetailScreen() {
         {/* Package / service */}
         {isGrooming && (
           <Card style={styles.section}>
-            <Text style={styles.sectionTitle}>✂️ Package</Text>
+            <View style={styles.sectionTitleRow}>
+              <Icon name="scissors" size={15} color={colors.textPrimary} />
+              <Text style={styles.sectionTitle}>Package</Text>
+            </View>
             <Text style={styles.packageName}>{booking.packageName}</Text>
             {booking.addOns?.length > 0 && (
               <Text style={styles.addonsText}>
@@ -233,7 +256,10 @@ export default function JobDetailScreen() {
         {/* Checklist — only show when in_progress */}
         {status === 'in_progress' && checklist.length > 0 && (
           <Card style={styles.section}>
-            <Text style={styles.sectionTitle}>☑️ Checklist ({[...checked].length}/{checklist.length})</Text>
+            <View style={styles.sectionTitleRow}>
+              <Icon name="check" size={15} color={colors.textPrimary} />
+              <Text style={styles.sectionTitle}>Checklist ({[...checked].length}/{checklist.length})</Text>
+            </View>
             {checklist.map((item) => (
               <TouchableOpacity
                 key={item}
@@ -256,7 +282,10 @@ export default function JobDetailScreen() {
         {/* Photos */}
         {status === 'in_progress' && (
           <Card style={styles.section}>
-            <Text style={styles.sectionTitle}>📸 Photos</Text>
+            <View style={styles.sectionTitleRow}>
+              <Icon name="cam" size={15} color={colors.textPrimary} />
+              <Text style={styles.sectionTitle}>Photos</Text>
+            </View>
 
             <Text style={styles.photoSubtitle}>Before photos {beforePhotos.length > 0 ? `(${beforePhotos.length})` : ''}</Text>
             <View style={styles.photoRow}>
@@ -287,7 +316,10 @@ export default function JobDetailScreen() {
 
         {/* Payout */}
         <Card style={styles.section}>
-          <Text style={styles.sectionTitle}>💰 Your Payout</Text>
+          <View style={styles.sectionTitleRow}>
+            <Icon name="wallet" size={15} color={colors.textPrimary} />
+            <Text style={styles.sectionTitle}>Your Payout</Text>
+          </View>
           <View style={styles.payoutRow}>
             <Text style={styles.payoutLabel}>Booking total</Text>
             <Text style={styles.payoutValue}>₹{booking.total}</Text>
@@ -341,15 +373,31 @@ export default function JobDetailScreen() {
 
           {status === 'in_progress' && (
             <>
-              {canComplete ? (
-                <SlideToComplete onComplete={handleComplete} label="Slide to complete job" />
-              ) : (
+              {!canComplete ? (
                 <View style={styles.cannotComplete}>
-                  <Text style={styles.cannotCompleteText}>
-                    {checklist.length > 0 && [...checked].length < checklist.length
-                      ? '⚠️ Complete all checklist items first'
-                      : '⚠️ Add at least one after photo'}
-                  </Text>
+                  <View style={styles.cannotCompleteRow}>
+                    <Icon name="alert" size={14} color={colors.warning} />
+                    <Text style={styles.cannotCompleteText}>
+                      {checklist.length > 0 && [...checked].length < checklist.length
+                        ? 'Complete all checklist items first'
+                        : 'Add at least one after photo'}
+                    </Text>
+                  </View>
+                </View>
+              ) : (
+                <View style={styles.otpCard}>
+                  <Text style={styles.otpTitle}>Ask the customer for their end code</Text>
+                  <Text style={styles.otpSubtitle}>They see a 4-digit code now that grooming is done. Enter it to finish.</Text>
+                  <TextInput
+                    style={styles.otpInput}
+                    value={endOtpInput}
+                    onChangeText={setEndOtpInput}
+                    placeholder="0000"
+                    keyboardType="number-pad"
+                    maxLength={4}
+                    accessibilityLabel="End code"
+                  />
+                  <SlideToComplete onComplete={handleComplete} label="Slide to complete job" disabled={endOtpInput.length < 4 || completing} />
                 </View>
               )}
             </>
@@ -357,7 +405,8 @@ export default function JobDetailScreen() {
 
           {status === 'completed' && (
             <View style={styles.completedBanner}>
-              <Text style={styles.completedText}>✅ Job completed</Text>
+              <Icon name="check" size={16} color={colors.success} />
+              <Text style={styles.completedText}>Job completed</Text>
             </View>
           )}
         </View>
@@ -382,14 +431,17 @@ const styles = StyleSheet.create({
   pageTitle: { fontFamily: 'Inter', fontSize: 17, fontWeight: '800', color: colors.textPrimary },
   content: { paddingBottom: spacing[16] },
   section: { marginHorizontal: spacing[4], marginBottom: spacing[3] },
-  sectionTitle: { fontFamily: 'Inter', fontSize: 14, fontWeight: '800', color: colors.textPrimary, marginBottom: spacing[3] },
+  sectionTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: spacing[3] },
+  sectionTitle: { fontFamily: 'Inter', fontSize: 14, fontWeight: '800', color: colors.textPrimary },
   careNote: { backgroundColor: colors.warningLight, borderRadius: radii.md, padding: spacing[3], marginTop: spacing[3] },
-  careNoteTitle: { fontFamily: 'Inter', fontSize: 12, fontWeight: '800', color: colors.warning, marginBottom: 4 },
+  careNoteTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 4 },
+  careNoteTitle: { fontFamily: 'Inter', fontSize: 12, fontWeight: '800', color: colors.warning },
   careNoteText: { fontFamily: 'Inter', fontSize: 13, color: colors.warning, lineHeight: 19 },
   customerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: spacing[2] },
   customerName: { fontFamily: 'Inter', fontSize: 16, fontWeight: '700', color: colors.textPrimary },
   customerActions: { flexDirection: 'row', gap: spacing[2] },
   iconBtn: { width: 40, height: 40, borderRadius: radii.lg, backgroundColor: colors.surfaceAlt, alignItems: 'center', justifyContent: 'center' },
+  addressRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   addressText: { fontFamily: 'Inter', fontSize: 13, color: colors.textMuted },
   packageName: { fontFamily: 'Inter', fontSize: 15, fontWeight: '700', color: colors.textPrimary },
   addonsText: { fontFamily: 'Inter', fontSize: 13, color: colors.textMuted, marginTop: 4 },
@@ -411,8 +463,9 @@ const styles = StyleSheet.create({
   payoutTotalValue: { fontFamily: 'Inter', fontSize: 18, fontWeight: '800', color: colors.success },
   actions: { paddingHorizontal: spacing[5], marginTop: spacing[4] },
   cannotComplete: { backgroundColor: colors.warningLight, borderRadius: radii.xl, padding: spacing[4], alignItems: 'center' },
+  cannotCompleteRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   cannotCompleteText: { fontFamily: 'Inter', fontSize: 14, fontWeight: '600', color: colors.warning },
-  completedBanner: { backgroundColor: colors.successLight, borderRadius: radii.xl, padding: spacing[4], alignItems: 'center' },
+  completedBanner: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: colors.successLight, borderRadius: radii.xl, padding: spacing[4] },
   completedText: { fontFamily: 'Inter', fontSize: 16, fontWeight: '800', color: colors.success },
   otpCard: { backgroundColor: colors.white, borderRadius: radii.xl, padding: spacing[5], borderWidth: 1, borderColor: colors.borderLight, gap: spacing[3] },
   otpTitle: { fontFamily: 'Inter', fontSize: 16, fontWeight: '800', color: colors.textPrimary },

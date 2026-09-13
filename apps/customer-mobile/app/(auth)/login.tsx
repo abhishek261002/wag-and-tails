@@ -4,8 +4,7 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Button } from '@wag/ui-mobile';
-import { Input } from '@wag/ui-mobile';
+import { Button, Input, Logo } from '@wag/ui-mobile';
 import { colors, spacing, typography, radii } from '@wag/design-tokens';
 
 export default function LoginScreen() {
@@ -36,7 +35,7 @@ export default function LoginScreen() {
           {/* Logo / Brand */}
           <View style={styles.brand}>
             <View style={styles.logoCircle}>
-              <Text style={styles.logoEmoji}>🐾</Text>
+              <Logo size={44} ground={colors.marigold} />
             </View>
             <Text style={styles.brandName}>Wag & Tails</Text>
             <Text style={styles.brandTagline}>Grooming · Walking · Products</Text>

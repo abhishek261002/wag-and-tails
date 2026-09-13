@@ -5,6 +5,7 @@ import type {
   OtpRequest,
   OtpVerify,
   RegisterRequest,
+  RegisterPartnerRequest,
   LoginRequest,
 } from '@wag/shared-types';
 
@@ -27,6 +28,10 @@ export class AuthApi {
 
   register(data: RegisterRequest): Promise<AuthResponse> {
     return this.client.post('/auth/register', data);
+  }
+
+  registerPartner(data: RegisterPartnerRequest): Promise<AuthResponse> {
+    return this.client.post('/auth/register/partner', data);
   }
 
   login(data: LoginRequest): Promise<AuthResponse> {

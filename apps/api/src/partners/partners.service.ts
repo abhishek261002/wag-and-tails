@@ -31,12 +31,14 @@ export class PartnersService {
       },
     });
     if (!partner) throw new NotFoundException('Partner profile not found');
-    return partner;
+    const { passwordHash, ...user } = partner.user;
+    return { ...partner, user };
   }
 
   async updateProfile(partnerId: string, data: Partial<{
     serviceRadiusKm: number; modes: string[]; city: string;
     bio: string; bankAccountNumber: string; ifscCode: string;
+    photoUrl: string; age: number; address: string; aadhaarNumber: string;
   }>) {
     return this.prisma.partnerProfile.update({ where: { userId: partnerId }, data });
   }
@@ -301,11 +303,20 @@ export class PartnersService {
       throw new BadRequestException('Incorrect code');
     }
 
+    // Generated now rather than at assignment, since it must stay secret
+    // from the customer until the session actually starts — the walking
+    // screens additionally hold their own display back until the planned
+    // duration elapses (see WalkingBookingStatus handling client-side).
+    const endOtp = generateOtp();
+    const sessionStartedAt = new Date();
+
     const updated = await this.prisma.booking.update({
       where: { id: bookingId },
       data: {
         status: 'in_progress',
         startOtp: null,
+        endOtp,
+        sessionStartedAt,
         statusHistory: {
           create: { status: 'in_progress', changedBy: partnerId, note: 'Session started (OTP verified)' },
         },
@@ -317,29 +328,41 @@ export class PartnersService {
     // land without coupling PartnersModule to WalkingModule.
     if (booking.type === 'walking') {
       await this.prisma.walkSession.create({
-        data: { bookingId, partnerId, startedAt: new Date() },
+        data: { bookingId, partnerId, startedAt: sessionStartedAt },
       });
     }
 
     this.realtime.emitToBooking(bookingId, 'booking:status_changed', {
-      bookingId, status: 'in_progress', partnerId, updatedAt: updated.updatedAt.toISOString(),
+      bookingId,
+      status: 'in_progress',
+      partnerId,
+      endOtp,
+      sessionStartedAt: sessionStartedAt.toISOString(),
+      updatedAt: updated.updatedAt.toISOString(),
     });
     return updated;
   }
 
   async completeJob(bookingId: string, partnerId: string, data: {
-    checklistItems: string[]; beforePhotos: string[]; afterPhotos: string[];
+    otp: string; checklistItems: string[]; beforePhotos: string[]; afterPhotos: string[];
   }) {
     const booking = await this.prisma.booking.findFirst({
       where: { id: bookingId, partnerId, status: 'in_progress' },
     });
     if (!booking) throw new NotFoundException('Active job not found');
+    if (!booking.endOtp || booking.endOtp !== data.otp) {
+      throw new BadRequestException('Incorrect code');
+    }
+    if (!data.afterPhotos || data.afterPhotos.length === 0) {
+      throw new BadRequestException('At least one after-photo is required to complete the job');
+    }
 
     const updated = await this.prisma.booking.update({
       where: { id: bookingId },
       data: {
         status: 'completed',
         completedAt: new Date(),
+        endOtp: null,
         beforePhotos: data.beforePhotos,
         afterPhotos: data.afterPhotos,
         checklistCompleted: data.checklistItems,
@@ -461,7 +484,12 @@ export class PartnersService {
       this.prisma.partnerProfile.count({ where }),
     ]);
 
-    return { data, total, page, pageSize };
+    const safeData = data.map((p) => {
+      const { passwordHash, ...user } = p.user;
+      return { ...p, user };
+    });
+
+    return { data: safeData, total, page, pageSize };
   }
 
   async approve(partnerId: string, adminId: string) {

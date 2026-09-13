@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Image } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Button, Badge } from '@wag/ui-mobile';
+import { Button, Badge, Icon } from '@wag/ui-mobile';
 import { colors, spacing, typography, radii } from '@wag/design-tokens';
 import { wagApi } from '../../src/lib/api';
 import { useAuthStore } from '../../src/store/auth.store';
@@ -48,7 +48,7 @@ export default function ProductDetailScreen() {
         variantId: selectedVariant?.id ?? null,
         quantity: 1,
       });
-      Alert.alert('Added to cart! 🛒', product.name, [
+      Alert.alert('Added to cart!', product.name, [
         { text: 'Continue Shopping', style: 'cancel' },
         { text: 'View Cart', onPress: () => router.push('/store/cart' as any) },
       ]);
@@ -80,14 +80,14 @@ export default function ProductDetailScreen() {
           <Text style={styles.back}>← Back</Text>
         </TouchableOpacity>
         <TouchableOpacity onPress={() => router.push('/store/cart' as any)} accessibilityLabel="View cart">
-          <Text style={{ fontSize: 24 }}>🛒</Text>
+          <Icon name="bag" size={22} color={colors.textPrimary} />
         </TouchableOpacity>
       </View>
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         {/* Image */}
         <View style={styles.imageContainer}>
-          <Text style={{ fontSize: 80 }}>📦</Text>
+          <Icon name="bag" size={64} color={colors.textDisabled} />
         </View>
 
         {/* Allergy warning */}
@@ -165,8 +165,9 @@ export default function ProductDetailScreen() {
           loading={adding}
           style={{ flex: 1 }}
           disabled={selectedVariant?.stockQty === 0}
+          leftIcon={selectedVariant?.stockQty === 0 ? undefined : <Icon name="bag" size={16} color={colors.white} />}
         >
-          {selectedVariant?.stockQty === 0 ? 'Out of Stock' : 'Add to Cart 🛒'}
+          {selectedVariant?.stockQty === 0 ? 'Out of Stock' : 'Add to Cart'}
         </Button>
       </View>
     </SafeAreaView>

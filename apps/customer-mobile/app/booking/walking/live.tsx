@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { PetAvatar, LiveMapView } from '@wag/ui-mobile';
+import { PetAvatar, LiveMapView, Icon, type IconName } from '@wag/ui-mobile';
 import { colors, spacing, typography, radii } from '@wag/design-tokens';
 import { wagApi, resolveMediaUrl } from '../../../src/lib/api';
 
@@ -54,7 +54,7 @@ export default function LiveWalkScreen() {
 
     const offStatus = wagApi.realtime.on('booking:status_changed', (payload: any) => {
       if (payload.bookingId !== bookingId) return;
-      setBooking((prev: any) => (prev ? { ...prev, status: payload.status } : prev));
+      setBooking((prev: any) => (prev ? { ...prev, status: payload.status, endOtp: payload.endOtp ?? prev.endOtp } : prev));
       if (payload.status === 'completed') {
         setTimeout(() => {
           router.replace({ pathname: '/booking/walking/summary', params: { id: bookingId } } as any);
@@ -80,6 +80,11 @@ export default function LiveWalkScreen() {
   };
 
   const status = (booking as any)?.status ?? 'accepted';
+  // The end code stays hidden until the planned duration has actually
+  // elapsed — mirrored on the partner's own screen (walk/[id].tsx) so
+  // they can't get ahead of the customer.
+  const durationSeconds = ((booking as any)?.durationMinutes ?? 30) * 60;
+  const timerDone = elapsed >= durationSeconds;
   const partnerName = booking?.partner?.user?.profile
     ? `${booking.partner.user.profile.firstName} ${booking.partner.user.profile.lastName}`
     : 'Your Walker';
@@ -87,8 +92,12 @@ export default function LiveWalkScreen() {
   const STATUS_MSG: Record<string, string> = {
     accepted: `${partnerName} accepted! Getting ready…`,
     partner_on_the_way: `${partnerName} is on the way to pick up ${booking?.petName ?? 'your dog'}`,
-    arrived: `${partnerName} has arrived! 🎉`,
-    in_progress: `Walk in progress 🐾`,
+    arrived: `${partnerName} has arrived!`,
+    in_progress: `Walk in progress`,
+  };
+  const STATUS_ICON: Record<string, IconName> = {
+    in_progress: 'route',
+    arrived: 'check',
   };
 
   return (
@@ -100,9 +109,7 @@ export default function LiveWalkScreen() {
       <ScrollView contentContainerStyle={styles.content}>
         {/* Status banner */}
         <View style={[styles.statusBanner, status === 'in_progress' && styles.statusBannerActive]}>
-          <Text style={styles.statusEmoji}>
-            {status === 'in_progress' ? '🏃' : status === 'arrived' ? '🎉' : '📍'}
-          </Text>
+          <Icon name={STATUS_ICON[status] ?? 'pin'} size={24} color={status === 'in_progress' ? colors.success : colors.marigoldDark} />
           <Text style={styles.statusMsg}>{STATUS_MSG[status] ?? 'Walk in progress'}</Text>
         </View>
 
@@ -116,7 +123,7 @@ export default function LiveWalkScreen() {
           />
         ) : (
           <View style={styles.mapPlaceholder}>
-            <Text style={{ fontSize: 48 }}>🗺️</Text>
+            <Icon name="nav" size={44} color={colors.textDisabled} />
             <Text style={styles.mapText}>Waiting for location…</Text>
             <Text style={styles.mapSub}>Updates live once {partnerName} starts moving</Text>
           </View>
@@ -142,11 +149,21 @@ export default function LiveWalkScreen() {
               ringState="walking"
               style={{ marginBottom: spacing[4] }}
             />
-            <Text style={styles.timerLabel}>Walk time</Text>
+            <Text style={styles.timerLabel}>{timerDone ? 'Time\'s up!' : 'Walk time'}</Text>
             <Text style={styles.timerValue}>{formatTime(elapsed)}</Text>
             <Text style={styles.durationLeft}>
               of {booking?.durationMinutes ?? 30} min planned
             </Text>
+          </View>
+        )}
+
+        {/* End code — held back until the timer above finishes, even
+            though the server generates it the moment the walk starts. */}
+        {status === 'in_progress' && timerDone && booking?.endOtp && (
+          <View style={[styles.otpCard, { backgroundColor: colors.success }]}>
+            <Text style={styles.otpLabel}>Your end code</Text>
+            <Text style={styles.otpValue}>{booking.endOtp}</Text>
+            <Text style={styles.otpHint}>Share this with {partnerName} to finish the walk</Text>
           </View>
         )}
 
@@ -159,23 +176,29 @@ export default function LiveWalkScreen() {
           </View>
           <View style={{ flex: 1 }}>
             <Text style={styles.partnerName}>{partnerName}</Text>
-            <Text style={styles.partnerRating}>
-              ⭐ {booking?.partner?.rating ?? '5.0'} · {booking?.partner?.completedJobs ?? 0} walks
-            </Text>
+            <View style={styles.partnerRatingRow}>
+              <Icon name="star" size={12} color={colors.marigoldDark} variant="fill" />
+              <Text style={styles.partnerRating}>
+                {booking?.partner?.rating ?? '5.0'} · {booking?.partner?.completedJobs ?? 0} walks
+              </Text>
+            </View>
           </View>
           <TouchableOpacity
             style={styles.messageBtn}
             onPress={() => router.push({ pathname: '/messaging/[bookingId]', params: { bookingId: bookingId! } } as any)}
             accessibilityLabel="Message walker"
           >
-            <Text style={{ fontSize: 22 }}>💬</Text>
+            <Icon name="chat" size={20} color={colors.marigoldDark} />
           </TouchableOpacity>
         </View>
 
         {/* Pet care note reminder */}
         {booking?.petCareNotes && (
           <View style={styles.careNote}>
-            <Text style={styles.careNoteTitle}>📝 Walker can see your pet's care notes</Text>
+            <View style={styles.careNoteTitleRow}>
+              <Icon name="doc" size={13} color={colors.warning} />
+              <Text style={styles.careNoteTitle}>Walker can see your pet's care notes</Text>
+            </View>
             <Text style={styles.careNoteText} numberOfLines={2}>{booking.petCareNotes}</Text>
           </View>
         )}
@@ -191,7 +214,6 @@ const styles = StyleSheet.create({
   content: { paddingHorizontal: spacing[5], paddingBottom: spacing[10] },
   statusBanner: { backgroundColor: colors.marigoldBg, borderRadius: radii.xl, padding: spacing[4], flexDirection: 'row', alignItems: 'center', gap: spacing[3], marginBottom: spacing[4] },
   statusBannerActive: { backgroundColor: colors.successLight },
-  statusEmoji: { fontSize: 28 },
   statusMsg: { fontFamily: 'Inter', fontSize: 15, fontWeight: '700', color: colors.textPrimary, flex: 1 },
   mapPlaceholder: { height: 240, backgroundColor: colors.white, borderRadius: radii.xl, borderWidth: 1, borderColor: colors.borderLight, alignItems: 'center', justifyContent: 'center', marginBottom: spacing[4] },
   mapText: { fontFamily: 'Inter', fontSize: 16, fontWeight: '700', color: colors.textPrimary, marginTop: spacing[2] },
@@ -203,10 +225,12 @@ const styles = StyleSheet.create({
   partnerCard: { flexDirection: 'row', alignItems: 'center', gap: spacing[3], backgroundColor: colors.white, borderRadius: radii.xl, padding: spacing[4], borderWidth: 1, borderColor: colors.borderLight, marginBottom: spacing[4] },
   partnerAvatar: { width: 52, height: 52, borderRadius: 26, backgroundColor: colors.brandBrown, alignItems: 'center', justifyContent: 'center' },
   partnerName: { fontFamily: 'Inter', fontSize: 16, fontWeight: '700', color: colors.textPrimary },
-  partnerRating: { fontFamily: 'Inter', fontSize: 13, color: colors.textMuted, marginTop: 2 },
+  partnerRatingRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 },
+  partnerRating: { fontFamily: 'Inter', fontSize: 13, color: colors.textMuted },
   messageBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.marigoldBg, alignItems: 'center', justifyContent: 'center' },
   careNote: { backgroundColor: colors.warningLight, borderRadius: radii.xl, padding: spacing[4] },
-  careNoteTitle: { fontFamily: 'Inter', fontSize: 12, fontWeight: '800', color: colors.warning, marginBottom: 4 },
+  careNoteTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 4 },
+  careNoteTitle: { fontFamily: 'Inter', fontSize: 12, fontWeight: '800', color: colors.warning },
   careNoteText: { fontFamily: 'Inter', fontSize: 13, color: colors.warning },
   otpCard: { backgroundColor: colors.brandBrown, borderRadius: radii.xl, padding: spacing[5], alignItems: 'center', marginBottom: spacing[4] },
   otpLabel: { fontFamily: 'Inter', fontSize: 13, color: 'rgba(255,255,255,0.7)' },

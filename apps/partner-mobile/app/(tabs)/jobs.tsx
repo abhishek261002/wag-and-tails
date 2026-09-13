@@ -4,7 +4,7 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { PetAvatar, Button } from '@wag/ui-mobile';
+import { PetAvatar, Button, Icon, type IconName } from '@wag/ui-mobile';
 import { colors, spacing, radii } from '@wag/design-tokens';
 import { wagApi } from '../../src/lib/api';
 import { useModeStore } from '../../src/store/mode.store';
@@ -213,8 +213,13 @@ export default function JobsScreen() {
                     accessibilityRole="radio"
                     accessibilityState={{ selected: mode === m }}
                   >
+                    <Icon
+                      name={m === 'grooming' ? 'scissors' : 'route'}
+                      size={16}
+                      color={mode === m ? colors.brandBrown : colors.textMuted}
+                    />
                     <Text style={[styles.roleBtnText, mode === m && styles.roleBtnTextActive]}>
-                      {m === 'grooming' ? '✂️  Grooming' : '🐾  Walking'}
+                      {m === 'grooming' ? 'Grooming' : 'Walking'}
                     </Text>
                     {m === 'grooming' && openJobs.length > 0 && mode === 'grooming' && (
                       <View style={styles.roleBadge}><Text style={styles.roleBadgeText}>{openJobs.length}</Text></View>
@@ -255,9 +260,9 @@ export default function JobsScreen() {
                 sub={isOnline ? `${openJobs.length} near you right now` : 'Paused while you are offline'}
               />
               {!isOnline ? (
-                <Empty icon="💼" title="You are offline" sub="Go online to see jobs near you." />
+                <Empty icon="brief" title="You are offline" sub="Go online to see jobs near you." />
               ) : openJobs.length === 0 ? (
-                <Empty icon="💼" title="No open jobs right now" sub="New jobs appear here the moment a customer books." />
+                <Empty icon="brief" title="No open jobs right now" sub="New jobs appear here the moment a customer books." />
               ) : (
                 openJobs.map((job) => (
                   <OpenJobCard
@@ -272,7 +277,7 @@ export default function JobsScreen() {
               {/* Today's schedule */}
               <SectionHead title="Today's schedule" sub={`${myJobs.length} assigned`} />
               {myJobs.length === 0 ? (
-                <Empty icon="📅" title="Nothing scheduled today" sub="Claim an open job to fill your day." />
+                <Empty icon="cal" title="Nothing scheduled today" sub="Claim an open job to fill your day." />
               ) : (
                 myJobs.map((job) => <AssignedJobCard key={job.bookingId} job={job} />)
               )}
@@ -282,11 +287,17 @@ export default function JobsScreen() {
       {incomingJob && (
         <View style={styles.incomingOverlay}>
           <View style={styles.incomingCard}>
-            <Text style={styles.incomingLabel}>
-              {incomingJob.type === 'grooming' ? '✂️ New grooming job' : '🐾 New walk request'}
-            </Text>
+            <View style={styles.incomingLabelRow}>
+              <Icon name={incomingJob.type === 'grooming' ? 'scissors' : 'route'} size={15} color={colors.marigoldDark} />
+              <Text style={styles.incomingLabel}>
+                {incomingJob.type === 'grooming' ? 'New grooming job' : 'New walk request'}
+              </Text>
+            </View>
             <Text style={styles.incomingPet}>{incomingJob.petName} · {incomingJob.petBreed}</Text>
-            <Text style={styles.incomingAddress}>📍 {incomingJob.addressLine}</Text>
+            <View style={styles.incomingAddressRow}>
+              <Icon name="pin" size={13} color={colors.textMuted} />
+              <Text style={styles.incomingAddress}>{incomingJob.addressLine}</Text>
+            </View>
             <Text style={styles.incomingPayout}>₹{incomingJob.partnerPayout}</Text>
             <View style={styles.incomingActions}>
               <Button variant="outline" size="sm" onPress={() => setIncomingJob(null)} style={{ flex: 1 }}>
@@ -321,10 +332,10 @@ function SectionHead({ title, sub }: { title: string; sub: string }) {
   );
 }
 
-function Empty({ icon, title, sub }: { icon: string; title: string; sub: string }) {
+function Empty({ icon, title, sub }: { icon: IconName; title: string; sub: string }) {
   return (
     <View style={styles.empty}>
-      <View style={styles.emptyArt}><Text style={{ fontSize: 26 }}>{icon}</Text></View>
+      <View style={styles.emptyArt}><Icon name={icon} size={26} color={colors.textDisabled} /></View>
       <Text style={styles.emptyTitle}>{title}</Text>
       <Text style={styles.emptySub}>{sub}</Text>
     </View>
@@ -458,7 +469,9 @@ const styles = StyleSheet.create({
     backgroundColor: colors.white, borderRadius: radii.xl, padding: spacing[5], gap: spacing[2],
     shadowColor: '#000', shadowOffset: { width: 0, height: -2 }, shadowOpacity: 0.15, shadowRadius: 12, elevation: 8,
   },
+  incomingLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   incomingLabel: { fontFamily: 'Inter', fontSize: 13, fontWeight: '700', color: colors.marigoldDark, textTransform: 'uppercase', letterSpacing: 0.5 },
+  incomingAddressRow: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   incomingPet: { fontFamily: 'Inter', fontSize: 20, fontWeight: '800', color: colors.textPrimary },
   incomingAddress: { fontFamily: 'Inter', fontSize: 13, color: colors.textMuted },
   incomingPayout: { fontFamily: 'Inter', fontSize: 24, fontWeight: '800', color: colors.success, marginTop: 2 },

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Button, Card } from '@wag/ui-mobile';
+import { Button, Card, Icon, type IconName } from '@wag/ui-mobile';
 import { colors, spacing, typography, radii } from '@wag/design-tokens';
 import { wagApi } from '../../src/lib/api';
 
@@ -29,7 +29,7 @@ export default function EarningsScreen() {
             setRequesting(true);
             try {
               await wagApi.partner.requestPayout(earnings.pending);
-              Alert.alert('Payout requested! 💰', 'You\'ll receive payment within 2-3 business days.');
+              Alert.alert('Payout requested!', 'You\'ll receive payment within 2-3 business days.');
               wagApi.partner.getEarnings().then(setEarnings).catch(() => {});
             } catch (err: any) {
               Alert.alert('Failed', err?.message ?? 'Please try again.');
@@ -49,8 +49,8 @@ export default function EarningsScreen() {
 
         {/* Summary cards */}
         <View style={styles.kpiRow}>
-          <KpiCard label="Total Earned" value={`₹${earnings?.total ?? 0}`} emoji="💰" />
-          <KpiCard label="Pending" value={`₹${earnings?.pending ?? 0}`} emoji="⏳" accent={colors.warning} />
+          <KpiCard label="Total Earned" value={`₹${earnings?.total ?? 0}`} icon="wallet" />
+          <KpiCard label="Pending" value={`₹${earnings?.pending ?? 0}`} icon="clock" accent={colors.warning} />
         </View>
 
         <Card style={styles.payoutCard}>
@@ -70,7 +70,7 @@ export default function EarningsScreen() {
         <Text style={styles.sectionTitle}>Recent Payouts</Text>
         {(earnings?.payouts ?? []).length === 0 ? (
           <View style={styles.empty}>
-            <Text style={{ fontSize: 36 }}>📊</Text>
+            <Icon name="wallet" size={32} color={colors.textDisabled} />
             <Text style={styles.emptyText}>No payouts yet</Text>
           </View>
         ) : (
@@ -93,10 +93,10 @@ export default function EarningsScreen() {
   );
 }
 
-function KpiCard({ label, value, emoji, accent }: { label: string; value: string; emoji: string; accent?: string }) {
+function KpiCard({ label, value, icon, accent }: { label: string; value: string; icon: IconName; accent?: string }) {
   return (
     <View style={[styles.kpiCard, accent ? { borderColor: accent } : {}]}>
-      <Text style={{ fontSize: 28, marginBottom: spacing[2] }}>{emoji}</Text>
+      <View style={{ marginBottom: spacing[2] }}><Icon name={icon} size={26} color={accent ?? colors.brandBrown} /></View>
       <Text style={[styles.kpiValue, accent ? { color: accent } : {}]}>{value}</Text>
       <Text style={styles.kpiLabel}>{label}</Text>
     </View>

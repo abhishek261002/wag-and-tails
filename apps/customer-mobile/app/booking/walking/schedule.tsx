@@ -2,14 +2,16 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert } from 'react-native';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Button } from '@wag/ui-mobile';
+import { Button, Icon } from '@wag/ui-mobile';
 import { colors, spacing, typography, radii } from '@wag/design-tokens';
 import { useBookingStore } from '../../../src/store/booking.store';
+import { useActiveSearchStore } from '../../../src/store/activeSearch.store';
 import { wagApi } from '../../../src/lib/api';
 import { addDays, format, setHours, setMinutes, startOfDay } from 'date-fns';
 
 export default function WalkScheduleScreen() {
   const { walkDraft, updateWalkDraft } = useBookingStore();
+  const startSearch = useActiveSearchStore((s) => s.start);
   const [addresses, setAddresses] = useState<any[]>([]);
   const [loadedAddresses, setLoadedAddresses] = useState(false);
   const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null);
@@ -79,7 +81,11 @@ export default function WalkScheduleScreen() {
         } catch (dispatchErr) {
           console.warn('Failed to dispatch walk request to nearby partners:', dispatchErr);
         }
-        router.replace({ pathname: '/booking/walking/searching', params: { id: booking.id } } as any);
+        // No full-screen loader — the search banner (mounted in the root
+        // layout) tracks this in the background so the customer can keep
+        // using the app while a walker is found.
+        startSearch({ bookingId: booking.id, petName: walkDraft.pet?.name ?? 'your dog' });
+        router.replace('/(tabs)/home');
       } else {
         router.replace({ pathname: '/booking/confirmed', params: { id: booking.id } } as any);
       }
@@ -110,7 +116,10 @@ export default function WalkScheduleScreen() {
             accessibilityRole="radio"
             accessibilityState={{ selected: scheduleNow }}
           >
-            <Text style={[styles.toggleText, scheduleNow && styles.toggleTextActive]}>⚡ Walk Now</Text>
+            <View style={styles.toggleTextRow}>
+              <Icon name="spark" size={14} color={scheduleNow ? colors.white : colors.textPrimary} />
+              <Text style={[styles.toggleText, scheduleNow && styles.toggleTextActive]}>Walk Now</Text>
+            </View>
             <Text style={[styles.toggleSub, scheduleNow && styles.toggleSubActive]}>Nearest partner in ~10 min</Text>
           </TouchableOpacity>
           <TouchableOpacity
@@ -119,7 +128,10 @@ export default function WalkScheduleScreen() {
             accessibilityRole="radio"
             accessibilityState={{ selected: !scheduleNow }}
           >
-            <Text style={[styles.toggleText, !scheduleNow && styles.toggleTextActive]}>🗓 Schedule Later</Text>
+            <View style={styles.toggleTextRow}>
+              <Icon name="cal" size={14} color={!scheduleNow ? colors.white : colors.textPrimary} />
+              <Text style={[styles.toggleText, !scheduleNow && styles.toggleTextActive]}>Schedule Later</Text>
+            </View>
             <Text style={[styles.toggleSub, !scheduleNow && styles.toggleSubActive]}>Pick a date & time</Text>
           </TouchableOpacity>
         </View>
@@ -191,6 +203,7 @@ const styles = StyleSheet.create({
   toggleRow: { flexDirection: 'row', gap: spacing[3], marginBottom: spacing[2] },
   toggleBtn: { flex: 1, backgroundColor: colors.white, borderRadius: radii.xl, padding: spacing[4], borderWidth: 1.5, borderColor: colors.borderLight },
   toggleBtnActive: { borderColor: colors.marigold, backgroundColor: colors.marigoldBg },
+  toggleTextRow: { flexDirection: 'row', alignItems: 'center', gap: 5, justifyContent: 'center' },
   toggleText: { fontFamily: 'Inter', fontSize: 14, fontWeight: '800', color: colors.textSecondary },
   toggleTextActive: { color: colors.marigoldDark },
   toggleSub: { fontFamily: 'Inter', fontSize: 11, color: colors.textMuted, marginTop: 4 },

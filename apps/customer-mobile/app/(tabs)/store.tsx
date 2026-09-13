@@ -6,6 +6,7 @@ import {
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, spacing, typography, radii } from '@wag/design-tokens';
+import { Icon } from '@wag/ui-mobile';
 import { wagApi } from '../../src/lib/api';
 
 export default function StoreScreen() {
@@ -50,7 +51,7 @@ export default function StoreScreen() {
           onPress={() => router.push('/store/cart' as any)}
           accessibilityLabel={`Cart with ${cartCount} items`}
         >
-          <Text style={{ fontSize: 22 }}>🛒</Text>
+          <Icon name="bag" size={20} color={colors.textPrimary} />
           {cartCount > 0 && (
             <View style={styles.cartBadge}>
               <Text style={styles.cartBadgeText}>{cartCount}</Text>
@@ -61,7 +62,7 @@ export default function StoreScreen() {
 
       {/* Search */}
       <View style={styles.searchBar}>
-        <Text style={styles.searchIcon}>🔍</Text>
+        <Icon name="search" size={16} color={colors.textMuted} />
         <TextInput
           style={styles.searchInput}
           placeholder="Search products..."
@@ -113,7 +114,7 @@ export default function StoreScreen() {
               {product.imageUrls?.[0] ? (
                 <Image source={{ uri: product.imageUrls[0] }} style={styles.productImg} />
               ) : (
-                <Text style={{ fontSize: 36 }}>📦</Text>
+                <Icon name="bag" size={32} color={colors.textDisabled} />
               )}
             </View>
             <View style={styles.productInfo}>
@@ -141,7 +142,7 @@ export default function StoreScreen() {
         )}
         ListEmptyComponent={
           <View style={styles.empty}>
-            <Text style={{ fontSize: 40 }}>🛒</Text>
+            <Icon name="bag" size={40} color={colors.textDisabled} />
             <Text style={styles.emptyText}>No products found</Text>
           </View>
         }

@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity } from 'react-native';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Button } from '@wag/ui-mobile';
+import { Button, Icon } from '@wag/ui-mobile';
 import { colors, spacing, radii } from '@wag/design-tokens';
 import { wagApi } from '../../src/lib/api';
 
@@ -45,7 +45,7 @@ export default function PartnerCartScreen() {
         contentContainerStyle={styles.list}
         renderItem={({ item }) => (
           <View style={styles.cartItem}>
-            <View style={styles.itemImage}><Text style={{ fontSize: 32 }}>📦</Text></View>
+            <View style={styles.itemImage}><Icon name="bag" size={28} color={colors.textDisabled} /></View>
             <View style={styles.itemInfo}>
               <Text style={styles.itemName} numberOfLines={2}>{item.productName}</Text>
               {item.variantName && <Text style={styles.itemVariant}>{item.variantName}</Text>}
@@ -65,7 +65,7 @@ export default function PartnerCartScreen() {
         ListEmptyComponent={
           !loading ? (
             <View style={styles.empty}>
-              <Text style={{ fontSize: 48 }}>🛒</Text>
+              <Icon name="bag" size={44} color={colors.textDisabled} />
               <Text style={styles.emptyText}>Your cart is empty</Text>
               <TouchableOpacity onPress={() => router.replace('/(tabs)/store' as any)}>
                 <Text style={styles.shopLink}>Browse products</Text>

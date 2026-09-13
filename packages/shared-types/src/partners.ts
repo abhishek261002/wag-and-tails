@@ -13,6 +13,11 @@ export interface Partner {
   status: PartnerStatus;
   modes: PartnerMode[];
   city: string | null;
+  // KYC details collected at sign-up, reviewed by staff before approval.
+  age: number | null;
+  address: string | null;
+  aadhaarNumber: string | null;
+  photoUrl: string | null;
   serviceRadiusKm: number;
   isOnline: boolean;
   currentLat: number | null;

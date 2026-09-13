@@ -4,7 +4,7 @@ import {
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { PetAvatar, Card, Badge } from '@wag/ui-mobile';
+import { PetAvatar, Card, Badge, Icon } from '@wag/ui-mobile';
 import { colors, spacing, typography, radii } from '@wag/design-tokens';
 import { wagApi, resolveMediaUrl } from '../../src/lib/api';
 import type { PetDetail } from '@wag/shared-types';
@@ -85,7 +85,7 @@ export default function PetDetailScreen() {
             onPress={() => router.push({ pathname: '/booking/grooming/select-pet', params: { petId: pet.id } })}
             accessibilityLabel="Book grooming"
           >
-            <Text style={styles.actionIcon}>✂️</Text>
+            <Icon name="scissors" size={22} color={colors.white} />
             <Text style={styles.actionText}>Book Grooming</Text>
           </TouchableOpacity>
           <TouchableOpacity
@@ -93,7 +93,7 @@ export default function PetDetailScreen() {
             onPress={() => router.push({ pathname: '/booking/walking/select-dog', params: { petId: pet.id } })}
             accessibilityLabel="Book walk"
           >
-            <Text style={styles.actionIcon}>🐾</Text>
+            <Icon name="route" size={22} color={colors.white} />
             <Text style={styles.actionText}>Book Walk</Text>
           </TouchableOpacity>
           <TouchableOpacity
@@ -101,7 +101,7 @@ export default function PetDetailScreen() {
             onPress={() => router.push({ pathname: '/chat/[petId]', params: { petId: pet.id } })}
             accessibilityLabel="AI chat"
           >
-            <Text style={styles.actionIcon}>🤖</Text>
+            <Icon name="spark" size={22} color={colors.white} />
             <Text style={styles.actionText}>AI Chat</Text>
           </TouchableOpacity>
         </View>
@@ -109,7 +109,10 @@ export default function PetDetailScreen() {
         {/* Care Notes */}
         {pet.careNotes.length > 0 && (
           <Card style={styles.section}>
-            <Text style={styles.sectionTitle}>📝 Care Notes</Text>
+            <View style={styles.sectionTitleRow}>
+              <Icon name="doc" size={15} color={colors.textPrimary} />
+              <Text style={styles.sectionTitle}>Care Notes</Text>
+            </View>
             {pet.careNotes.map((note) => (
               <View key={note.id} style={styles.careNote}>
                 <View style={styles.careNoteDot} />
@@ -127,7 +130,10 @@ export default function PetDetailScreen() {
 
         {/* Health info */}
         <Card style={styles.section}>
-          <Text style={styles.sectionTitle}>🏥 Health & Vet</Text>
+          <View style={styles.sectionTitleRow}>
+            <Icon name="heart" size={15} color={colors.textPrimary} />
+            <Text style={styles.sectionTitle}>Health & Vet</Text>
+          </View>
           <InfoRow label="Allergies" value={pet.allergies || 'None known'} />
           <InfoRow label="Coat" value={pet.coatType} />
           <InfoRow label="Temperament" value={pet.temperament || 'Not specified'} />
@@ -139,7 +145,10 @@ export default function PetDetailScreen() {
         {/* Vaccinations */}
         {pet.vaccinations.length > 0 && (
           <Card style={styles.section}>
-            <Text style={styles.sectionTitle}>💉 Vaccinations</Text>
+            <View style={styles.sectionTitleRow}>
+              <Icon name="syringe" size={15} color={colors.textPrimary} />
+              <Text style={styles.sectionTitle}>Vaccinations</Text>
+            </View>
             {pet.vaccinations.map((vax) => (
               <View key={vax.id} style={styles.vacRow}>
                 <View style={{ flex: 1 }}>
@@ -198,7 +207,8 @@ const styles = StyleSheet.create({
   actionIcon: { fontSize: 24, marginBottom: 4 },
   actionText: { fontFamily: 'Inter', fontSize: typography.fontSize.xs, fontWeight: '700', color: colors.white },
   section: { marginHorizontal: spacing[5], marginBottom: spacing[4] },
-  sectionTitle: { fontFamily: 'Inter', fontSize: typography.fontSize.base, fontWeight: '700', color: colors.textPrimary, marginBottom: spacing[3] },
+  sectionTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: spacing[3] },
+  sectionTitle: { fontFamily: 'Inter', fontSize: typography.fontSize.base, fontWeight: '700', color: colors.textPrimary },
   careNote: { flexDirection: 'row', gap: spacing[2], marginBottom: spacing[2], alignItems: 'flex-start' },
   careNoteDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: colors.marigold, marginTop: 7 },
   careNoteText: { flex: 1, fontFamily: 'Inter', fontSize: typography.fontSize.sm, color: colors.textSecondary, lineHeight: 20 },

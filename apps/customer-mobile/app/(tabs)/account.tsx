@@ -3,17 +3,20 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'rea
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, spacing, typography, radii } from '@wag/design-tokens';
+import { Icon, RowItem } from '@wag/ui-mobile';
 import { wagApi } from '../../src/lib/api';
 import { useAuthStore } from '../../src/store/auth.store';
 
 export default function AccountScreen() {
   const [profile, setProfile] = useState<any>(null);
   const [wallet, setWallet] = useState<{ balance: number } | null>(null);
+  const [petCount, setPetCount] = useState(0);
   const { clearTokens } = useAuthStore();
 
   useEffect(() => {
     wagApi.client.get('/users/me').then((d) => setProfile(d)).catch(() => {});
     wagApi.client.get('/users/me/wallet').then((d) => setWallet(d as any)).catch(() => {});
+    wagApi.pets.list().then((p) => setPetCount(p.length)).catch(() => {});
   }, []);
 
   const handleLogout = () => {
@@ -33,51 +36,56 @@ export default function AccountScreen() {
   const name = profile?.profile
     ? `${profile.profile.firstName} ${profile.profile.lastName}`
     : 'My Account';
+  const addressCount = profile?.addresses?.length ?? 0;
 
   return (
     <SafeAreaView style={styles.safe}>
       <ScrollView contentContainerStyle={styles.content}>
         <Text style={styles.title}>Account</Text>
 
-        {/* Profile hero */}
-        <View style={styles.profileHero}>
+        {/* Profile hero — mirrors the prototype's card--brand */}
+        <TouchableOpacity style={styles.heroCard} onPress={() => {}} activeOpacity={0.9}>
           <View style={styles.avatar}>
             <Text style={styles.avatarText}>{name.charAt(0).toUpperCase()}</Text>
           </View>
-          <Text style={styles.name}>{name}</Text>
-          <Text style={styles.phone}>{profile?.phone ?? ''}</Text>
-          {wallet && (
-            <View style={styles.walletBadge}>
-              <Text style={styles.walletText}>💰 Wallet: ₹{wallet.balance}</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.heroName}>{name}</Text>
+            <Text style={styles.heroPhone}>{profile?.phone ?? ''}</Text>
+            <View style={styles.memberPill}>
+              <Text style={styles.memberPillText}>Member</Text>
             </View>
-          )}
+          </View>
+          <Icon name="chev" size={18} color="rgba(255,255,255,0.6)" />
+        </TouchableOpacity>
+
+        {/* Stat tiles */}
+        <View style={styles.statsRow}>
+          <StatTile icon="wallet" tone="ok" value={`₹${wallet?.balance ?? 0}`} label="Wallet" onPress={() => {}} />
+          <StatTile icon="gift" tone="accent" value="0" label="Offers" onPress={() => router.push('/account/offers')} />
+          <StatTile icon="bell" tone="brand" value="" label="Alerts" onPress={() => router.push('/account/notifications')} />
         </View>
 
-        {/* Menu sections */}
-        <MenuSection title="Services">
-          <MenuItem emoji="📅" label="My Bookings" onPress={() => router.push('/(tabs)/bookings')} />
-          <MenuItem emoji="🛒" label="My Orders" onPress={() => router.push('/store/orders' as any)} />
-          <MenuItem emoji="📍" label="Saved Addresses" onPress={() => router.push('/account/addresses' as any)} />
-        </MenuSection>
+        <Section title="Your details">
+          <RowItem icon="user" title="Personal information" sub="Name, phone, email" onPress={() => {}} />
+          <RowItem icon="pin" title="Saved addresses" value={String(addressCount)} onPress={() => router.push('/account/addresses' as any)} />
+          <RowItem icon="card" title="Payment methods" onPress={() => {}} />
+          <RowItem icon="paw" title="My pets" value={String(petCount)} onPress={() => router.push('/(tabs)/bookings')} />
+        </Section>
 
-        <MenuSection title="Offers">
-          <MenuItem emoji="🎟" label="Coupons & Offers" onPress={() => {}} />
-          <MenuItem emoji="🎁" label="Referrals" onPress={() => {}} />
-          <MenuItem emoji="💰" label="Wallet & Credits" onPress={() => {}} />
-        </MenuSection>
+        <Section title="Preferences">
+          <RowItem icon="bell" title="Notifications" sub="Booking updates, offers, reminders" onPress={() => router.push('/account/notifications')} />
+          <RowItem icon="globe" title="Language" value="English" chevron={false} />
+        </Section>
 
-        <MenuSection title="Preferences">
-          <MenuItem emoji="🔔" label="Notifications" onPress={() => {}} />
-          <MenuItem emoji="💳" label="Payment Methods" onPress={() => {}} />
-        </MenuSection>
-
-        <MenuSection title="Support">
-          <MenuItem emoji="💬" label="Help & Support" onPress={() => {}} />
-          <MenuItem emoji="📄" label="Terms of Service" onPress={() => {}} />
-          <MenuItem emoji="🔒" label="Privacy Policy" onPress={() => {}} />
-        </MenuSection>
+        <Section title="Support">
+          <RowItem icon="help" title="Help & support" sub="FAQs and contact" onPress={() => router.push('/support')} />
+          <RowItem icon="gift" title="Refer a friend" sub="Both of you get ₹200" onPress={() => {}} />
+          <RowItem icon="doc" title="Terms of service" onPress={() => router.push('/legal/terms' as any)} />
+          <RowItem icon="shield" title="Privacy policy" onPress={() => router.push('/legal/privacy' as any)} />
+        </Section>
 
         <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout} accessibilityRole="button" accessibilityLabel="Log out">
+          <Icon name="logout" size={17} color={colors.error} />
           <Text style={styles.logoutText}>Log out</Text>
         </TouchableOpacity>
 
@@ -87,7 +95,7 @@ export default function AccountScreen() {
   );
 }
 
-function MenuSection({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <View style={styles.section}>
       <Text style={styles.sectionTitle}>{title}</Text>
@@ -96,12 +104,18 @@ function MenuSection({ title, children }: { title: string; children: React.React
   );
 }
 
-function MenuItem({ emoji, label, onPress }: { emoji: string; label: string; onPress: () => void }) {
+function StatTile({ icon, tone, value, label, onPress }: {
+  icon: any; tone: 'brand' | 'accent' | 'ok'; value: string; label: string; onPress: () => void;
+}) {
+  const bg = tone === 'ok' ? colors.successLight : tone === 'accent' ? colors.marigoldBg : colors.biscuitLighter;
+  const fg = tone === 'ok' ? colors.success : tone === 'accent' ? colors.marigoldDark : colors.brandBrown;
   return (
-    <TouchableOpacity style={styles.menuItem} onPress={onPress} accessibilityRole="button" accessibilityLabel={label}>
-      <Text style={styles.menuEmoji}>{emoji}</Text>
-      <Text style={styles.menuLabel}>{label}</Text>
-      <Text style={styles.menuChevron}>›</Text>
+    <TouchableOpacity style={styles.statTile} onPress={onPress} activeOpacity={0.85}>
+      <View style={[styles.statIcon, { backgroundColor: bg }]}>
+        <Icon name={icon} size={18} color={fg} />
+      </View>
+      <Text style={styles.statValue}>{value}</Text>
+      <Text style={styles.statLabel}>{label}</Text>
     </TouchableOpacity>
   );
 }
@@ -109,22 +123,27 @@ function MenuItem({ emoji, label, onPress }: { emoji: string; label: string; onP
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.canvas },
   content: { paddingBottom: spacing[12] },
-  title: { fontFamily: 'Inter', fontSize: typography.fontSize['2xl'], fontWeight: '800', color: colors.textPrimary, paddingHorizontal: spacing[5], paddingTop: spacing[5] },
-  profileHero: { alignItems: 'center', paddingVertical: spacing[8] },
-  avatar: { width: 80, height: 80, borderRadius: 40, backgroundColor: colors.brandBrown, alignItems: 'center', justifyContent: 'center', marginBottom: spacing[3] },
-  avatarText: { fontSize: 32, fontWeight: '800', color: colors.white },
-  name: { fontFamily: 'Inter', fontSize: typography.fontSize.xl, fontWeight: '800', color: colors.textPrimary },
-  phone: { fontFamily: 'Inter', fontSize: typography.fontSize.sm, color: colors.textMuted, marginTop: 2 },
-  walletBadge: { marginTop: spacing[3], backgroundColor: colors.marigoldBg, borderRadius: radii.full, paddingHorizontal: spacing[4], paddingVertical: spacing[2] },
-  walletText: { fontFamily: 'Inter', fontSize: typography.fontSize.sm, fontWeight: '700', color: colors.marigoldDark },
-  section: { marginBottom: spacing[2] },
-  sectionTitle: { fontFamily: 'Inter', fontSize: typography.fontSize.xs, fontWeight: '700', color: colors.textMuted, textTransform: 'uppercase', letterSpacing: 1, paddingHorizontal: spacing[5], paddingVertical: spacing[2] },
+  title: { fontFamily: 'Inter', fontSize: typography.fontSize['2xl'], fontWeight: '800', color: colors.textPrimary, paddingHorizontal: spacing[5], paddingTop: spacing[5], paddingBottom: spacing[4] },
+
+  heroCard: { flexDirection: 'row', alignItems: 'center', gap: spacing[3], backgroundColor: colors.brandBrown, borderRadius: radii.xl, padding: spacing[4], marginHorizontal: spacing[5] },
+  avatar: { width: 54, height: 54, borderRadius: 27, backgroundColor: colors.marigold, alignItems: 'center', justifyContent: 'center' },
+  avatarText: { fontSize: 22, fontWeight: '800', color: colors.white },
+  heroName: { fontFamily: 'Inter', fontSize: 15.5, fontWeight: '700', color: colors.white },
+  heroPhone: { fontFamily: 'Inter', fontSize: 12, color: 'rgba(255,255,255,0.7)', marginTop: 3 },
+  memberPill: { alignSelf: 'flex-start', backgroundColor: 'rgba(255,255,255,0.16)', borderRadius: radii.full, paddingHorizontal: 10, paddingVertical: 3, marginTop: spacing[2] },
+  memberPillText: { fontFamily: 'Inter', fontSize: 11, fontWeight: '600', color: colors.white },
+
+  statsRow: { flexDirection: 'row', gap: spacing[3], paddingHorizontal: spacing[5], marginTop: spacing[4] },
+  statTile: { flex: 1, backgroundColor: colors.white, borderWidth: 1, borderColor: colors.borderLight, borderRadius: radii.lg, paddingVertical: spacing[4], alignItems: 'center' },
+  statIcon: { width: 34, height: 34, borderRadius: radii.sm, alignItems: 'center', justifyContent: 'center' },
+  statValue: { fontFamily: 'Inter', fontSize: 15, fontWeight: '700', color: colors.textPrimary, marginTop: spacing[2] },
+  statLabel: { fontFamily: 'Inter', fontSize: 10.5, color: colors.textMuted, marginTop: 1 },
+
+  section: { marginTop: spacing[6] },
+  sectionTitle: { fontFamily: 'Inter', fontSize: typography.fontSize.xs, fontWeight: '700', color: colors.textMuted, textTransform: 'uppercase', letterSpacing: 1, paddingHorizontal: spacing[5], paddingBottom: spacing[2] },
   sectionCard: { backgroundColor: colors.white, borderTopWidth: 1, borderBottomWidth: 1, borderColor: colors.borderLight },
-  menuItem: { flexDirection: 'row', alignItems: 'center', gap: spacing[3], paddingHorizontal: spacing[5], paddingVertical: spacing[4], borderBottomWidth: 1, borderBottomColor: colors.borderLight },
-  menuEmoji: { fontSize: 20, width: 28 },
-  menuLabel: { flex: 1, fontFamily: 'Inter', fontSize: typography.fontSize.base, color: colors.textPrimary },
-  menuChevron: { fontSize: 22, color: colors.textMuted },
-  logoutBtn: { marginHorizontal: spacing[5], marginTop: spacing[6], borderRadius: radii.xl, borderWidth: 1.5, borderColor: colors.error, paddingVertical: spacing[4], alignItems: 'center' },
+
+  logoutBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing[2], marginHorizontal: spacing[5], marginTop: spacing[6], borderRadius: radii.xl, borderWidth: 1.5, borderColor: colors.error, paddingVertical: spacing[4] },
   logoutText: { fontFamily: 'Inter', fontSize: typography.fontSize.base, fontWeight: '700', color: colors.error },
   version: { fontFamily: 'Inter', fontSize: typography.fontSize.xs, color: colors.textMuted, textAlign: 'center', marginTop: spacing[5] },
 });

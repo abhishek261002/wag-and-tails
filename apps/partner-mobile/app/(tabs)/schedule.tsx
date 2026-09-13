@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity } from 'react-native';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Card, Badge } from '@wag/ui-mobile';
+import { Card, Badge, Icon } from '@wag/ui-mobile';
 import { colors, spacing, typography, radii } from '@wag/design-tokens';
 import { wagApi } from '../../src/lib/api';
 import { format, isToday, isTomorrow } from 'date-fns';
@@ -39,7 +39,7 @@ export default function ScheduleScreen() {
 
       {sections.length === 0 ? (
         <View style={styles.empty}>
-          <Text style={{ fontSize: 40 }}>📅</Text>
+          <Icon name="cal" size={36} color={colors.textDisabled} />
           <Text style={styles.emptyText}>No scheduled jobs yet</Text>
         </View>
       ) : (
@@ -57,7 +57,7 @@ export default function ScheduleScreen() {
                 >
                   <Card style={styles.jobCard}>
                     <View style={styles.jobRow}>
-                      <Text style={{ fontSize: 20 }}>{job.type === 'grooming' ? '✂️' : '🐾'}</Text>
+                      <Icon name={job.type === 'grooming' ? 'scissors' : 'route'} size={18} color={colors.marigoldDark} />
                       <View style={styles.jobInfo}>
                         <Text style={styles.jobPet}>{job.petName} · {job.petBreed}</Text>
                         {job.scheduledAt && (
@@ -70,7 +70,10 @@ export default function ScheduleScreen() {
                       />
                     </View>
                     {job.petCareNotes && (
-                      <Text style={styles.careNotePreview} numberOfLines={1}>📝 {job.petCareNotes}</Text>
+                      <View style={styles.careNoteRow}>
+                        <Icon name="doc" size={11} color={colors.textMuted} />
+                        <Text style={styles.careNotePreview} numberOfLines={1}>{job.petCareNotes}</Text>
+                      </View>
                     )}
                   </Card>
                 </TouchableOpacity>
@@ -95,7 +98,8 @@ const styles = StyleSheet.create({
   jobInfo: { flex: 1 },
   jobPet: { fontFamily: 'Inter', fontSize: 15, fontWeight: '700', color: colors.textPrimary },
   jobTime: { fontFamily: 'Inter', fontSize: 13, color: colors.textMuted, marginTop: 2 },
-  careNotePreview: { fontFamily: 'Inter', fontSize: 12, color: colors.warning, marginTop: spacing[2] },
+  careNoteRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: spacing[2] },
+  careNotePreview: { flex: 1, fontFamily: 'Inter', fontSize: 12, color: colors.warning },
   empty: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   emptyText: { fontFamily: 'Inter', fontSize: 15, color: colors.textMuted, marginTop: spacing[3] },
 });

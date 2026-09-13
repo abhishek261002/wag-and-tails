@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput, Alert } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Button } from '@wag/ui-mobile';
+import { Button, Icon, type IconName } from '@wag/ui-mobile';
 import { colors, spacing, typography, radii } from '@wag/design-tokens';
 import { wagApi } from '../../../src/lib/api';
 import { format } from 'date-fns';
@@ -25,7 +25,7 @@ export default function WalkSummaryScreen() {
     setSubmitting(true);
     try {
       await wagApi.client.post(`/bookings/${bookingId}/review`, { rating, comment, tip });
-      Alert.alert('Thank you! 🐾', 'Your review has been submitted.', [
+      Alert.alert('Thank you!', 'Your review has been submitted.', [
         { text: 'OK', onPress: () => router.replace('/(tabs)/home') },
       ]);
     } catch (err: any) {
@@ -45,7 +45,7 @@ export default function WalkSummaryScreen() {
         {/* Header */}
         <View style={styles.header}>
           <View style={styles.completedBadge}>
-            <Text style={{ fontSize: 48 }}>🏁</Text>
+            <Icon name="check" size={44} color={colors.success} />
           </View>
           <Text style={styles.headline}>Walk Complete!</Text>
           <Text style={styles.sub}>
@@ -56,17 +56,20 @@ export default function WalkSummaryScreen() {
         {/* Stats */}
         {booking && (
           <View style={styles.statsRow}>
-            <StatBox emoji="⏱" label="Duration" value={`${booking.durationMinutes} min`} />
-            <StatBox emoji="📍" label="Route" value="1.8 km" />
-            <StatBox emoji="💰" label="Total" value={`₹${booking.total}`} />
+            <StatBox icon="clock" label="Duration" value={`${booking.durationMinutes} min`} />
+            <StatBox icon="pin" label="Route" value="1.8 km" />
+            <StatBox icon="wallet" label="Total" value={`₹${booking.total}`} />
           </View>
         )}
 
         {/* Photos from walk */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>📸 Walk Photos</Text>
+          <View style={styles.sectionTitleRow}>
+            <Icon name="cam" size={15} color={colors.textPrimary} />
+            <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>Walk Photos</Text>
+          </View>
           <View style={styles.photosPlaceholder}>
-            <Text style={{ fontSize: 36 }}>📷</Text>
+            <Icon name="cam" size={32} color={colors.textDisabled} />
             <Text style={styles.photosText}>Photos will appear here once the walker uploads them</Text>
           </View>
         </View>
@@ -96,7 +99,7 @@ export default function WalkSummaryScreen() {
 
         {/* Tip */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Add a Tip 💝</Text>
+          <Text style={styles.sectionTitle}>Add a Tip</Text>
           <View style={styles.tipRow}>
             {TIP_OPTIONS.map((t) => (
               <TouchableOpacity
@@ -126,11 +129,11 @@ export default function WalkSummaryScreen() {
   );
 }
 
-function StatBox({ emoji, label, value }: { emoji: string; label: string; value: string }) {
+function StatBox({ icon, label, value }: { icon: IconName; label: string; value: string }) {
   return (
     <View style={styles.statBox}>
-      <Text style={{ fontSize: 24, marginBottom: spacing[1] }}>{emoji}</Text>
-      <Text style={styles.statValue}>{value}</Text>
+      <Icon name={icon} size={22} color={colors.brandBrown} />
+      <Text style={[styles.statValue, { marginTop: spacing[1] }]}>{value}</Text>
       <Text style={styles.statLabel}>{label}</Text>
     </View>
   );
@@ -148,6 +151,7 @@ const styles = StyleSheet.create({
   statValue: { fontFamily: 'Inter', fontSize: 16, fontWeight: '800', color: colors.textPrimary },
   statLabel: { fontFamily: 'Inter', fontSize: 11, color: colors.textMuted, marginTop: 2 },
   section: { marginBottom: spacing[5] },
+  sectionTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: spacing[3] },
   sectionTitle: { fontFamily: 'Inter', fontSize: 15, fontWeight: '800', color: colors.textPrimary, marginBottom: spacing[3] },
   photosPlaceholder: { height: 120, backgroundColor: colors.white, borderRadius: radii.xl, borderWidth: 1, borderColor: colors.borderLight, alignItems: 'center', justifyContent: 'center' },
   photosText: { fontFamily: 'Inter', fontSize: 13, color: colors.textMuted, textAlign: 'center', marginTop: spacing[2], paddingHorizontal: spacing[4] },

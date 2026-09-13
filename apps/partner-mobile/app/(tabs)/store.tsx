@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, FlatList, TouchableOpacity, Image } from 'react
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, spacing, typography, radii } from '@wag/design-tokens';
+import { Icon } from '@wag/ui-mobile';
 import { wagApi } from '../../src/lib/api';
 
 export default function PartnerStoreScreen() {
@@ -32,7 +33,7 @@ export default function PartnerStoreScreen() {
         <Text style={styles.title}>Partner Store</Text>
         <View style={styles.tradeBadge}><Text style={styles.tradeText}>Trade Pricing</Text></View>
         <TouchableOpacity style={styles.cartBtn} onPress={() => router.push('/store/cart' as any)} accessibilityLabel={`Cart, ${cartCount} items`}>
-          <Text style={{ fontSize: 22 }}>🛒</Text>
+          <Icon name="bag" size={20} color={colors.textPrimary} />
           {cartCount > 0 && <View style={styles.cartBadge}><Text style={styles.cartBadgeText}>{cartCount}</Text></View>}
         </TouchableOpacity>
       </View>
@@ -49,7 +50,7 @@ export default function PartnerStoreScreen() {
             <View style={styles.productImg}>
               {p.imageUrls?.[0]
                 ? <Image source={{ uri: p.imageUrls[0] }} style={{ width: '100%', height: '100%', resizeMode: 'cover' }} />
-                : <Text style={{ fontSize: 32 }}>📦</Text>}
+                : <Icon name="bag" size={28} color={colors.textDisabled} />}
             </View>
             <View style={styles.productInfo}>
               <Text style={styles.productName} numberOfLines={2}>{p.name}</Text>

@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { PetAvatar, Card } from '@wag/ui-mobile';
+import { PetAvatar, Card, Icon } from '@wag/ui-mobile';
 import { colors, spacing, typography, radii } from '@wag/design-tokens';
 import { wagApi, resolveMediaUrl } from '../../../src/lib/api';
 import { useBookingStore } from '../../../src/store/booking.store';
@@ -59,15 +59,18 @@ export default function SelectPetScreen() {
               <Text style={styles.petName}>{pet.name}</Text>
               <Text style={styles.petBreed}>{pet.breed} · {pet.size}</Text>
               {pet.allergies && (
-                <Text style={styles.petAllergy} numberOfLines={1}>⚠️ {pet.allergies}</Text>
+                <View style={styles.allergyRow}>
+                  <Icon name="alert" size={11} color={colors.warning} />
+                  <Text style={styles.petAllergy} numberOfLines={1}>{pet.allergies}</Text>
+                </View>
               )}
             </View>
-            <Text style={styles.chevron}>›</Text>
+            <Icon name="chev" size={20} color={colors.textDisabled} />
           </TouchableOpacity>
         )}
         ListEmptyComponent={
           <View style={styles.empty}>
-            <Text style={{ fontSize: 40 }}>🐶</Text>
+            <Icon name="paw" size={40} color={colors.textDisabled} />
             <Text style={styles.emptyText}>No pets added yet</Text>
             <TouchableOpacity onPress={() => router.push('/pet/add')}>
               <Text style={styles.addPet}>+ Add a pet first</Text>
@@ -106,8 +109,8 @@ const styles = StyleSheet.create({
   petInfo: { flex: 1 },
   petName: { fontFamily: 'Inter', fontSize: typography.fontSize.base, fontWeight: '700', color: colors.textPrimary },
   petBreed: { fontFamily: 'Inter', fontSize: typography.fontSize.sm, color: colors.textMuted, marginTop: 2 },
-  petAllergy: { fontFamily: 'Inter', fontSize: typography.fontSize.xs, color: colors.warning, marginTop: 2 },
-  chevron: { fontFamily: 'Inter', fontSize: 22, color: colors.textMuted },
+  allergyRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 2 },
+  petAllergy: { fontFamily: 'Inter', fontSize: typography.fontSize.xs, color: colors.warning },
   empty: { alignItems: 'center', paddingTop: spacing[16] },
   emptyText: { fontFamily: 'Inter', fontSize: typography.fontSize.base, color: colors.textMuted, marginTop: spacing[3] },
   addPet: { fontFamily: 'Inter', fontSize: typography.fontSize.base, color: colors.marigoldDark, fontWeight: '700', marginTop: spacing[2] },

@@ -49,7 +49,7 @@ export class PartnerApi {
 
   completeJob(
     bookingId: string,
-    data: { checklistItems: string[]; beforePhotos: string[]; afterPhotos: string[] }
+    data: { otp: string; checklistItems: string[]; beforePhotos: string[]; afterPhotos: string[] }
   ): Promise<void> {
     return this.client.patch(`/partner/jobs/${bookingId}/complete`, data);
   }
@@ -85,6 +85,27 @@ export class PartnerApi {
     return this.client.post(`/partner/jobs/${bookingId}/photos`, formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
+  }
+
+  // KYC profile photo, uploaded right after sign-up (once the account —
+  // and so a userId to attach the upload to — actually exists). Same
+  // fetch-to-blob recipe as PetsApi.uploadAvatar / MessagingApi.uploadAttachment,
+  // works on both native and web.
+  async uploadProfilePhoto(userId: string, file: { uri: string; name: string; type: string }): Promise<{ url: string }> {
+    const blob = await (await fetch(file.uri)).blob();
+
+    const formData = new FormData();
+    formData.append('file', blob, file.name);
+    formData.append('entity', 'partner');
+    formData.append('entityId', userId);
+
+    const uploaded = await this.client.post<{ url: string; id: string }>(
+      '/files/upload',
+      formData,
+      { headers: { 'Content-Type': 'multipart/form-data' } }
+    );
+    await this.updateProfile({ photoUrl: uploaded.url });
+    return uploaded;
   }
 
   // Availability

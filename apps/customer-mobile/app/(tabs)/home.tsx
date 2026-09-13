@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { PetAvatar, Card } from '@wag/ui-mobile';
+import { PetAvatar, Card, Icon } from '@wag/ui-mobile';
 import { colors, spacing, radii } from '@wag/design-tokens';
 import { wagApi, resolveMediaUrl } from '../../src/lib/api';
 import type { Pet, GroomingBooking, WalkingBooking } from '@wag/shared-types';
@@ -18,6 +18,7 @@ export default function HomeScreen() {
   const [selectedPetId, setSelectedPetId] = useState<string | null>(null);
   const [activeBooking, setActiveBooking] = useState<AnyBooking | null>(null);
   const [pastBookings, setPastBookings] = useState<AnyBooking[]>([]);
+  const [profile, setProfile] = useState<any>(null);
   const [refreshing, setRefreshing] = useState(false);
 
   const hour = new Date().getHours();
@@ -25,12 +26,14 @@ export default function HomeScreen() {
 
   const load = useCallback(async () => {
     try {
-      const [petsData, activeData, pastData] = await Promise.all([
+      const [petsData, activeData, pastData, me] = await Promise.all([
         wagApi.pets.list(),
         wagApi.bookings.list({ page: 1, pageSize: 1, status: 'confirmed' }),
         wagApi.bookings.list({ page: 1, pageSize: 4, status: 'completed' }),
+        wagApi.client.get('/users/me').catch(() => null),
       ]);
       setPets(petsData);
+      setProfile(me);
       if (!selectedPetId && petsData.length > 0) setSelectedPetId(petsData[0]!.id);
       setActiveBooking(activeData.data?.[0] ?? null);
       setPastBookings(pastData.data ?? []);
@@ -48,6 +51,8 @@ export default function HomeScreen() {
   useEffect(() => { load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const pet = pets.find((p) => p.id === selectedPetId) ?? pets[0] ?? null;
+  const firstName = profile?.profile?.firstName ?? 'there';
+  const defaultAddress = profile?.addresses?.[0] ?? null;
   const startGroom = () => router.push(pets.length === 0 ? '/pet/add' : '/booking/grooming/select-pet');
   const startWalk = () => router.push(pets.length === 0 ? '/pet/add' : '/booking/walking/select-dog');
 
@@ -61,16 +66,29 @@ export default function HomeScreen() {
         {/* Brand-brown hero, matching the prototype's .homehero */}
         <View style={styles.hero}>
           <View style={styles.heroTop}>
-            <View style={{ flex: 1 }}>
+            <View style={{ flex: 1, minWidth: 0 }}>
               <Text style={styles.heroGreet}>{greeting}</Text>
-              <Text style={styles.heroName}>{pet ? 'Hey there' : 'Welcome'} 👋</Text>
+              <Text style={styles.heroName} numberOfLines={1}>{firstName}</Text>
+              {defaultAddress && (
+                <TouchableOpacity
+                  style={styles.heroLoc}
+                  onPress={() => router.push('/account/addresses' as any)}
+                  accessibilityLabel="Change address"
+                >
+                  <Icon name="pin" size={13} color="rgba(255,255,255,0.72)" />
+                  <Text style={styles.heroLocText} numberOfLines={1}>
+                    {defaultAddress.label} · {defaultAddress.line1}
+                  </Text>
+                  <Icon name="chevD" size={13} color="rgba(255,255,255,0.72)" />
+                </TouchableOpacity>
+              )}
             </View>
             <TouchableOpacity
               style={styles.bellBtn}
               onPress={() => router.push('/account/notifications')}
               accessibilityLabel="Notifications"
             >
-              <Text style={{ fontSize: 19 }}>🔔</Text>
+              <Icon name="bell" size={19} color={colors.white} />
             </TouchableOpacity>
           </View>
 
@@ -100,7 +118,7 @@ export default function HomeScreen() {
           {/* status card, overlapping the hero like the prototype */}
           {pets.length === 0 ? (
             <Card style={styles.emptyPets} onPress={() => router.push('/pet/add')}>
-              <Text style={{ fontSize: 36 }}>🐶</Text>
+              <Icon name="paw" size={36} color={colors.brandBrown} />
               <Text style={styles.emptyTitle}>Add your first pet</Text>
               <Text style={styles.emptyBody}>Get grooming, walks and more for your furry friend.</Text>
             </Card>
@@ -139,20 +157,26 @@ export default function HomeScreen() {
           <SectionHead title="Book a service" sub="At your home, 7 days a week" />
           <View style={styles.svcRow}>
             <TouchableOpacity style={[styles.svcCard, styles.svcGroom]} onPress={startGroom} activeOpacity={0.9}>
-              <Text style={{ fontSize: 30 }}>✂️</Text>
+              <Icon name="scissors" size={30} color={colors.white} />
               <View>
                 <Text style={styles.svcTitle}>Grooming</Text>
                 <Text style={styles.svcSub}>Bath, trim and styling at home</Text>
               </View>
-              <Text style={styles.svcCta}>From ₹999 →</Text>
+              <View style={styles.svcCtaRow}>
+                <Text style={styles.svcCta}>From ₹999</Text>
+                <Icon name="chev" size={13} color={colors.white} />
+              </View>
             </TouchableOpacity>
             <TouchableOpacity style={[styles.svcCard, styles.svcWalk]} onPress={startWalk} activeOpacity={0.9}>
-              <Text style={{ fontSize: 30 }}>🐾</Text>
+              <Icon name="paw" size={30} color={colors.brandBrown} />
               <View>
                 <Text style={[styles.svcTitle, styles.svcTitleDark]}>Dog walking</Text>
                 <Text style={[styles.svcSub, styles.svcSubDark]}>On demand, tracked live</Text>
               </View>
-              <Text style={[styles.svcCta, styles.svcCtaDark]}>From ₹249 →</Text>
+              <View style={styles.svcCtaRow}>
+                <Text style={[styles.svcCta, styles.svcCtaDark]}>From ₹249</Text>
+                <Icon name="chev" size={13} color={colors.brandBrown} />
+              </View>
             </TouchableOpacity>
           </View>
 
@@ -172,12 +196,12 @@ export default function HomeScreen() {
               onPress={() => router.push({ pathname: '/chat/[petId]', params: { petId: pet.id } })}
               activeOpacity={0.85}
             >
-              <View style={styles.askIcon}><Text style={{ fontSize: 18 }}>✨</Text></View>
+              <View style={styles.askIcon}><Icon name="spark" size={19} color={colors.marigoldDark} /></View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.askTitle}>Ask about {pet.name}</Text>
                 <Text style={styles.askSub}>Coat care, weight, grooming frequency</Text>
               </View>
-              <Text style={styles.chev}>›</Text>
+              <Icon name="chev" size={17} color={colors.textDisabled} />
             </TouchableOpacity>
           )}
 
@@ -204,7 +228,7 @@ export default function HomeScreen() {
           {/* Trust card */}
           <Card style={styles.trustCard}>
             <View style={styles.trustRow}>
-              <View style={styles.trustIcon}><Text style={{ fontSize: 17 }}>🛡️</Text></View>
+              <View style={styles.trustIcon}><Icon name="shield" size={19} color={colors.success} /></View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.trustTitle}>Every partner is verified</Text>
                 <Text style={styles.trustSub}>ID checked, police verified and trained on handling anxious dogs.</Text>
@@ -218,12 +242,12 @@ export default function HomeScreen() {
           </Card>
 
           <TouchableOpacity style={styles.helpRow} onPress={() => router.push('/support')}>
-            <Text style={styles.helpIcon}>❓</Text>
+            <View style={styles.helpIconBox}><Icon name="help" size={19} color={colors.brandBrown} /></View>
             <View style={{ flex: 1 }}>
               <Text style={styles.helpTitle}>Help & support</Text>
               <Text style={styles.helpSub}>FAQs, booking issues, contact us</Text>
             </View>
-            <Text style={styles.chev}>›</Text>
+            <Icon name="chev" size={17} color={colors.textDisabled} />
           </TouchableOpacity>
         </View>
       </ScrollView>
@@ -256,7 +280,9 @@ const styles = StyleSheet.create({
   hero: { backgroundColor: colors.brandBrown, paddingHorizontal: spacing[5], paddingTop: spacing[2], paddingBottom: spacing[6] },
   heroTop: { flexDirection: 'row', alignItems: 'flex-start' },
   heroGreet: { fontFamily: 'Inter', fontSize: 12.5, color: 'rgba(255,255,255,0.62)' },
-  heroName: { fontFamily: 'Inter', fontSize: 23, fontWeight: '800', color: colors.white, marginTop: 2, letterSpacing: -0.4 },
+  heroName: { fontFamily: 'PlusJakartaSans-ExtraBold', fontSize: 23, fontWeight: '800', color: colors.white, marginTop: 2, letterSpacing: -0.4 },
+  heroLoc: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: spacing[2], alignSelf: 'flex-start' },
+  heroLocText: { fontFamily: 'Inter', fontSize: 12, fontWeight: '500', color: 'rgba(255,255,255,0.72)', maxWidth: 200 },
   bellBtn: { width: 38, height: 38, borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.14)', alignItems: 'center', justifyContent: 'center' },
   petSwitch: { marginTop: spacing[4] },
   petItem: { alignItems: 'center', width: 66 },
@@ -294,6 +320,7 @@ const styles = StyleSheet.create({
   svcTitleDark: { color: colors.brand800 ?? colors.textPrimary },
   svcSub: { fontFamily: 'Inter', fontSize: 11, color: 'rgba(255,255,255,0.74)', marginTop: 4 },
   svcSubDark: { color: colors.textSecondary },
+  svcCtaRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   svcCta: { fontFamily: 'Inter', fontSize: 12, fontWeight: '700', color: colors.white },
   svcCtaDark: { color: colors.brandBrown },
 
@@ -325,7 +352,7 @@ const styles = StyleSheet.create({
   metricK: { fontFamily: 'Inter', fontSize: 9.5, fontWeight: '600', textTransform: 'uppercase', color: colors.textMuted },
 
   helpRow: { flexDirection: 'row', alignItems: 'center', gap: spacing[3], marginTop: spacing[5] },
-  helpIcon: { fontSize: 18 },
+  helpIconBox: { width: 38, height: 38, borderRadius: radii.sm, backgroundColor: colors.biscuitLighter, alignItems: 'center', justifyContent: 'center' },
   helpTitle: { fontFamily: 'Inter', fontSize: 14, fontWeight: '600', color: colors.textPrimary },
   helpSub: { fontFamily: 'Inter', fontSize: 11.5, color: colors.textMuted, marginTop: 1 },
 });

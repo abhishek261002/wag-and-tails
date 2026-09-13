@@ -2,13 +2,13 @@ import React, { useEffect, useState, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Share, Animated } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Button, LiveMapView } from '@wag/ui-mobile';
+import { Button, LiveMapView, Icon } from '@wag/ui-mobile';
 import { colors, spacing, typography, radii } from '@wag/design-tokens';
 import { wagApi } from '../../src/lib/api';
 import { format } from 'date-fns';
 
-const WAITING_STATUSES = new Set(['pending_payment', 'confirmed', 'needs_partner']);
-const TRACKING_STATUSES = new Set(['assigned', 'partner_on_the_way', 'arrived', 'in_progress']);
+const WAITING_STATUSES = new Set(['pending_payment', 'confirmed', 'needs_partner', 'searching_partner']);
+const TRACKING_STATUSES = new Set(['assigned', 'accepted', 'partner_on_the_way', 'arrived', 'in_progress']);
 
 export default function BookingConfirmedScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -37,7 +37,12 @@ export default function BookingConfirmedScreen() {
     wagApi.realtime.joinBooking(id);
     const offStatus = wagApi.realtime.on('booking:status_changed', (payload: any) => {
       if (payload.bookingId !== id) return;
-      setBooking((prev: any) => (prev ? { ...prev, status: payload.status, partnerId: payload.partnerId ?? prev.partnerId } : prev));
+      setBooking((prev: any) => (prev ? {
+        ...prev,
+        status: payload.status,
+        partnerId: payload.partnerId ?? prev.partnerId,
+        endOtp: payload.endOtp ?? prev.endOtp,
+      } : prev));
     });
     const offLocation = wagApi.realtime.on('partner:location_updated', (payload: any) => {
       if (payload.bookingId !== id) return;
@@ -61,7 +66,7 @@ export default function BookingConfirmedScreen() {
 
   const handleShare = async () => {
     if (!booking) return;
-    const text = `I've booked ${booking.type === 'grooming' ? 'a grooming session' : 'a dog walk'} for ${booking.petName} via Wag & Tails! 🐾`;
+    const text = `I've booked ${booking.type === 'grooming' ? 'a grooming session' : 'a dog walk'} for ${booking.petName} via Wag & Tails!`;
     await Share.share({ message: text });
   };
 
@@ -74,12 +79,14 @@ export default function BookingConfirmedScreen() {
         <View style={styles.waitingContainer}>
           <Animated.View style={[styles.pulseRing, { transform: [{ scale: pulseAnim }] }]}>
             <View style={styles.innerCircle}>
-              <Text style={{ fontSize: 44 }}>🐾</Text>
+              <Icon name="paw" size={44} color={colors.white} />
             </View>
           </Animated.View>
           <Text style={styles.headline}>Fetching your partner…</Text>
           <Text style={styles.sub}>
-            We've notified groomers near you. This usually takes a couple of minutes.
+            {booking?.type === 'walking'
+              ? 'We\'ve notified walkers near you. This usually takes a couple of minutes.'
+              : 'We\'ve notified groomers near you. This usually takes a couple of minutes.'}
           </Text>
         </View>
       </SafeAreaView>
@@ -91,7 +98,7 @@ export default function BookingConfirmedScreen() {
       <View style={styles.container}>
         {/* Success animation */}
         <View style={styles.successCircle}>
-          <Text style={styles.successEmoji}>🎉</Text>
+          <Icon name="check" size={40} color={colors.success} />
         </View>
 
         <Text style={styles.headline}>
@@ -99,7 +106,7 @@ export default function BookingConfirmedScreen() {
         </Text>
         <Text style={styles.sub}>
           {isTracking
-            ? `Your groomer is getting ready for ${booking?.petName ?? 'your pet'}.`
+            ? `Your ${booking?.type === 'walking' ? 'walker' : 'groomer'} is getting ready for ${booking?.petName ?? 'your pet'}.`
             : `Your booking for ${booking?.petName ?? 'your pet'} has been confirmed.`}
         </Text>
 
@@ -107,7 +114,19 @@ export default function BookingConfirmedScreen() {
           <View style={styles.otpCard}>
             <Text style={styles.otpLabel}>Your start code</Text>
             <Text style={styles.otpValue}>{booking.startOtp}</Text>
-            <Text style={styles.otpHint}>Share this with your groomer when they arrive</Text>
+            <Text style={styles.otpHint}>Share this with your {booking?.type === 'walking' ? 'walker' : 'groomer'} when they arrive</Text>
+          </View>
+        )}
+
+        {/* End code — appears the moment the groomer verifies the start
+            code and begins the session. Walking bookings gate this behind
+            the planned duration instead, on their own live-tracking screen,
+            so it's deliberately excluded here. */}
+        {booking?.status === 'in_progress' && booking?.type !== 'walking' && booking?.endOtp && (
+          <View style={[styles.otpCard, { backgroundColor: colors.success }]}>
+            <Text style={styles.otpLabel}>Your end code</Text>
+            <Text style={styles.otpValue}>{booking.endOtp}</Text>
+            <Text style={styles.otpHint}>Share this with your groomer once the session is done</Text>
           </View>
         )}
 
@@ -121,7 +140,7 @@ export default function BookingConfirmedScreen() {
             </View>
           ) : (
             <View style={styles.trackingCard}>
-              <Text style={{ fontSize: 32 }}>🗺️</Text>
+              <Icon name="pin" size={32} color={colors.textDisabled} />
               <Text style={styles.trackingText}>Live location will appear here once your groomer heads out</Text>
             </View>
           )
@@ -141,6 +160,16 @@ export default function BookingConfirmedScreen() {
         )}
 
         <View style={styles.actions}>
+          {isTracking && booking?.type === 'walking' && (
+            <Button
+              onPress={() => router.push({ pathname: '/booking/walking/live', params: { id: id! } } as any)}
+              fullWidth
+              leftIcon={<Icon name="route" size={16} color={colors.white} />}
+              style={{ marginBottom: spacing[3] }}
+            >
+              Track Live
+            </Button>
+          )}
           <Button
             onPress={() => router.push({ pathname: '/booking/[id]', params: { id: id! } })}
             fullWidth

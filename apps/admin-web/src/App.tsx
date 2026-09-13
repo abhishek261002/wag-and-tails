@@ -14,6 +14,7 @@ import BookingsPage from './pages/BookingsPage';
 import CustomersPage from './pages/CustomersPage';
 import AuditLogPage from './pages/AuditLogPage';
 import StaffPage from './pages/StaffPage';
+import SupportPage from './pages/SupportPage';
 
 function RequireAdmin({ children }: { children: React.ReactNode }) {
   const { isAuthenticated } = useAuthStore();
@@ -39,6 +40,7 @@ export default function App() {
                 <Route path="/packages" element={<PackagesPage />} />
                 <Route path="/products" element={<ProductsPage />} />
                 <Route path="/staff" element={<StaffPage />} />
+                <Route path="/support" element={<SupportPage />} />
                 <Route path="/audit-log" element={<AuditLogPage />} />
               </Routes>
             </AppLayout>

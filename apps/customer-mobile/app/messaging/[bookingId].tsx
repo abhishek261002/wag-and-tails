@@ -7,6 +7,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, spacing, radii } from '@wag/design-tokens';
+import { Icon } from '@wag/ui-mobile';
 import { wagApi } from '../../src/lib/api';
 import { useAuthStore } from '../../src/store/auth.store';
 
@@ -157,7 +158,7 @@ export default function MessagingScreen() {
           }}
           ListEmptyComponent={
             <View style={styles.empty}>
-              <Text style={{ fontSize: 36 }}>💬</Text>
+              <Icon name="chat" size={32} color={colors.textDisabled} />
               <Text style={styles.emptyText}>No messages yet. Say hello!</Text>
             </View>
           }
@@ -170,7 +171,7 @@ export default function MessagingScreen() {
             disabled={sending || !conversationId}
             accessibilityLabel="Attach photo"
           >
-            <Text style={{ fontSize: 20 }}>📷</Text>
+            <Icon name="cam" size={20} color={colors.textMuted} />
           </TouchableOpacity>
           <TextInput
             style={styles.input}
@@ -188,7 +189,7 @@ export default function MessagingScreen() {
             disabled={!text.trim() || sending}
             accessibilityLabel="Send message"
           >
-            <Text style={{ fontSize: 20 }}>➤</Text>
+            <Icon name="send" size={18} color={colors.white} />
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>

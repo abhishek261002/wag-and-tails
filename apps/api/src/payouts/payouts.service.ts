@@ -60,7 +60,12 @@ export class PayoutsService {
       this.prisma.payout.count({ where }),
     ]);
 
-    return { data, total, page, pageSize };
+    const safeData = data.map((p) => {
+      const { passwordHash, ...user } = p.partner.user;
+      return { ...p, partner: { ...p.partner, user } };
+    });
+
+    return { data: safeData, total, page, pageSize };
   }
 
   async approveBatch(payoutIds: string[], adminId: string) {

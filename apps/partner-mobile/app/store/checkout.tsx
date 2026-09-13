@@ -2,15 +2,15 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert } from 'react-native';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Button } from '@wag/ui-mobile';
+import { Button, Icon, type IconName } from '@wag/ui-mobile';
 import { colors, spacing, radii } from '@wag/design-tokens';
 import { wagApi } from '../../src/lib/api';
 
-const PAYMENT_OPTIONS = [
-  { label: '📱 UPI', value: 'upi' },
-  { label: '💳 Card', value: 'card' },
-  { label: '💵 Cash on Delivery', value: 'cod' },
-] as const;
+const PAYMENT_OPTIONS: { label: string; value: 'upi' | 'card' | 'cod'; icon: IconName }[] = [
+  { label: 'UPI', value: 'upi', icon: 'phone' },
+  { label: 'Card', value: 'card', icon: 'card' },
+  { label: 'Cash on Delivery', value: 'cod', icon: 'bag' },
+];
 
 export default function PartnerCheckoutScreen() {
   const [cart, setCart] = useState<any>(null);
@@ -139,6 +139,7 @@ export default function PartnerCheckoutScreen() {
               accessibilityRole="radio"
               accessibilityState={{ selected: paymentMethod === opt.value }}
             >
+              <Icon name={opt.icon} size={15} color={paymentMethod === opt.value ? colors.brandBrown : colors.textMuted} />
               <Text style={[styles.payBtnText, paymentMethod === opt.value && styles.payBtnTextActive]}>{opt.label}</Text>
             </TouchableOpacity>
           ))}

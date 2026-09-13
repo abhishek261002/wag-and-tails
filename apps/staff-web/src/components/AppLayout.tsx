@@ -4,7 +4,7 @@ import { Sidebar, type NavItem } from '@wag/ui-web';
 import { useAuthStore } from '../store/auth.store';
 import {
   LayoutDashboard, CalendarCheck, ShoppingBag,
-  Users, UserCheck, LogOut, Menu, X,
+  Users, UserCheck, LifeBuoy, LogOut, Menu, X,
 } from 'lucide-react';
 
 const SIZE = 20;
@@ -23,6 +23,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     { key: 'orders', label: 'Store Orders', icon: <ShoppingBag size={SIZE} />, onClick: () => navigate('/orders') },
     { key: 'customers', label: 'Customers', icon: <Users size={SIZE} />, onClick: () => navigate('/customers') },
     { key: 'partners', label: 'Partners', icon: <UserCheck size={SIZE} />, onClick: () => navigate('/partners') },
+    { key: 'support', label: 'Support', icon: <LifeBuoy size={SIZE} />, onClick: () => navigate('/support') },
   ];
 
   const handleLogout = () => { clearAuth(); navigate('/login'); };

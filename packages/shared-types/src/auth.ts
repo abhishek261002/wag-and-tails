@@ -48,6 +48,18 @@ export interface RegisterRequest {
   otp: string;
 }
 
+export interface RegisterPartnerRequest {
+  email: string;
+  password: string;
+  phone: string;
+  firstName: string;
+  lastName: string;
+  age: number;
+  address: string;
+  aadhaarNumber: string;
+  city: string;
+}
+
 export interface AuthResponse {
   user: User;
   profile: UserProfile;

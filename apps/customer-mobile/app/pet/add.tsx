@@ -162,8 +162,14 @@ export default function AddPetScreen() {
             name: photo.fileName ?? 'pet-photo.jpg',
             type: photo.mimeType ?? 'image/jpeg',
           });
-        } catch {
-          // Photo upload failing shouldn't block pet creation succeeding.
+        } catch (err: any) {
+          // The pet itself is saved, so this isn't fatal — but it must be
+          // said out loud. Swallowing it silently is why every pet ended up
+          // with no avatar and nobody noticed.
+          Alert.alert(
+            'Photo not saved',
+            `${form.name} was added, but the photo could not be uploaded: ${err?.message ?? 'unknown error'}`
+          );
         }
       }
 

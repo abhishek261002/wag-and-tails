@@ -10,6 +10,7 @@ import BookingDetailPage from './pages/BookingDetailPage';
 import OrdersPage from './pages/OrdersPage';
 import CustomersPage from './pages/CustomersPage';
 import PartnersPage from './pages/PartnersPage';
+import SupportPage from './pages/SupportPage';
 import AppLayout from './components/AppLayout';
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
@@ -36,6 +37,7 @@ export default function App() {
                   <Route path="/orders" element={<OrdersPage />} />
                   <Route path="/customers" element={<CustomersPage />} />
                   <Route path="/partners" element={<PartnersPage />} />
+                  <Route path="/support" element={<SupportPage />} />
                 </Routes>
               </AppLayout>
             </RequireAuth>

@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Button } from '@wag/ui-mobile';
+import { Button, Icon } from '@wag/ui-mobile';
 import { colors, spacing, typography, radii } from '@wag/design-tokens';
 import { useBookingStore } from '../../../src/store/booking.store';
 import { addDays, format, setHours, setMinutes, startOfDay } from 'date-fns';
@@ -98,9 +98,10 @@ export default function SelectDateTimeScreen() {
         )}
 
         {selectedDay && selectedSlot && (
-          <View style={styles.confirmBox}>
+          <View style={[styles.confirmBox, { flexDirection: 'row', alignItems: 'center', gap: spacing[2] }]}>
+            <Icon name="cal" size={15} color={colors.brandBrown} />
             <Text style={styles.confirmText}>
-              📅 {format(setHours(selectedDay, selectedSlot.h), 'EEEE, d MMMM · h:mm a')}
+              {format(setHours(selectedDay, selectedSlot.h), 'EEEE, d MMMM · h:mm a')}
             </Text>
           </View>
         )}

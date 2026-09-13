@@ -2,7 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, TextInput, KeyboardAvoidingView, Platform } from 'react-native';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Button } from '@wag/ui-mobile';
+import { Button, Icon } from '@wag/ui-mobile';
 import { colors, spacing, typography, radii } from '@wag/design-tokens';
 import { useBookingStore } from '../../../src/store/booking.store';
 
@@ -30,7 +30,10 @@ export default function GroomerNoteScreen() {
 
           {groomingDraft.pet && (groomingDraft.pet as any).careNotes?.length > 0 && (
             <View style={styles.autoNoteBox}>
-              <Text style={styles.autoNoteTitle}>📝 Auto-attached care notes</Text>
+              <View style={styles.autoNoteTitleRow}>
+                <Icon name="doc" size={13} color={colors.marigoldDark} />
+                <Text style={styles.autoNoteTitle}>Auto-attached care notes</Text>
+              </View>
               <Text style={styles.autoNoteText}>{(groomingDraft.pet as any).careNotes[0]?.note}</Text>
             </View>
           )}
@@ -69,7 +72,8 @@ const styles = StyleSheet.create({
   label: { fontFamily: 'Inter', fontSize: 15, fontWeight: '700', color: colors.textPrimary, marginBottom: spacing[2] },
   hint: { fontFamily: 'Inter', fontSize: 13, color: colors.textMuted, marginBottom: spacing[4] },
   autoNoteBox: { backgroundColor: colors.warningLight, borderRadius: radii.lg, padding: spacing[3], marginBottom: spacing[4] },
-  autoNoteTitle: { fontFamily: 'Inter', fontSize: 12, fontWeight: '800', color: colors.warning, marginBottom: 4 },
+  autoNoteTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 4 },
+  autoNoteTitle: { fontFamily: 'Inter', fontSize: 12, fontWeight: '800', color: colors.warning },
   autoNoteText: { fontFamily: 'Inter', fontSize: 13, color: colors.warning, lineHeight: 19 },
   textArea: { backgroundColor: colors.white, borderRadius: radii.xl, borderWidth: 1.5, borderColor: colors.borderLight, padding: spacing[4], fontFamily: 'Inter', fontSize: 14, color: colors.textPrimary, minHeight: 120 },
   charCount: { fontFamily: 'Inter', fontSize: 11, color: colors.textMuted, textAlign: 'right', marginTop: spacing[1] },

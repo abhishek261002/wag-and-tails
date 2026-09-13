@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Button } from '@wag/ui-mobile';
+import { Button, Icon } from '@wag/ui-mobile';
 import { colors, spacing, typography, radii } from '@wag/design-tokens';
 import { wagApi } from '../../src/lib/api';
 import { addDays, format, setHours, startOfDay } from 'date-fns';
@@ -78,9 +78,10 @@ export default function RescheduleScreen() {
         )}
 
         {selectedDay && selectedHour && (
-          <View style={styles.confirmBox}>
+          <View style={[styles.confirmBox, { flexDirection: 'row', alignItems: 'center', gap: spacing[2] }]}>
+            <Icon name="cal" size={15} color={colors.brandBrown} />
             <Text style={styles.confirmText}>
-              📅 New time: {format(setHours(selectedDay, selectedHour), 'EEEE, d MMMM · h:mm a')}
+              New time: {format(setHours(selectedDay, selectedHour), 'EEEE, d MMMM · h:mm a')}
             </Text>
           </View>
         )}

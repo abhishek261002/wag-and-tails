@@ -89,6 +89,14 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
     client.join(`booking:${data.bookingId}`);
   }
 
+  @SubscribeMessage('join:support')
+  handleJoinSupportTicket(
+    @ConnectedSocket() client: AuthenticatedSocket,
+    @MessageBody() data: { ticketId: string }
+  ) {
+    client.join(`support:${data.ticketId}`);
+  }
+
   // Emit helpers called by services
   emitToUser(userId: string, event: string, data: unknown) {
     this.server.to(`user:${userId}`).emit(event, data);
@@ -100,6 +108,10 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
 
   emitToBooking(bookingId: string, event: string, data: unknown) {
     this.server.to(`booking:${bookingId}`).emit(event, data);
+  }
+
+  emitToSupportTicket(ticketId: string, event: string, data: unknown) {
+    this.server.to(`support:${ticketId}`).emit(event, data);
   }
 
   emitToAll(event: string, data: unknown) {

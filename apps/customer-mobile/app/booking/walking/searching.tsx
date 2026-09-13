@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, Animated, TouchableOpacity, Alert } from 'react
 import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, spacing, typography, radii } from '@wag/design-tokens';
+import { Icon } from '@wag/ui-mobile';
 import { wagApi } from '../../../src/lib/api';
 
 const SEARCH_TIMEOUT = 45; // seconds
@@ -91,7 +92,7 @@ export default function SearchingPartnerScreen() {
           <>
             <Animated.View style={[styles.pulseRing, { transform: [{ scale: pulseAnim }] }]}>
               <View style={styles.innerCircle}>
-                <Text style={{ fontSize: 48 }}>🐾</Text>
+                <Icon name="paw" size={48} color={colors.white} />
               </View>
             </Animated.View>
             <Text style={styles.headline}>Finding a walker…</Text>
@@ -109,7 +110,7 @@ export default function SearchingPartnerScreen() {
         {status === 'found' && (
           <>
             <View style={styles.foundCircle}>
-              <Text style={{ fontSize: 56 }}>✅</Text>
+              <Icon name="check" size={48} color={colors.success} />
             </View>
             <Text style={styles.headline}>Walker Found!</Text>
             <Text style={styles.sub}>Your walker is on the way. Opening live tracking…</Text>
@@ -119,7 +120,7 @@ export default function SearchingPartnerScreen() {
         {status === 'expired' && (
           <>
             <View style={styles.expiredCircle}>
-              <Text style={{ fontSize: 56 }}>😔</Text>
+              <Icon name="alert" size={44} color={colors.warning} />
             </View>
             <Text style={styles.headline}>No walkers found</Text>
             <Text style={styles.sub}>No walkers are available nearby right now. Try again in a few minutes.</Text>

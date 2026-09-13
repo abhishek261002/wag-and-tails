@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Badge } from '@wag/ui-mobile';
+import { Badge, Icon } from '@wag/ui-mobile';
 import { colors, spacing, typography, radii } from '@wag/design-tokens';
 import { wagApi } from '../../../src/lib/api';
 import { format } from 'date-fns';
@@ -74,7 +74,7 @@ export default function OrderDetailScreen() {
         <View style={styles.itemsCard}>
           {order.items?.map((item: any) => (
             <View key={item.id} style={styles.item}>
-              <View style={styles.itemImg}><Text style={{ fontSize: 24 }}>📦</Text></View>
+              <View style={styles.itemImg}><Icon name="bag" size={20} color={colors.textDisabled} /></View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.itemName}>{item.productName}</Text>
                 {item.variantName && <Text style={styles.itemVariant}>{item.variantName}</Text>}

@@ -5,7 +5,7 @@ import {
 } from 'react-native';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Button, Input } from '@wag/ui-mobile';
+import { Button, Input, Logo } from '@wag/ui-mobile';
 import { colors, spacing, typography, radii } from '@wag/design-tokens';
 import { wagApi } from '../../src/lib/api';
 import { useAuthStore } from '../../src/store/auth.store';
@@ -29,6 +29,12 @@ export default function PartnerLoginScreen() {
         return;
       }
       await setTokens(res.tokens.accessToken, res.tokens.refreshToken, res.user.id);
+
+      const profile = await wagApi.partner.getProfile().catch(() => null);
+      if (profile && (profile as any).status !== 'approved') {
+        router.replace('/(auth)/pending-approval');
+        return;
+      }
       router.replace('/(tabs)/jobs');
     } catch (err: any) {
       Alert.alert('Login failed', err?.message ?? 'Please check your credentials.');
@@ -44,7 +50,7 @@ export default function PartnerLoginScreen() {
           {/* Brand */}
           <View style={styles.brand}>
             <View style={styles.logoCircle}>
-              <Text style={{ fontSize: 36 }}>🐾</Text>
+              <Logo size={44} ground={colors.marigold} />
             </View>
             <Text style={styles.brandName}>Wag & Tails</Text>
             <Text style={styles.brandSub}>Partner App</Text>
@@ -83,12 +89,12 @@ export default function PartnerLoginScreen() {
 
           <Text style={styles.hint}>
             Not a partner yet?{' '}
-            <Text style={styles.link}>Apply at wagandtails.in</Text>
+            <Text style={styles.link} onPress={() => router.push('/(auth)/signup')}>Sign up</Text>
           </Text>
 
           {/* Dev hint */}
           <View style={styles.devBox}>
-            <Text style={styles.devTitle}>🧪 Test accounts</Text>
+            <Text style={styles.devTitle}>Test accounts</Text>
             <Text style={styles.devText}>ritika.sharma@wagpartner.in / Partner@123 (grooming)</Text>
             <Text style={styles.devText}>karan.joshi@wagpartner.in / Partner@123 (walking)</Text>
             <Text style={styles.devText}>aman.verma@wagpartner.in / Partner@123 (both)</Text>

@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'rea
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, spacing, radii } from '@wag/design-tokens';
+import { Icon } from '@wag/ui-mobile';
 import { wagApi } from '../../src/lib/api';
 import * as ImagePicker from 'expo-image-picker';
 
@@ -27,8 +28,12 @@ export default function DocumentsScreen() {
 
     setUploading(docType);
     try {
+      // fetch-to-blob works on both native and web, unlike appending a
+      // plain {uri, type, name} object to FormData (RN-only — see
+      // PetsApi.uploadAvatar for the same fix applied there).
+      const blob = await (await fetch(res.assets[0].uri)).blob();
       const formData = new FormData();
-      formData.append('file', { uri: res.assets[0].uri, type: 'image/jpeg', name: `${docType}.jpg` } as any);
+      formData.append('file', blob, `${docType}.jpg`);
       formData.append('entity', 'partner_document');
       formData.append('entityId', docType);
       const uploaded = await wagApi.client.post<{ url: string }>('/files/upload', formData, {
@@ -50,8 +55,9 @@ export default function DocumentsScreen() {
         <View style={{ width: 50 }} />
       </View>
       <ScrollView contentContainerStyle={styles.content}>
-        <View style={styles.infoBanner}>
-          <Text style={styles.infoText}>📋 Verification typically takes 24–48 hours after document submission.</Text>
+        <View style={[styles.infoBanner, { flexDirection: 'row', gap: spacing[2] }]}>
+          <Icon name="doc" size={15} color={colors.marigoldDark} />
+          <Text style={styles.infoText}>Verification typically takes 24–48 hours after document submission.</Text>
         </View>
         {DOC_TYPES.map((dt) => {
           const uploaded = documents.find((d) => d.docType === dt.type);
@@ -60,9 +66,12 @@ export default function DocumentsScreen() {
               <View style={{ flex: 1 }}>
                 <Text style={styles.docLabel}>{dt.label}{dt.required && ' *'}</Text>
                 {uploaded ? (
-                  <Text style={[styles.docStatus, uploaded.verifiedAt ? styles.statusVerified : styles.statusPending]}>
-                    {uploaded.verifiedAt ? '✅ Verified' : '⏳ Under Review'}
-                  </Text>
+                  <View style={styles.docStatusRow}>
+                    <Icon name={uploaded.verifiedAt ? 'check' : 'clock'} size={12} color={uploaded.verifiedAt ? colors.success : colors.warning} />
+                    <Text style={[styles.docStatus, uploaded.verifiedAt ? styles.statusVerified : styles.statusPending]}>
+                      {uploaded.verifiedAt ? 'Verified' : 'Under Review'}
+                    </Text>
+                  </View>
                 ) : (
                   <Text style={styles.docStatus}>Not submitted</Text>
                 )}
@@ -90,10 +99,11 @@ const styles = StyleSheet.create({
   title: { fontFamily: 'Inter', fontSize: 17, fontWeight: '800', color: colors.textPrimary },
   content: { padding: spacing[5] },
   infoBanner: { backgroundColor: colors.marigoldBg, borderRadius: radii.xl, padding: spacing[4], marginBottom: spacing[5] },
-  infoText: { fontFamily: 'Inter', fontSize: 14, color: colors.marigoldDark },
+  infoText: { flex: 1, fontFamily: 'Inter', fontSize: 14, color: colors.marigoldDark },
   docCard: { flexDirection: 'row', alignItems: 'center', gap: spacing[3], backgroundColor: colors.white, borderRadius: radii.xl, padding: spacing[4], borderWidth: 1, borderColor: colors.borderLight, marginBottom: spacing[3] },
   docLabel: { fontFamily: 'Inter', fontSize: 15, fontWeight: '700', color: colors.textPrimary },
-  docStatus: { fontFamily: 'Inter', fontSize: 13, color: colors.textMuted, marginTop: 4 },
+  docStatusRow: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 },
+  docStatus: { fontFamily: 'Inter', fontSize: 13, color: colors.textMuted },
   statusVerified: { color: colors.success },
   statusPending: { color: colors.warning },
   uploadBtn: { backgroundColor: colors.brandBrown, borderRadius: radii.lg, paddingHorizontal: spacing[4], paddingVertical: spacing[2] },

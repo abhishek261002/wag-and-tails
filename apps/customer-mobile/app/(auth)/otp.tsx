@@ -114,7 +114,7 @@ export default function OtpScreen() {
 
           {mockOtp && (
             <View style={styles.devBanner}>
-              <Text style={styles.devText}>🧪 Dev OTP: {mockOtp}</Text>
+              <Text style={styles.devText}>Dev OTP: {mockOtp}</Text>
             </View>
           )}
 

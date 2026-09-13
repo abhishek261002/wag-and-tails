@@ -31,6 +31,10 @@ export interface BookingStatusChangedPayload {
   status: string;
   partnerId?: string;
   partnerName?: string;
+  // Only present on the transition into 'in_progress' — the moment the
+  // partner verifies the start OTP. See PartnersService.verifyStartOtp.
+  endOtp?: string;
+  sessionStartedAt?: string;
   updatedAt: string;
 }
 

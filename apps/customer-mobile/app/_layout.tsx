@@ -7,6 +7,7 @@ import * as SplashScreen from 'expo-splash-screen';
 import { useFonts, Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold } from '@expo-google-fonts/inter';
 import { PlusJakartaSans_700Bold, PlusJakartaSans_800ExtraBold } from '@expo-google-fonts/plus-jakarta-sans';
 import { useAuthStore } from '../src/store/auth.store';
+import { SearchBanner } from '../src/components/SearchBanner';
 import { colors } from '@wag/design-tokens';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
@@ -48,6 +49,7 @@ export default function RootLayout() {
           <Stack.Screen name="legal" options={{ headerShown: false }} />
           <Stack.Screen name="support" options={{ headerShown: false }} />
         </Stack>
+        <SearchBanner />
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );

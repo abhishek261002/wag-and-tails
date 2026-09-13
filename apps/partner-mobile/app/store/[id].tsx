@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Button } from '@wag/ui-mobile';
+import { Button, Icon } from '@wag/ui-mobile';
 import { colors, spacing, radii } from '@wag/design-tokens';
 import { wagApi } from '../../src/lib/api';
 
@@ -25,7 +25,7 @@ export default function PartnerProductDetailScreen() {
     setAdding(true);
     try {
       await wagApi.store.addToCart(product.id, 1, selectedVariant?.id);
-      Alert.alert('Added to cart! 🛒', product.name, [
+      Alert.alert('Added to cart!', product.name, [
         { text: 'Continue Shopping', style: 'cancel' },
         { text: 'View Cart', onPress: () => router.push('/store/cart' as any) },
       ]);
@@ -56,12 +56,12 @@ export default function PartnerProductDetailScreen() {
           <Text style={styles.back}>← Back</Text>
         </TouchableOpacity>
         <TouchableOpacity onPress={() => router.push('/store/cart' as any)} accessibilityLabel="View cart">
-          <Text style={{ fontSize: 24 }}>🛒</Text>
+          <Icon name="bag" size={22} color={colors.textPrimary} />
         </TouchableOpacity>
       </View>
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <View style={styles.imageContainer}><Text style={{ fontSize: 80 }}>📦</Text></View>
+        <View style={styles.imageContainer}><Icon name="bag" size={64} color={colors.textDisabled} /></View>
 
         <View style={styles.tradeBadge}><Text style={styles.tradeText}>Partner trade price</Text></View>
         <Text style={styles.productName}>{product.name}</Text>
@@ -72,7 +72,10 @@ export default function PartnerProductDetailScreen() {
             <Text style={styles.discountText}>{Math.round((1 - tradePrice / retailPrice) * 100)}% below retail</Text>
           </View>
         </View>
-        <Text style={styles.rating}>⭐ {product.rating} ({product.reviewCount} reviews)</Text>
+        <View style={styles.ratingRow}>
+          <Icon name="star" size={13} color={colors.marigoldDark} variant="fill" />
+          <Text style={styles.rating}>{product.rating} ({product.reviewCount} reviews)</Text>
+        </View>
 
         {product.variants?.length > 1 && (
           <View style={styles.section}>
@@ -107,8 +110,14 @@ export default function PartnerProductDetailScreen() {
           <Text style={styles.footerPriceLabel}>Trade price</Text>
           <Text style={styles.footerPriceValue}>₹{tradePrice}</Text>
         </View>
-        <Button onPress={addToCart} loading={adding} style={{ flex: 1 }} disabled={selectedVariant?.stockQty === 0}>
-          {selectedVariant?.stockQty === 0 ? 'Out of Stock' : 'Add to Cart 🛒'}
+        <Button
+          onPress={addToCart}
+          loading={adding}
+          style={{ flex: 1 }}
+          disabled={selectedVariant?.stockQty === 0}
+          leftIcon={selectedVariant?.stockQty === 0 ? undefined : <Icon name="bag" size={16} color={colors.white} />}
+        >
+          {selectedVariant?.stockQty === 0 ? 'Out of Stock' : 'Add to Cart'}
         </Button>
       </View>
     </SafeAreaView>
@@ -129,7 +138,8 @@ const styles = StyleSheet.create({
   mrp: { fontFamily: 'Inter', fontSize: 16, color: colors.textMuted, textDecorationLine: 'line-through' },
   discountBadge: { backgroundColor: colors.successLight, borderRadius: radii.full, paddingHorizontal: spacing[2], paddingVertical: 3 },
   discountText: { fontFamily: 'Inter', fontSize: 12, fontWeight: '700', color: colors.success },
-  rating: { fontFamily: 'Inter', fontSize: 14, color: colors.textMuted, marginBottom: spacing[4] },
+  ratingRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: spacing[4] },
+  rating: { fontFamily: 'Inter', fontSize: 14, color: colors.textMuted },
   section: { marginBottom: spacing[4] },
   sectionTitle: { fontFamily: 'Inter', fontSize: 15, fontWeight: '800', color: colors.textPrimary, marginBottom: spacing[3] },
   variantsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing[2] },

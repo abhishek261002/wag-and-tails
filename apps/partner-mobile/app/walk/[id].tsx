@@ -2,7 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, TextInput } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Button, SlideToComplete, LiveMapView } from '@wag/ui-mobile';
+import { Button, SlideToComplete, LiveMapView, Icon } from '@wag/ui-mobile';
 import { colors, spacing, typography, radii } from '@wag/design-tokens';
 import { wagApi } from '../../src/lib/api';
 import * as ImagePicker from 'expo-image-picker';
@@ -16,6 +16,7 @@ export default function WalkDetailScreen() {
   const [ending, setEnding] = useState(false);
   const [transitioning, setTransitioning] = useState(false);
   const [otpInput, setOtpInput] = useState('');
+  const [endOtpInput, setEndOtpInput] = useState('');
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const load = async () => {
@@ -86,19 +87,21 @@ export default function WalkDetailScreen() {
   };
 
   const handleEnd = async () => {
+    if (endOtpInput.length < 4) return;
     if (timerRef.current) clearInterval(timerRef.current);
     setEnding(true);
     try {
       await wagApi.partner.completeJob(bookingId!, {
+        otp: endOtpInput,
         checklistItems: [],
         beforePhotos: [],
         afterPhotos: photos,
       });
-      Alert.alert('Walk complete! 🏁', 'Great job! The customer has been notified.', [
+      Alert.alert('Walk complete!', 'Great job! The customer has been notified.', [
         { text: 'OK', onPress: () => router.replace('/(tabs)/jobs') },
       ]);
     } catch (err: any) {
-      Alert.alert('Error', err?.message ?? 'Could not end walk');
+      Alert.alert('Incorrect code', err?.message ?? 'Ask the customer for the code again.');
     } finally {
       setEnding(false);
     }
@@ -107,6 +110,12 @@ export default function WalkDetailScreen() {
   const fmt = (s: number) => `${Math.floor(s/60).toString().padStart(2,'0')}:${(s%60).toString().padStart(2,'0')}`;
 
   const status = (booking as any)?.status ?? '';
+  // The end code only appears to the customer once the planned duration
+  // has elapsed (see booking/walking/live.tsx) — mirrored here so the
+  // partner isn't shown an OTP field they can't get a code for yet.
+  const durationSeconds = ((booking as any)?.durationMinutes ?? 30) * 60;
+  const timerDone = elapsed >= durationSeconds;
+  const canComplete = timerDone && photos.length > 0;
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -121,7 +130,9 @@ export default function WalkDetailScreen() {
       <ScrollView contentContainerStyle={styles.content}>
         {/* Pet summary */}
         <View style={styles.petCard}>
-          <Text style={styles.petEmoji}>🐾</Text>
+          <View style={styles.petIconBox}>
+            <Icon name="paw" size={22} color={colors.marigoldDark} />
+          </View>
           <View style={{ flex: 1 }}>
             <Text style={styles.petName}>{(booking as any)?.petName} · {(booking as any)?.petBreed}</Text>
             <Text style={styles.petSize}>{(booking as any)?.durationMinutes} min walk · {(booking as any)?.petSize}</Text>
@@ -131,7 +142,10 @@ export default function WalkDetailScreen() {
         {/* Care notes */}
         {(booking as any)?.petCareNotes && (
           <View style={styles.careNote}>
-            <Text style={styles.careNoteTitle}>📝 Care Notes (read carefully)</Text>
+            <View style={styles.careNoteTitleRow}>
+              <Icon name="doc" size={13} color={colors.warning} />
+              <Text style={styles.careNoteTitle}>Care Notes (read carefully)</Text>
+            </View>
             <Text style={styles.careNoteText}>{(booking as any).petCareNotes}</Text>
           </View>
         )}
@@ -141,13 +155,17 @@ export default function WalkDetailScreen() {
           <Text style={styles.customerName}>
             {(booking as any)?.customer?.profile?.firstName} {(booking as any)?.customer?.profile?.lastName}
           </Text>
-          <Text style={styles.addressText}>📍 {(booking as any)?.addressLine}</Text>
+          <View style={styles.addressRow}>
+            <Icon name="pin" size={13} color={colors.textMuted} />
+            <Text style={styles.addressText}>{(booking as any)?.addressLine}</Text>
+          </View>
           <TouchableOpacity
             style={styles.messageBtn}
             onPress={() => router.push({ pathname: '/messaging/[bookingId]', params: { bookingId: bookingId! } } as any)}
             accessibilityLabel="Message customer"
           >
-            <Text style={styles.messageBtnText}>💬 Message Customer</Text>
+            <Icon name="chat" size={15} color={colors.brandBrown} />
+            <Text style={styles.messageBtnText}>Message Customer</Text>
           </TouchableOpacity>
         </View>
 
@@ -166,19 +184,25 @@ export default function WalkDetailScreen() {
         {/* Timer */}
         {status === 'in_progress' && (
           <View style={styles.timerCard}>
-            <Text style={styles.timerLabel}>Walk Duration</Text>
+            <Text style={styles.timerLabel}>{timerDone ? 'Planned duration reached' : 'Walk Duration'}</Text>
             <Text style={styles.timerValue}>{fmt(elapsed)}</Text>
+            {!timerDone && (
+              <Text style={styles.timerSub}>of {fmt(durationSeconds)} planned</Text>
+            )}
           </View>
         )}
 
         {/* Photos */}
         {status === 'in_progress' && (
           <View style={styles.photosCard}>
-            <Text style={styles.sectionTitle}>📸 Walk Photos</Text>
+            <View style={styles.sectionTitleRow}>
+              <Icon name="cam" size={15} color={colors.textPrimary} />
+              <Text style={styles.sectionTitle}>Walk Photos</Text>
+            </View>
             <View style={styles.photosRow}>
               {photos.map((uri, i) => (
                 <View key={i} style={styles.photoThumb}>
-                  <Text style={{ fontSize: 30 }}>🖼</Text>
+                  <Icon name="cam" size={26} color={colors.textDisabled} />
                 </View>
               ))}
               <TouchableOpacity style={styles.addPhoto} onPress={pickPhoto} accessibilityLabel="Add photo">
@@ -215,11 +239,41 @@ export default function WalkDetailScreen() {
             </View>
           )}
           {status === 'in_progress' && (
-            <SlideToComplete onComplete={handleEnd} label="Slide to end walk" />
+            !timerDone ? (
+              <View style={styles.cannotComplete}>
+                <View style={styles.cannotCompleteRow}>
+                  <Icon name="clock" size={14} color={colors.warning} />
+                  <Text style={styles.cannotCompleteText}>Walk in progress — the end code appears once the timer finishes</Text>
+                </View>
+              </View>
+            ) : photos.length === 0 ? (
+              <View style={styles.cannotComplete}>
+                <View style={styles.cannotCompleteRow}>
+                  <Icon name="alert" size={14} color={colors.warning} />
+                  <Text style={styles.cannotCompleteText}>Add at least one photo from the walk first</Text>
+                </View>
+              </View>
+            ) : (
+              <View style={styles.otpCard}>
+                <Text style={styles.otpTitle}>Ask the customer for their end code</Text>
+                <Text style={styles.otpSubtitle}>They see a 4-digit code now that the walk time is up. Enter it to finish.</Text>
+                <TextInput
+                  style={styles.otpInput}
+                  value={endOtpInput}
+                  onChangeText={setEndOtpInput}
+                  placeholder="0000"
+                  keyboardType="number-pad"
+                  maxLength={4}
+                  accessibilityLabel="End code"
+                />
+                <SlideToComplete onComplete={handleEnd} label="Slide to end walk" disabled={endOtpInput.length < 4 || ending} />
+              </View>
+            )
           )}
           {status === 'completed' && (
             <View style={styles.completedBanner}>
-              <Text style={styles.completedText}>✅ Walk completed</Text>
+              <Icon name="check" size={16} color={colors.success} />
+              <Text style={styles.completedText}>Walk completed</Text>
             </View>
           )}
         </View>
@@ -235,27 +289,34 @@ const styles = StyleSheet.create({
   pageTitle: { fontFamily: 'Inter', fontSize: 17, fontWeight: '800', color: colors.textPrimary },
   content: { paddingHorizontal: spacing[5], paddingBottom: spacing[16] },
   petCard: { flexDirection: 'row', alignItems: 'center', gap: spacing[3], backgroundColor: colors.white, borderRadius: radii.xl, padding: spacing[4], borderWidth: 1, borderColor: colors.borderLight, marginBottom: spacing[3] },
-  petEmoji: { fontSize: 40 },
+  petIconBox: { width: 48, height: 48, borderRadius: radii.md, backgroundColor: colors.marigoldBg, alignItems: 'center', justifyContent: 'center' },
   petName: { fontFamily: 'Inter', fontSize: 16, fontWeight: '800', color: colors.textPrimary },
   petSize: { fontFamily: 'Inter', fontSize: 13, color: colors.textMuted, marginTop: 3 },
   careNote: { backgroundColor: colors.warningLight, borderRadius: radii.xl, padding: spacing[4], marginBottom: spacing[3] },
-  careNoteTitle: { fontFamily: 'Inter', fontSize: 12, fontWeight: '800', color: colors.warning, marginBottom: 4 },
+  careNoteTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 4 },
+  careNoteTitle: { fontFamily: 'Inter', fontSize: 12, fontWeight: '800', color: colors.warning },
   careNoteText: { fontFamily: 'Inter', fontSize: 13, color: colors.warning, lineHeight: 19 },
   customerCard: { backgroundColor: colors.white, borderRadius: radii.xl, padding: spacing[4], borderWidth: 1, borderColor: colors.borderLight, marginBottom: spacing[3] },
   customerName: { fontFamily: 'Inter', fontSize: 16, fontWeight: '700', color: colors.textPrimary, marginBottom: 4 },
-  addressText: { fontFamily: 'Inter', fontSize: 13, color: colors.textMuted, marginBottom: spacing[3] },
-  messageBtn: { borderRadius: radii.lg, borderWidth: 1.5, borderColor: colors.brandBrown, paddingVertical: spacing[3], alignItems: 'center' },
+  addressRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: spacing[3] },
+  addressText: { fontFamily: 'Inter', fontSize: 13, color: colors.textMuted },
+  messageBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, borderRadius: radii.lg, borderWidth: 1.5, borderColor: colors.brandBrown, paddingVertical: spacing[3] },
   messageBtnText: { fontFamily: 'Inter', fontSize: 14, fontWeight: '700', color: colors.brandBrown },
   timerCard: { backgroundColor: colors.brandBrown, borderRadius: radii.xl, padding: spacing[6], alignItems: 'center', marginBottom: spacing[3] },
   timerLabel: { fontFamily: 'Inter', fontSize: 13, color: 'rgba(255,255,255,0.7)' },
   timerValue: { fontFamily: 'Inter', fontSize: 52, fontWeight: '800', color: colors.white },
+  timerSub: { fontFamily: 'Inter', fontSize: 12, color: 'rgba(255,255,255,0.6)', marginTop: 2 },
+  cannotComplete: { backgroundColor: colors.warningLight, borderRadius: radii.xl, padding: spacing[4] },
+  cannotCompleteRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  cannotCompleteText: { flex: 1, fontFamily: 'Inter', fontSize: 14, fontWeight: '600', color: colors.warning },
   photosCard: { backgroundColor: colors.white, borderRadius: radii.xl, padding: spacing[4], borderWidth: 1, borderColor: colors.borderLight, marginBottom: spacing[3] },
-  sectionTitle: { fontFamily: 'Inter', fontSize: 14, fontWeight: '800', color: colors.textPrimary, marginBottom: spacing[3] },
+  sectionTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: spacing[3] },
+  sectionTitle: { fontFamily: 'Inter', fontSize: 14, fontWeight: '800', color: colors.textPrimary },
   photosRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing[2] },
   photoThumb: { width: 72, height: 72, borderRadius: radii.md, backgroundColor: colors.biscuitLight, alignItems: 'center', justifyContent: 'center' },
   addPhoto: { width: 72, height: 72, borderRadius: radii.md, borderWidth: 2, borderColor: colors.borderLight, borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center' },
   actions: { marginTop: spacing[2], gap: spacing[3] },
-  completedBanner: { backgroundColor: colors.successLight, borderRadius: radii.xl, padding: spacing[5], alignItems: 'center' },
+  completedBanner: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, backgroundColor: colors.successLight, borderRadius: radii.xl, padding: spacing[5] },
   completedText: { fontFamily: 'Inter', fontSize: 16, fontWeight: '800', color: colors.success },
   otpCard: { backgroundColor: colors.white, borderRadius: radii.xl, padding: spacing[5], borderWidth: 1, borderColor: colors.borderLight, gap: spacing[3] },
   otpTitle: { fontFamily: 'Inter', fontSize: 16, fontWeight: '800', color: colors.textPrimary },

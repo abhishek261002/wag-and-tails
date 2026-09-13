@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-nati
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, spacing, typography, radii } from '@wag/design-tokens';
+import { Icon } from '@wag/ui-mobile';
 import { wagApi } from '../../src/lib/api';
 
 export default function WalletScreen() {
@@ -30,7 +31,7 @@ export default function WalletScreen() {
           <Text style={styles.balanceNote}>Credits are applied automatically at checkout</Text>
         </View>
         <View style={styles.emptyTransactions}>
-          <Text style={{ fontSize: 40 }}>📋</Text>
+          <Icon name="doc" size={36} color={colors.textDisabled} />
           <Text style={styles.emptyText}>No transactions yet</Text>
           <Text style={styles.emptySub}>Your wallet activity will appear here</Text>
         </View>

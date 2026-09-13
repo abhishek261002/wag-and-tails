@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity } from 'react-native';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { PetAvatar } from '@wag/ui-mobile';
+import { PetAvatar, Icon } from '@wag/ui-mobile';
 import { colors, spacing, typography, radii } from '@wag/design-tokens';
 import { wagApi, resolveMediaUrl } from '../../../src/lib/api';
 import { useBookingStore } from '../../../src/store/booking.store';
@@ -56,7 +56,7 @@ export default function WalkSelectDogScreen() {
         )}
         ListEmptyComponent={
           <View style={styles.empty}>
-            <Text style={{ fontSize: 40 }}>🐕</Text>
+            <Icon name="paw" size={40} color={colors.textDisabled} />
             <Text style={styles.emptyText}>No pets added yet</Text>
             <TouchableOpacity onPress={() => router.push('/pet/add')}>
               <Text style={styles.addPet}>+ Add a pet first</Text>
