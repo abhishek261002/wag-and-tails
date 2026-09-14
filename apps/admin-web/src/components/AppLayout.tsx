@@ -83,13 +83,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 {(name ?? 'A').slice(0, 1).toUpperCase()}
               </span>
               <span className="min-w-0 hidden md:inline">
-                <span className="block text-[12.5px] font-semibold text-black group-hover:text-white truncate">{name ?? 'Admin'}</span>
-                <span className="block text-[10.5px] text-black/55 group-hover:text-white/55 truncate">Super admin</span>
+                <span className="block text-[12.5px] font-semibold text-white truncate">{name ?? 'Admin'}</span>
+                <span className="block text-[10.5px] text-white/55 truncate">Super admin</span>
               </span>
             </button>
             <button
               onClick={handleLogout}
-              className="w-full flex items-center gap-[11px] px-[11px] py-2.5 rounded-[10px] text-black hover:bg-white/[0.08] hover:text-white text-[13.5px] font-medium transition-colors shrink-0 whitespace-nowrap"
+              className="w-full flex items-center gap-[11px] px-[11px] py-2.5 rounded-[10px] text-white/[0.72] hover:bg-white/[0.08] hover:text-white text-[13.5px] font-medium transition-colors shrink-0 whitespace-nowrap"
             >
               <Icon name="logout" size={17} />
               <span className="hidden md:inline">Sign out</span>

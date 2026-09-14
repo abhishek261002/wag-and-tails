@@ -86,7 +86,7 @@ export function Sidebar({
                       'flex items-center gap-[11px] px-[11px] py-2.5 rounded-[10px] text-[13.5px] font-medium transition-colors duration-150 shrink-0 md:shrink md:w-full whitespace-nowrap',
                       isActive
                         ? 'bg-[#E86A1C] text-white font-semibold'
-                        : 'text-black hover:bg-white/[0.08] hover:text-white',
+                        : 'text-white/[0.72] hover:bg-white/[0.08] hover:text-white',
                       collapsed && 'md:justify-center'
                     )}
                     aria-current={isActive ? 'page' : undefined}
@@ -98,7 +98,7 @@ export function Sidebar({
                       <span
                         className={clsx(
                           'ml-auto rounded-full px-[7px] py-[2px] text-[10.5px] font-bold shrink-0',
-                          isActive ? 'bg-black/[0.22] text-white' : 'bg-white/85 text-black'
+                          isActive ? 'bg-black/[0.22] text-white' : 'bg-white/[0.16] text-white'
                         )}
                       >
                         {item.badge > 99 ? '99+' : item.badge}

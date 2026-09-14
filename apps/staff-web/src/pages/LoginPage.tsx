@@ -44,7 +44,7 @@ export default function LoginPage() {
         <Logo size={52} ink="#fff" ground="#4A1E0B" />
         <div>
           <div className="font-extrabold text-[38px] leading-tight" style={{ fontFamily: "'Plus Jakarta Sans','Inter',sans-serif" }}>Staff portal</div>
-          <p className="text-white/72 mt-3 max-w-sm text-[15px] leading-relaxed">
+          <p className="text-white/[0.72] mt-3 max-w-sm text-[15px] leading-relaxed">
             Take bookings from customers, assign partners and keep the day moving.
           </p>
         </div>

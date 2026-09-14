@@ -41,7 +41,7 @@ export default function LoginPage() {
         <Logo size={52} ink="#fff" ground="#2B1206" />
         <div>
           <div className="font-extrabold text-[38px] leading-tight" style={{ fontFamily: "'Plus Jakarta Sans','Inter',sans-serif" }}>Admin console</div>
-          <p className="text-white/72 mt-3 max-w-sm text-[15px] leading-relaxed">
+          <p className="text-white/[0.72] mt-3 max-w-sm text-[15px] leading-relaxed">
             Revenue, catalogue, partners and payouts across every channel.
           </p>
         </div>
