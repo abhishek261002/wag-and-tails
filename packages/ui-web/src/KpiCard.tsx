@@ -1,11 +1,14 @@
 import React from 'react';
 import clsx from 'clsx';
+import { Icon } from './icons.js';
 
 export interface KpiCardProps {
   title: string;
-  value: string | number;
+  value: React.ReactNode;
   change?: string;
   changePositive?: boolean;
+  /** Suffix appended after `change`, matching the prototype's kpiCard(). */
+  changeSuffix?: string;
   icon?: React.ReactNode;
   className?: string;
   loading?: boolean;
@@ -16,39 +19,31 @@ export function KpiCard({
   value,
   change,
   changePositive,
-  icon,
+  changeSuffix = ' vs last month',
   className,
   loading = false,
 }: KpiCardProps) {
   return (
-    <div
-      className={clsx(
-        'bg-white rounded-2xl border border-[#E8D8CC] p-5 shadow-sm flex flex-col gap-2',
-        className
-      )}
-    >
-      <div className="flex items-start justify-between">
-        <p className="text-sm font-medium text-[#5C3D2E]">{title}</p>
-        {icon && (
-          <span className="w-9 h-9 rounded-xl bg-[#FBF7F2] flex items-center justify-center text-[#4A1E0B]">
-            {icon}
-          </span>
-        )}
-      </div>
+    <div className={clsx('bg-white rounded-[14px] border border-[#EDE4D9] p-[18px]', className)}>
+      <div className="text-[11px] font-semibold tracking-[0.06em] uppercase text-[#6E5B4B]">{title}</div>
       {loading ? (
-        <div className="h-8 w-24 bg-[#F5EDE3] rounded-lg animate-pulse" />
+        <div className="h-7 w-20 bg-[#F4EDE5] rounded-lg animate-pulse mt-[7px]" />
       ) : (
-        <p className="text-2xl font-extrabold text-[#1A0A03] leading-none">{value}</p>
+        <div className="font-extrabold text-[27px] tracking-[-0.8px] leading-none mt-[7px] text-[#1C1006]">
+          {value}
+        </div>
       )}
       {change && (
-        <p
+        <div
           className={clsx(
-            'text-xs font-medium',
-            changePositive ? 'text-[#2E7D32]' : 'text-[#C62828]'
+            'text-[11.5px] font-semibold mt-1.5 flex items-center gap-1',
+            changePositive ? 'text-[#1F7A4D]' : 'text-[#B3261E]'
           )}
         >
-          {changePositive ? '↑' : '↓'} {change}
-        </p>
+          <Icon name={changePositive ? 'chevU' : 'chevD'} size={13} />
+          {change}
+          {changeSuffix}
+        </div>
       )}
     </div>
   );

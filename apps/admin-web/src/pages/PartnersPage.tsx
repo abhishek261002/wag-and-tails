@@ -1,21 +1,30 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { Button, Badge, useToast } from '@wag/ui-web';
+import { useNavigate } from 'react-router-dom';
+import { PageHeader, Button, Badge, useToast, Card, CardHeader, CardTitle, Table, TableStrong, RatingChip, Icon, FilterChip, Toolbar } from '@wag/ui-web';
 import { wagApi } from '../lib/api';
 import { format } from 'date-fns';
 import { useAuthStore } from '../store/auth.store';
 
+const STATUS_TONE: Record<string, any> = { approved: 'ok', pending: 'warn', suspended: 'danger', rejected: 'danger' };
+
 export default function PartnersPage() {
+  const navigate = useNavigate();
   const { toast } = useToast();
   const { userId } = useAuthStore();
   const [partners, setPartners] = useState<any[]>([]);
-  const [status, setStatus] = useState('pending');
+  const [pending, setPending] = useState<any[]>([]);
+  const [status, setStatus] = useState('');
   const [loading, setLoading] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await wagApi.client.get<any>(`/admin/partners?status=${status}&pageSize=50`) as any;
-      setPartners(res.data ?? []);
+      const [all, p] = await Promise.all([
+        wagApi.client.get<any>(`/admin/partners?status=${status}&pageSize=50`),
+        status ? Promise.resolve(null) : wagApi.client.get<any>('/admin/partners?status=pending&pageSize=10'),
+      ]);
+      setPartners((all as any).data ?? []);
+      if (p) setPending((p as any).data ?? []);
     } catch {} finally { setLoading(false); }
   }, [status]);
 
@@ -24,92 +33,70 @@ export default function PartnersPage() {
   const handleApprove = async (partnerId: string) => {
     try {
       await wagApi.client.patch(`/admin/partners/${partnerId}/approve`, { adminId: userId });
-      toast({ type: 'success', title: 'Partner approved ✅' });
+      toast({ type: 'success', title: 'Partner approved' });
       load();
     } catch (err: any) { toast({ type: 'error', title: 'Failed', message: err?.message }); }
   };
-
-  const handleSuspend = async (partnerId: string) => {
-    const reason = window.prompt('Reason for suspension:');
-    if (reason === null) return;
-    try {
-      await wagApi.client.patch(`/admin/partners/${partnerId}/suspend`, { reason });
-      toast({ type: 'success', title: 'Partner suspended' });
-      load();
-    } catch (err: any) { toast({ type: 'error', title: 'Failed', message: err?.message }); }
-  };
-
-  const svBadge = (s: string): any => ({ approved: 'success', pending: 'warning', suspended: 'error', rejected: 'error' }[s] ?? 'default');
 
   return (
-    <div className="space-y-5">
-      <div className="flex items-center justify-between">
-        <h2 className="text-2xl font-extrabold text-[#1A0A03]">Partners</h2>
-        {status === 'pending' && partners.length > 0 && (
-          <span className="bg-amber-100 text-amber-700 text-xs font-bold px-3 py-1.5 rounded-full">
-            {partners.length} pending review
-          </span>
-        )}
-      </div>
-
-      <div className="flex gap-1 bg-white border border-[#E8D8CC] rounded-xl p-1 w-fit">
-        {[{ v: 'pending', l: '⏳ Pending' }, { v: 'approved', l: '✅ Approved' }, { v: 'suspended', l: '🚫 Suspended' }].map(({ v, l }) => (
-          <button key={v} onClick={() => setStatus(v)}
-            className={`px-4 py-1.5 rounded-lg text-sm font-semibold transition-colors ${status === v ? 'bg-[#4A1E0B] text-white' : 'text-[#5C3D2E] hover:bg-[#FBF7F2]'}`}
-          >{l}</button>
-        ))}
-      </div>
-
-      <div className="bg-white rounded-2xl border border-[#E8D8CC] overflow-hidden">
-        <table className="w-full text-sm" role="grid">
-          <thead className="bg-[#FBF7F2] border-b border-[#E8D8CC]">
-            <tr>
-              {['Name', 'Phone', 'Email', 'Modes', 'Rating', 'Jobs', 'Status', 'Joined', 'Actions'].map((h) => (
-                <th key={h} className="px-4 py-3 text-left font-semibold text-[#5C3D2E] whitespace-nowrap" scope="col">{h}</th>
+    <div>
+      <PageHeader title="Partners" sub={`${partners.length} registered`} />
+      <div className="p-4 md:p-7">
+        {!status && pending.length > 0 && (
+          <Card className="!border-[#B4520F] mb-4">
+            <CardHeader>
+              <div className="flex items-center gap-2">
+                <span className="text-[#B4520F]"><Icon name="alert" size={19} /></span>
+                <CardTitle>Applications awaiting approval</CardTitle>
+              </div>
+            </CardHeader>
+            <div className="flex flex-col gap-2.5">
+              {pending.map((p: any) => (
+                <div key={p.userId} className="flex items-center gap-3 bg-white border border-[#EDE4D9] rounded-[18px] p-3.5">
+                  <span className="w-11 h-11 rounded-full bg-[#6E5B4B] shrink-0 grid place-items-center font-bold text-white">
+                    {(p.user?.profile?.firstName ?? '?').slice(0, 1).toUpperCase()}
+                  </span>
+                  <span className="flex-1 min-w-0">
+                    <span className="block font-bold text-[15px] truncate">{p.user?.profile ? `${p.user.profile.firstName} ${p.user.profile.lastName}` : '—'}</span>
+                    <span className="block text-xs text-[#9A8878] mt-0.5">{(p.modes ?? []).join(', ')} &middot; {p.city ?? '—'} &middot; {p.aadhaarNumber ? 'documents submitted' : 'documents incomplete'}</span>
+                  </span>
+                  <Button compact variant="ghost" onClick={() => navigate(`/partners/${p.userId}`)}>Review</Button>
+                  <Button compact onClick={() => handleApprove(p.userId)}>Approve</Button>
+                </div>
               ))}
-            </tr>
-          </thead>
-          <tbody>
-            {loading ? (
-              <tr><td colSpan={9} className="py-10 text-center"><Spinner /></td></tr>
-            ) : partners.length === 0 ? (
-              <tr><td colSpan={9} className="py-10 text-center text-[#9E7B6A]">No partners in this category</td></tr>
-            ) : (
-              partners.map((p) => (
-                <tr key={p.userId} className="border-b border-[#F5EDE3] last:border-0 hover:bg-[#FBF7F2]">
-                  <td className="px-4 py-3 font-semibold">
-                    {p.user?.profile ? `${p.user.profile.firstName} ${p.user.profile.lastName}` : '—'}
-                  </td>
-                  <td className="px-4 py-3 font-mono text-xs">{p.user?.phone}</td>
-                  <td className="px-4 py-3 text-[#9E7B6A] text-xs">{p.user?.email ?? '—'}</td>
-                  <td className="px-4 py-3 capitalize text-xs">{(p.modes as string[]).join(' & ')}</td>
-                  <td className="px-4 py-3">⭐ {Number(p.rating).toFixed(1)}</td>
-                  <td className="px-4 py-3 text-center">{p.completedJobs}</td>
-                  <td className="px-4 py-3"><Badge variant={svBadge(p.status)}>{p.status}</Badge></td>
-                  <td className="px-4 py-3 text-[#9E7B6A] text-xs whitespace-nowrap">{format(new Date(p.createdAt), 'd MMM yy')}</td>
-                  <td className="px-4 py-3">
-                    <div className="flex gap-1">
-                      {p.status === 'pending' && (
-                        <Button size="sm" onClick={() => handleApprove(p.userId)}>Approve</Button>
-                      )}
-                      {p.status === 'approved' && (
-                        <Button size="sm" variant="danger" onClick={() => handleSuspend(p.userId)}>Suspend</Button>
-                      )}
-                      {p.status === 'suspended' && (
-                        <Button size="sm" variant="outline" onClick={() => handleApprove(p.userId)}>Reinstate</Button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+            </div>
+          </Card>
+        )}
+
+        <Toolbar>
+          {[{ v: '', l: 'All' }, { v: 'pending', l: 'Pending' }, { v: 'approved', l: 'Approved' }, { v: 'suspended', l: 'Suspended' }].map((o) => (
+            <FilterChip key={o.v} active={status === o.v} onClick={() => setStatus(o.v)}>{o.l}</FilterChip>
+          ))}
+        </Toolbar>
+
+        <Card padding="none">
+          <div className="p-[18px]">
+            <Table
+              bare
+              loading={loading}
+              emptyMessage="No partners in this category"
+              columns={[
+                { key: 'name', header: 'Name', render: (p: any) => <TableStrong>{p.user?.profile ? `${p.user.profile.firstName} ${p.user.profile.lastName}` : '—'}</TableStrong> },
+                { key: 'phone', header: 'Phone', render: (p: any) => p.user?.phone },
+                { key: 'city', header: 'City', render: (p: any) => p.city ?? '—' },
+                { key: 'mode', header: 'Mode', render: (p: any) => (p.modes as string[]).join(', ') },
+                { key: 'rating', header: 'Rating', render: (p: any) => <RatingChip value={Number(p.rating).toFixed(1)} /> },
+                { key: 'jobs', header: 'Jobs', align: 'center', render: (p: any) => p.completedJobs },
+                { key: 'status', header: 'Status', render: (p: any) => <Badge variant={STATUS_TONE[p.status] ?? 'muted'}>{p.status}</Badge> },
+                { key: 'joined', header: 'Joined', render: (p: any) => format(new Date(p.createdAt), 'd MMM yyyy') },
+              ]}
+              data={partners}
+              keyExtractor={(p: any) => p.userId}
+              onRowClick={(p: any) => navigate(`/partners/${p.userId}`)}
+            />
+          </div>
+        </Card>
       </div>
     </div>
   );
-}
-
-function Spinner() {
-  return <div className="flex justify-center"><div className="w-5 h-5 border-2 border-[#4A1E0B] border-t-transparent rounded-full animate-spin" /></div>;
 }

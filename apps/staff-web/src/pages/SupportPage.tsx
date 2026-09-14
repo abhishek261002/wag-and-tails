@@ -1,11 +1,11 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
-import { Badge, Button, useToast } from '@wag/ui-web';
+import { PageHeader, Badge, Button, useToast, FilterChip } from '@wag/ui-web';
 import { wagApi, resolveMediaUrl } from '../lib/api';
 import { useAuthStore } from '../store/auth.store';
 import { format, formatDistanceToNow } from 'date-fns';
 import type { SupportTicket, SupportMessage } from '@wag/api-client';
 
-const STATUS_VARIANT: Record<string, any> = { open: 'warning', in_progress: 'marigold', resolved: 'success' };
+const STATUS_VARIANT: Record<string, any> = { open: 'warn', in_progress: 'accent', resolved: 'ok' };
 
 export default function SupportPage() {
   const { userId } = useAuthStore();
@@ -103,21 +103,15 @@ export default function SupportPage() {
   };
 
   return (
-    <div className="space-y-5 h-full flex flex-col">
-      <h2 className="text-2xl font-extrabold text-[#1A0A03]">Support</h2>
+    <div className="h-full flex flex-col">
+      <PageHeader title="Support" sub="Tickets raised by customers and partners" />
 
-      <div className="flex gap-5 flex-1 min-h-0">
+      <div className="flex gap-5 flex-1 min-h-0 p-7 pt-4">
         {/* Ticket list */}
-        <div className="w-[340px] shrink-0 flex flex-col bg-white rounded-2xl border border-[#E8D8CC] overflow-hidden">
-          <div className="flex gap-1 p-2 border-b border-[#E8D8CC]">
-            {[{ v: 'open', l: 'Open' }, { v: 'in_progress', l: 'In Progress' }, { v: 'resolved', l: 'Resolved' }].map(({ v, l }) => (
-              <button
-                key={v}
-                onClick={() => { setStatus(v); setSelected(null); }}
-                className={`flex-1 px-2 py-1.5 rounded-lg text-xs font-semibold transition-colors ${status === v ? 'bg-[#4A1E0B] text-white' : 'text-[#5C3D2E] hover:bg-[#FBF7F2]'}`}
-              >
-                {l}
-              </button>
+        <div className="w-[340px] shrink-0 flex flex-col bg-white rounded-2xl border border-[#EDE4D9] overflow-hidden">
+          <div className="flex gap-1.5 p-2.5 border-b border-[#EDE4D9] flex-wrap">
+            {[{ v: 'open', l: 'Open' }, { v: 'in_progress', l: 'In progress' }, { v: 'resolved', l: 'Resolved' }].map(({ v, l }) => (
+              <FilterChip key={v} active={status === v} onClick={() => { setStatus(v); setSelected(null); }}>{l}</FilterChip>
             ))}
           </div>
           <div className="flex-1 overflow-y-auto">
@@ -159,10 +153,10 @@ export default function SupportPage() {
                 <div className="flex items-center gap-2 shrink-0">
                   <Badge variant={STATUS_VARIANT[selected.status] ?? 'default'}>{selected.status.replace(/_/g, ' ')}</Badge>
                   {!selected.escalated && (
-                    <Button size="sm" variant="outline" onClick={handleEscalate} loading={escalating}>Escalate to admin</Button>
+                    <Button compact variant="ghost" onClick={handleEscalate} loading={escalating}>Escalate to admin</Button>
                   )}
                   {selected.status !== 'resolved' && (
-                    <Button size="sm" onClick={handleResolve}>Mark resolved</Button>
+                    <Button compact onClick={handleResolve}>Mark resolved</Button>
                   )}
                 </div>
               </div>

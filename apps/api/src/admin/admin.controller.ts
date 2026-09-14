@@ -25,12 +25,21 @@ export class AdminController {
   @Get('dashboard')
   getDashboard() { return this.adminService.getDashboardKpis(); }
 
+  @Get('reports')
+  getReports() { return this.adminService.getReports(); }
+
+  @Get('areas')
+  getServiceAreas() { return this.adminService.getServiceAreas(); }
+
   @Get('audit-logs')
   getAuditLogs(@Query() query: any) { return this.adminService.getAuditLogs(parsePagination(query)); }
 
   // Partners
   @Get('partners')
   listPartners(@Query() query: any) { return this.partnersService.listAll(parsePagination(query)); }
+
+  @Get('partners/:id')
+  getPartner(@Param('id') id: string) { return this.partnersService.getProfile(id); }
 
   @Patch('partners/:id/approve')
   approvePartner(@Param('id') id: string, @Body() body: { adminId: string }) {
@@ -87,6 +96,11 @@ export class AdminController {
   }
 
   // Staff users
+  @Get('staff')
+  listStaff() {
+    return this.adminService.listStaff();
+  }
+
   @Post('staff')
   createStaff(@Body() body: any) {
     return this.adminService.manageStaffUser('create', body);

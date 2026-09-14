@@ -63,6 +63,11 @@ export class StaffController {
     return this.staffService.listCustomers(parsePagination(query));
   }
 
+  @Get('customers/:id')
+  getCustomer(@Param('id') id: string) {
+    return this.staffService.getCustomer(id);
+  }
+
   @Get('partners')
   listPartners(@Query() query: any) {
     return this.partnersService.listAll(parsePagination(query));

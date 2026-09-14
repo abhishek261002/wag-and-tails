@@ -1,10 +1,10 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
-import { Badge, Button, useToast } from '@wag/ui-web';
+import { PageHeader, Badge, Button, useToast } from '@wag/ui-web';
 import { wagApi, resolveMediaUrl } from '../lib/api';
 import { format, formatDistanceToNow } from 'date-fns';
 import type { SupportTicket, SupportMessage } from '@wag/api-client';
 
-const STATUS_VARIANT: Record<string, any> = { open: 'warning', in_progress: 'marigold', resolved: 'success' };
+const STATUS_VARIANT: Record<string, any> = { open: 'warn', in_progress: 'accent', resolved: 'ok' };
 
 // Only escalated tickets show up here — staff keep working every ticket
 // themselves (see staff-web's SupportPage), this is purely the admin
@@ -81,13 +81,10 @@ export default function SupportPage() {
   };
 
   return (
-    <div className="space-y-5 h-full flex flex-col">
-      <div>
-        <h2 className="text-2xl font-extrabold text-[#1A0A03]">Escalated Support</h2>
-        <p className="text-sm text-[#9E7B6A] mt-1">Tickets staff have flagged as beyond what they can resolve alone.</p>
-      </div>
+    <div className="h-full flex flex-col">
+      <PageHeader title="Escalated support" sub="Tickets staff have flagged as beyond what they can resolve alone" />
 
-      <div className="flex gap-5 flex-1 min-h-0">
+      <div className="flex gap-5 flex-1 min-h-0 p-7">
         <div className="w-[340px] shrink-0 flex flex-col bg-white rounded-2xl border border-[#E8D8CC] overflow-hidden">
           <div className="flex-1 overflow-y-auto">
             {tickets.length === 0 ? (
@@ -129,7 +126,7 @@ export default function SupportPage() {
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
                   <Badge variant={STATUS_VARIANT[selected.status] ?? 'default'}>{selected.status.replace(/_/g, ' ')}</Badge>
-                  {selected.status !== 'resolved' && <Button size="sm" onClick={handleResolve}>Mark resolved</Button>}
+                  {selected.status !== 'resolved' && <Button compact onClick={handleResolve}>Mark resolved</Button>}
                 </div>
               </div>
 

@@ -160,12 +160,22 @@ export class StaffService {
         where: { role: 'customer', ...where },
         skip,
         take: pageSize,
-        include: { profile: true, _count: { select: { bookings: true } } },
+        include: { profile: true, customerProfile: true, _count: { select: { bookings: true, pets: true } } },
         orderBy: { createdAt: 'desc' },
       }),
       this.prisma.user.count({ where: { role: 'customer' } }),
     ]);
 
     return { data: data.map(({ passwordHash, ...u }) => u), total, page, pageSize };
+  }
+
+  async getCustomer(id: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id },
+      include: { profile: true, pets: true, addresses: true, _count: { select: { bookings: true } } },
+    });
+    if (!user) return null;
+    const { passwordHash, ...safe } = user;
+    return safe;
   }
 }

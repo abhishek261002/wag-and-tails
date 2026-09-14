@@ -8,9 +8,12 @@ import BookingsPage from './pages/BookingsPage';
 import CreateBookingPage from './pages/CreateBookingPage';
 import BookingDetailPage from './pages/BookingDetailPage';
 import OrdersPage from './pages/OrdersPage';
+import OrderDetailPage from './pages/OrderDetailPage';
 import CustomersPage from './pages/CustomersPage';
+import CustomerDetailPage from './pages/CustomerDetailPage';
 import PartnersPage from './pages/PartnersPage';
 import SupportPage from './pages/SupportPage';
+import ProfilePage from './pages/ProfilePage';
 import AppLayout from './components/AppLayout';
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
@@ -35,9 +38,12 @@ export default function App() {
                   <Route path="/bookings/new" element={<CreateBookingPage />} />
                   <Route path="/bookings/:id" element={<BookingDetailPage />} />
                   <Route path="/orders" element={<OrdersPage />} />
+                  <Route path="/orders/:id" element={<OrderDetailPage />} />
                   <Route path="/customers" element={<CustomersPage />} />
+                  <Route path="/customers/:id" element={<CustomerDetailPage />} />
                   <Route path="/partners" element={<PartnersPage />} />
                   <Route path="/support" element={<SupportPage />} />
+                  <Route path="/profile" element={<ProfilePage />} />
                 </Routes>
               </AppLayout>
             </RequireAuth>

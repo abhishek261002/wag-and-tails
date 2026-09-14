@@ -1,7 +1,7 @@
 import React from 'react';
 import clsx from 'clsx';
 
-export type ButtonVariant = 'primary' | 'secondary' | 'outline' | 'ghost' | 'danger';
+export type ButtonVariant = 'primary' | 'secondary' | 'outline' | 'ghost' | 'danger' | 'accent';
 export type ButtonSize = 'sm' | 'md' | 'lg';
 
 export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
@@ -11,19 +11,17 @@ export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElemen
   leftIcon?: React.ReactNode;
   rightIcon?: React.ReactNode;
   fullWidth?: boolean;
+  /** Dense console-action style (the prototype's `.wbtn`) — used for table/toolbar actions. */
+  compact?: boolean;
 }
 
 const variantStyles: Record<ButtonVariant, string> = {
-  primary:
-    'bg-[#4A1E0B] text-white hover:bg-[#5E2A11] active:bg-[#3A1606] shadow-sm',
-  secondary:
-    'bg-[#F07B2C] text-white hover:bg-[#C25A12] active:bg-[#A34910]',
-  outline:
-    'border-2 border-[#4A1E0B] text-[#4A1E0B] bg-transparent hover:bg-[#FBF7F2] active:bg-[#EDD9C4]',
-  ghost:
-    'bg-transparent text-[#4A1E0B] hover:bg-[#FBF7F2] active:bg-[#EDD9C4]',
-  danger:
-    'bg-[#C62828] text-white hover:bg-[#B71C1C] active:bg-[#8B0000]',
+  primary: 'bg-[#4A1E0B] text-white hover:bg-[#3A1808] active:bg-[#2B1206] shadow-sm',
+  secondary: 'bg-[#F07B2C] text-white hover:bg-[#C25A12] active:bg-[#A8480C]',
+  accent: 'bg-[#E86A1C] text-white hover:bg-[#C25A12] active:bg-[#A8480C]',
+  outline: 'border border-[#E2D5C6] text-[#1C1006] bg-white hover:bg-[#F4EDE5]',
+  ghost: 'bg-white border border-[#E2D5C6] text-[#1C1006] hover:bg-[#F4EDE5]',
+  danger: 'bg-[#FCECEA] text-[#B3261E] hover:bg-[#FBE0DD]',
 };
 
 const sizeStyles: Record<ButtonSize, string> = {
@@ -41,6 +39,7 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
       leftIcon,
       rightIcon,
       fullWidth = false,
+      compact = false,
       className,
       children,
       disabled,
@@ -54,9 +53,9 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         ref={ref}
         disabled={isDisabled}
         className={clsx(
-          'inline-flex items-center justify-center font-semibold transition-all duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#F07B2C] focus-visible:ring-offset-2 select-none',
+          'inline-flex items-center justify-center font-semibold transition-colors duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-[#F07B2C] focus-visible:ring-offset-2 select-none whitespace-nowrap',
           variantStyles[variant],
-          sizeStyles[size],
+          compact ? 'px-[14px] py-[9px] text-[13px] rounded-[9px] gap-[7px]' : sizeStyles[size],
           fullWidth && 'w-full',
           isDisabled && 'opacity-50 cursor-not-allowed',
           className

@@ -1,156 +1,177 @@
 import React, { useEffect, useState } from 'react';
-import { KpiCard } from '@wag/ui-web';
+import { useNavigate } from 'react-router-dom';
+import { PageHeader, KpiCard, Card, CardHeader, CardTitle, Table, TableStrong, Badge, bookingStatusVariant, Icon, Button, BarChart, Donut } from '@wag/ui-web';
 import { wagApi } from '../lib/api';
 import { format } from 'date-fns';
-import {
-  TrendingUp, ShoppingCart, CalendarCheck,
-  XCircle, BarChart2, AlertCircle,
-} from 'lucide-react';
+
+const CHANNEL_COLOR: Record<string, string> = { app: '#4A1E0B', whatsapp: '#1F7A4D', phone: '#C25A12' };
+const CHANNEL_LABEL: Record<string, string> = { app: 'App', whatsapp: 'WhatsApp', phone: 'Phone' };
+
+const fmt = (n: number) =>
+  n >= 100000 ? `₹${(n / 100000).toFixed(1)}L` : n >= 1000 ? `₹${(n / 1000).toFixed(1)}K` : `₹${n}`;
 
 export default function DashboardPage() {
+  const navigate = useNavigate();
   const [kpis, setKpis] = useState<any>(null);
+  const [reports, setReports] = useState<any>(null);
+  const [pendingPartners, setPendingPartners] = useState(0);
+  const [payoutsDue, setPayoutsDue] = useState<{ count: number; amount: number }>({ count: 0, amount: 0 });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    wagApi.client.get<any>('/admin/dashboard')
-      .then(setKpis)
+    Promise.all([
+      wagApi.client.get<any>('/admin/dashboard'),
+      wagApi.client.get<any>('/admin/reports'),
+      wagApi.client.get<any>('/admin/partners?status=pending&pageSize=1'),
+      wagApi.client.get<any>('/admin/payouts?status=pending&pageSize=200'),
+    ])
+      .then(([k, r, p, payouts]) => {
+        setKpis(k);
+        setReports(r);
+        setPendingPartners(p?.total ?? 0);
+        const list = payouts?.data ?? [];
+        setPayoutsDue({ count: list.length, amount: list.reduce((s: number, x: any) => s + Number(x.netAmount ?? 0), 0) });
+      })
       .catch(() => {})
       .finally(() => setLoading(false));
   }, []);
 
-  const fmt = (n: number) =>
-    n >= 100000 ? `₹${(n / 100000).toFixed(1)}L` : n >= 1000 ? `₹${(n / 1000).toFixed(1)}K` : `₹${n}`;
+  const channelItems = reports?.channelSplit?.length
+    ? reports.channelSplit.map((c: any) => ({ label: CHANNEL_LABEL[c.channel] ?? c.channel, value: c.pct, color: CHANNEL_COLOR[c.channel] ?? '#B98A62' }))
+    : [];
 
   return (
-    <div className="space-y-7">
-      <div>
-        <h2 className="text-2xl font-extrabold text-[#1A0A03]">Dashboard</h2>
-        <p className="text-sm text-[#9E7B6A] mt-0.5">Business overview — this month</p>
-      </div>
+    <div>
+      <PageHeader
+        title="Dashboard"
+        sub={`${format(new Date(), 'MMMM yyyy')} · all channels`}
+        actions={<Button compact variant="ghost" leftIcon={<Icon name="cal" size={15} />}>This month</Button>}
+      />
 
-      {/* KPIs */}
-      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4">
-        <KpiCard title="Revenue" value={fmt(kpis?.revenueThisMonth ?? 0)} icon={<TrendingUp size={18} />} loading={loading} changePositive change="This month" />
-        <KpiCard title="Bookings" value={kpis?.totalBookings ?? '—'} icon={<CalendarCheck size={18} />} loading={loading} />
-        <KpiCard title="Store GMV" value={fmt(kpis?.storeGmv ?? 0)} icon={<ShoppingCart size={18} />} loading={loading} />
-        <KpiCard title="Cancel Rate" value={kpis ? `${kpis.cancellationRate}%` : '—'} icon={<XCircle size={18} />} loading={loading} changePositive={false} />
-        <KpiCard title="Avg Booking" value={kpis ? fmt(kpis.avgBookingValue) : '—'} icon={<BarChart2 size={18} />} loading={loading} />
-        <KpiCard title="Attention" value={kpis?.attentionQueue?.[0]?.count ?? 0} icon={<AlertCircle size={18} />} loading={loading} changePositive={false} change={kpis?.attentionQueue?.[0]?.label} />
-      </div>
+      <div className="p-4 md:p-7 space-y-4">
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <KpiCard title="Revenue" value={fmt(kpis?.revenueThisMonth ?? 0)} loading={loading} change="This month" changePositive changeSuffix="" />
+          <KpiCard title="Bookings" value={kpis?.totalBookings ?? '—'} loading={loading} />
+          <KpiCard title="Store GMV" value={fmt(kpis?.storeGmv ?? 0)} loading={loading} />
+          <KpiCard title="Avg booking value" value={kpis ? fmt(kpis.avgBookingValue) : '—'} loading={loading} />
+        </div>
 
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-        {/* Channel split */}
-        <Section title="📊 Channel Split">
-          {kpis?.channelSplit && Object.keys(kpis.channelSplit).length > 0 ? (
-            <div className="space-y-3">
-              {Object.entries(kpis.channelSplit as Record<string, number>).map(([ch, count]) => {
-                const total = Object.values(kpis.channelSplit as Record<string, number>).reduce((s, v) => s + v, 0);
-                const pct = total > 0 ? Math.round((count / total) * 100) : 0;
-                return (
-                  <div key={ch}>
-                    <div className="flex justify-between text-sm mb-1">
-                      <span className="font-semibold capitalize">{ch.replace(/_/g, ' ')}</span>
-                      <span className="text-[#9E7B6A]">{count} ({pct}%)</span>
-                    </div>
-                    <div className="h-2 bg-[#F5EDE3] rounded-full overflow-hidden">
-                      <div className="h-full bg-[#F07B2C] rounded-full" style={{ width: `${pct}%` }} />
-                    </div>
-                  </div>
-                );
-              })}
+        <div className="grid grid-cols-1 lg:grid-cols-[1.65fr_1fr] gap-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Revenue by month</CardTitle>
+              <span className="text-xs text-[#6E5B4B]">₹ thousands</span>
+            </CardHeader>
+            {reports ? (
+              <BarChart
+                data={reports.monthlyRevenue.map((m: any, i: number) => ({ label: m.label, value: Math.round(m.revenue / 1000), highlight: i === reports.monthlyRevenue.length - 1 }))}
+              />
+            ) : (
+              <div className="h-[180px] animate-pulse bg-[#F4EDE5] rounded-xl" />
+            )}
+          </Card>
+          <Card>
+            <CardHeader><CardTitle>Where bookings come from</CardTitle></CardHeader>
+            {channelItems.length > 0 ? (
+              <Donut items={channelItems} />
+            ) : (
+              <div className="text-sm text-[#9A8878] py-6 text-center">No bookings yet</div>
+            )}
+          </Card>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <Card>
+            <CardHeader><CardTitle>Needs your attention</CardTitle></CardHeader>
+            <div className="flex flex-col gap-1">
+              <AttentionRow
+                tone="warn"
+                title="Partner approval pending"
+                sub={`${pendingPartners} applicant${pendingPartners === 1 ? '' : 's'}`}
+                onClick={() => navigate('/partners')}
+              />
+              <AttentionRow
+                tone="accent"
+                title="Payouts to release"
+                sub={payoutsDue.count > 0 ? `${payoutsDue.count} pending · ₹${payoutsDue.amount.toLocaleString('en-IN')}` : 'All settled'}
+                onClick={() => navigate('/payouts')}
+              />
+              {kpis?.attentionQueue?.map((item: any, i: number) => (
+                <AttentionRow key={i} tone="danger" title={item.label} sub={`${item.count}`} onClick={() => navigate('/bookings?status=needs_partner')} />
+              ))}
             </div>
-          ) : <EmptyRow />}
-        </Section>
+          </Card>
 
-        {/* Top packages */}
-        <Section title="✂️ Top Packages">
-          {kpis?.topPackages?.length > 0 ? (
-            <table className="w-full text-sm">
-              <thead><tr className="text-[#9E7B6A]"><th className="text-left py-1">Package</th><th className="text-right py-1">Bookings</th><th className="text-right py-1">Revenue</th></tr></thead>
-              <tbody>
-                {kpis.topPackages.map((p: any, i: number) => (
-                  <tr key={i} className="border-t border-[#F5EDE3]">
-                    <td className="py-2 font-semibold">{p.packageName ?? '—'}</td>
-                    <td className="py-2 text-right">{p.bookings}</td>
-                    <td className="py-2 text-right font-bold text-[#4A1E0B]">{fmt(p.revenue)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          ) : <EmptyRow />}
-        </Section>
-
-        {/* Best sellers */}
-        <Section title="🛒 Store Best Sellers">
-          {kpis?.bestSellers?.length > 0 ? (
-            <table className="w-full text-sm">
-              <thead><tr className="text-[#9E7B6A]"><th className="text-left py-1">Product</th><th className="text-right py-1">Sold</th><th className="text-right py-1">Revenue</th></tr></thead>
-              <tbody>
-                {kpis.bestSellers.map((p: any, i: number) => (
-                  <tr key={i} className="border-t border-[#F5EDE3]">
-                    <td className="py-2 font-semibold">{p.productName ?? '—'}</td>
-                    <td className="py-2 text-right">{p.sold}</td>
-                    <td className="py-2 text-right font-bold text-[#4A1E0B]">{fmt(p.revenue)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          ) : <EmptyRow />}
-        </Section>
-
-        {/* Attention queue */}
-        <Section title="⚠️ Attention Queue">
-          {kpis?.attentionQueue?.length > 0 ? (
-            <div className="space-y-2">
-              {kpis.attentionQueue.map((item: any, i: number) => (
-                <div key={i} className="flex items-center justify-between bg-amber-50 border border-amber-200 rounded-xl p-3">
-                  <div>
-                    <p className="font-semibold text-sm text-[#1A0A03]">{item.label}</p>
-                    <p className="text-xs text-[#9E7B6A] mt-0.5">{item.type}</p>
-                  </div>
-                  <span className="text-xl font-extrabold text-amber-700">{item.count}</span>
+          <Card>
+            <CardHeader><CardTitle>Top packages</CardTitle></CardHeader>
+            {kpis?.topPackages?.length > 0 ? (
+              kpis.topPackages.map((p: any, i: number) => (
+                <div key={i} className="flex items-center gap-3 py-1.5">
+                  <span className="text-sm font-bold text-[#9A8878] w-4">{i + 1}</span>
+                  <span className="flex-1 min-w-0 text-sm font-semibold truncate">{p.packageName ?? '—'}</span>
+                  <span className="text-sm text-[#6E5B4B]">{p.bookings} booked</span>
                 </div>
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-4 text-[#9E7B6A] text-sm">✅ No items need attention</div>
-          )}
-        </Section>
+              ))
+            ) : (
+              <div className="text-sm text-[#9A8878] py-4 text-center">No data yet</div>
+            )}
+          </Card>
+
+          <Card>
+            <CardHeader><CardTitle>Store bestsellers</CardTitle></CardHeader>
+            {kpis?.bestSellers?.length > 0 ? (
+              kpis.bestSellers.map((p: any, i: number) => (
+                <div key={i} className="flex items-center gap-3 py-1.5">
+                  <span className="w-[34px] h-[34px] rounded-lg bg-[#F4EDE5] shrink-0" />
+                  <span className="flex-1 min-w-0 text-sm font-semibold truncate">{p.productName ?? '—'}</span>
+                  <span className="text-sm text-[#6E5B4B]">{p.sold} sold</span>
+                </div>
+              ))
+            ) : (
+              <div className="text-sm text-[#9A8878] py-4 text-center">No data yet</div>
+            )}
+          </Card>
+        </div>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Latest bookings</CardTitle>
+            <Button compact variant="ghost" onClick={() => navigate('/bookings')}>View all</Button>
+          </CardHeader>
+          <Table
+            bare
+            loading={loading}
+            emptyMessage="No bookings yet"
+            columns={[
+              { key: 'pet', header: 'Pet', render: (b: any) => <TableStrong>{b.petName}</TableStrong> },
+              { key: 'customer', header: 'Customer', render: (b: any) => (b.customer?.profile ? `${b.customer.profile.firstName} ${b.customer.profile.lastName}` : '—') },
+              { key: 'svc', header: 'Service', render: (b: any) => (b.type === 'grooming' ? b.packageName ?? 'Grooming' : `${b.durationMinutes}min walk`) },
+              { key: 'when', header: 'When', render: (b: any) => format(new Date(b.createdAt), 'd MMM, h:mm a') },
+              { key: 'status', header: 'Status', render: (b: any) => <Badge variant={bookingStatusVariant(b.status)}>{b.status.replace(/_/g, ' ')}</Badge> },
+              { key: 'total', header: 'Total', align: 'right', render: (b: any) => <TableStrong>₹{b.total}</TableStrong> },
+            ]}
+            data={kpis?.recentBookings ?? []}
+            keyExtractor={(b: any) => b.id}
+            onRowClick={(b: any) => navigate(`/bookings/${b.id}`)}
+          />
+        </Card>
       </div>
-
-      {/* Recent bookings */}
-      <Section title="📋 Latest Bookings">
-        {kpis?.recentBookings?.length > 0 ? (
-          <table className="w-full text-sm">
-            <thead className="text-[#9E7B6A]">
-              <tr><th className="text-left py-2">Pet</th><th className="text-left py-2">Customer</th><th className="text-left py-2">Service</th><th className="text-right py-2">Total</th><th className="text-right py-2">Date</th></tr>
-            </thead>
-            <tbody>
-              {kpis.recentBookings.map((b: any) => (
-                <tr key={b.id} className="border-t border-[#F5EDE3]">
-                  <td className="py-2 font-semibold">{b.petName}</td>
-                  <td className="py-2 text-[#5C3D2E]">{b.customer?.profile?.firstName} {b.customer?.profile?.lastName}</td>
-                  <td className="py-2 capitalize text-[#9E7B6A]">{b.type}</td>
-                  <td className="py-2 text-right font-bold text-[#4A1E0B]">₹{b.total}</td>
-                  <td className="py-2 text-right text-[#9E7B6A]">{format(new Date(b.createdAt), 'd MMM')}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        ) : <EmptyRow />}
-      </Section>
     </div>
   );
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function AttentionRow({ tone, title, sub, onClick }: { tone: 'warn' | 'accent' | 'danger'; title: string; sub: string; onClick: () => void }) {
+  const bg = tone === 'danger' ? 'bg-[#FCECEA] text-[#B3261E]' : 'bg-[#FFF3E9] text-[#A8480C]';
   return (
-    <div className="bg-white rounded-2xl border border-[#E8D8CC] p-5">
-      <h3 className="font-bold text-[#1A0A03] mb-4">{title}</h3>
-      {children}
-    </div>
+    <button onClick={onClick} className="w-full flex items-center gap-3 text-left py-2 hover:bg-[#F9F1E9] rounded-xl px-1.5 -mx-1.5 transition-colors">
+      <span className={`w-[38px] h-[38px] rounded-xl grid place-items-center shrink-0 ${bg}`}>
+        <Icon name="alert" size={17} />
+      </span>
+      <span className="flex-1 min-w-0">
+        <span className="block text-sm font-semibold truncate">{title}</span>
+        <span className="block text-xs text-[#6E5B4B]">{sub}</span>
+      </span>
+      <span className="text-[#9A8878] shrink-0"><Icon name="chev" size={15} /></span>
+    </button>
   );
-}
-function EmptyRow() {
-  return <p className="text-sm text-[#9E7B6A] text-center py-4">No data yet</p>;
 }

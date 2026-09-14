@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Button, Input, useToast } from '@wag/ui-web';
+import { Button, useToast, Logo } from '@wag/ui-web';
 import { wagApi } from '../lib/api';
 import { useAuthStore } from '../store/auth.store';
 
@@ -39,48 +39,58 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#FBF7F2] flex items-center justify-center p-4">
-      <div className="w-full max-w-sm">
-        {/* Brand */}
-        <div className="text-center mb-10">
-          <div className="w-16 h-16 rounded-2xl bg-[#4A1E0B] flex items-center justify-center mx-auto mb-4">
-            <span className="text-3xl">🐾</span>
-          </div>
-          <h1 className="text-2xl font-extrabold text-[#4A1E0B]">Wag & Tails</h1>
-          <p className="text-sm text-[#9E7B6A] mt-1 tracking-wide">Staff Portal</p>
+    <div className="min-h-screen grid grid-cols-1 lg:grid-cols-2 bg-[#FBF7F2]">
+      <div className="hidden lg:flex flex-col justify-between bg-[#4A1E0B] text-white p-14">
+        <Logo size={52} ink="#fff" ground="#4A1E0B" />
+        <div>
+          <div className="font-extrabold text-[38px] leading-tight" style={{ fontFamily: "'Plus Jakarta Sans','Inter',sans-serif" }}>Staff portal</div>
+          <p className="text-white/72 mt-3 max-w-sm text-[15px] leading-relaxed">
+            Take bookings from customers, assign partners and keep the day moving.
+          </p>
         </div>
+        <div className="text-xs text-white/40">Wag &amp; Tails &middot; EST. 2022</div>
+      </div>
 
-        {/* Form */}
-        <form onSubmit={handleLogin} className="bg-white rounded-2xl border border-[#E8D8CC] p-6 shadow-sm space-y-4">
-          <h2 className="text-lg font-bold text-[#1A0A03]">Sign in</h2>
-          <Input
-            label="Email"
-            type="email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="staff@wagandtails.in"
-            autoComplete="email"
-            required
-          />
-          <Input
-            label="Password"
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            placeholder="••••••••"
-            autoComplete="current-password"
-            required
-          />
-          <Button type="submit" fullWidth loading={loading}>
-            Sign In
-          </Button>
-        </form>
+      <div className="flex items-center justify-center p-8">
+        <div className="w-full max-w-[380px]">
+          <div className="font-extrabold text-2xl text-[#1C1006]" style={{ fontFamily: "'Plus Jakarta Sans','Inter',sans-serif" }}>Sign in</div>
+          <p className="text-sm text-[#6E5B4B] mt-2">Use your work email address.</p>
 
-        {/* Dev hint */}
-        <div className="mt-4 bg-blue-50 rounded-xl p-4 border border-blue-200 text-xs text-blue-700 space-y-1">
-          <p className="font-bold">🧪 Test accounts</p>
-          <p>staff@wagandtails.in / WagTails@123</p>
-          <p>admin@wagandtails.in / WagTails@123 (also works here)</p>
+          <form onSubmit={handleLogin} className="mt-6 space-y-4">
+            <div>
+              <div className="text-[12.5px] font-semibold text-[#4A3A2C] mb-1.5">Email</div>
+              <div className="bg-white border border-[#E2D5C6] rounded-xl px-3.5 py-3 focus-within:border-[#4A1E0B] focus-within:ring-2 focus-within:ring-[#4A1E0B]/10">
+                <input
+                  className="w-full outline-none text-[15px] bg-transparent"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="staff@wagandtails.in"
+                  autoComplete="email"
+                  required
+                />
+              </div>
+            </div>
+            <div>
+              <div className="text-[12.5px] font-semibold text-[#4A3A2C] mb-1.5">Password</div>
+              <div className="bg-white border border-[#E2D5C6] rounded-xl px-3.5 py-3 focus-within:border-[#4A1E0B] focus-within:ring-2 focus-within:ring-[#4A1E0B]/10">
+                <input
+                  className="w-full outline-none text-[15px] bg-transparent"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="••••••••••"
+                  autoComplete="current-password"
+                  required
+                />
+              </div>
+            </div>
+            <Button type="submit" fullWidth loading={loading} className="mt-2">Sign in</Button>
+          </form>
+
+          <div className="mt-6 text-xs text-[#9A8878] text-center border-t border-[#EDE4D9] pt-4">
+            Test accounts: staff@wagandtails.in / admin@wagandtails.in &middot; WagTails@123
+          </div>
         </div>
       </div>
     </div>
