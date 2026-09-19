@@ -33,7 +33,9 @@ const envSchema = z.object({
   PUSH_PROVIDER: z.enum(['mock', 'fcm']).default('mock'),
   FCM_SERVER_KEY: z.string().optional(),
 
-  LLM_PROVIDER: z.enum(['mock', 'openai', 'anthropic']).default('mock'),
+  LLM_PROVIDER: z.enum(['mock', 'gemini', 'openai', 'anthropic']).default('mock'),
+  GEMINI_API_KEY: z.string().optional(),
+  GEMINI_MODEL: z.string().default('gemini-3.5-flash'),
   OPENAI_API_KEY: z.string().optional(),
   ANTHROPIC_API_KEY: z.string().optional(),
 
