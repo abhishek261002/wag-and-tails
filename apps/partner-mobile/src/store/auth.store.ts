@@ -65,6 +65,7 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
 
   clearTokens: async () => {
+    await import('../lib/push').then((m) => m.unregisterPush()).catch(() => {});
     await Promise.all([
       storage.deleteItem(ACCESS_KEY),
       storage.deleteItem(REFRESH_KEY),

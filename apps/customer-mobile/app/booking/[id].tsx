@@ -8,6 +8,8 @@ import { Button, Card, Badge, Icon } from '@wag/ui-mobile';
 import { colors, spacing, typography, radii } from '@wag/design-tokens';
 import { wagApi } from '../../src/lib/api';
 import { format } from 'date-fns';
+import { PartnerChoice, type PartnerChoiceValue } from '../../src/components/PartnerChoice';
+import { goBack } from '../../src/lib/nav';
 
 const STATUS_LABELS: Record<string, string> = {
   draft: 'Draft',
@@ -33,6 +35,9 @@ export default function BookingDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const [booking, setBooking] = useState<any>(null);
   const [cancelling, setCancelling] = useState(false);
+  const [choosing, setChoosing] = useState(false);
+  const [redispatching, setRedispatching] = useState(false);
+  const [pick, setPick] = useState<PartnerChoiceValue>({ assignmentMode: 'any', requestedPartnerId: null, requestedPartnerName: null, requestedPartnerDiscountPct: null });
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -43,6 +48,31 @@ export default function BookingDetailScreen() {
   }, [id]);
 
   useEffect(() => { load(); }, [load]);
+
+  // While a partner is being found, keep the screen current (their answer or the request expiring).
+  const searching = booking && ['needs_partner', 'searching_partner'].includes(booking.status) && !booking.partnerId;
+  useEffect(() => {
+    if (!searching) return;
+    const t = setInterval(load, 10_000);
+    return () => clearInterval(t);
+  }, [searching, load]);
+
+  const sendRedispatch = async (v: PartnerChoiceValue) => {
+    setRedispatching(true);
+    try {
+      await wagApi.bookings.redispatch(id!, {
+        assignmentMode: v.assignmentMode,
+        requestedPartnerId: v.requestedPartnerId ?? undefined,
+      });
+      setChoosing(false);
+      await load();
+    } catch (err: any) {
+      Alert.alert('Could not send request', err?.response?.data?.message ?? err?.message ?? 'Please try again.');
+      await load();
+    } finally {
+      setRedispatching(false);
+    }
+  };
 
   const handleCancel = () => {
     Alert.alert('Cancel Booking', 'Are you sure you want to cancel this booking?', [
@@ -98,7 +128,7 @@ export default function BookingDetailScreen() {
   return (
     <SafeAreaView style={styles.safe}>
       <View style={styles.topBar}>
-        <TouchableOpacity onPress={() => router.back()} accessibilityLabel="Go back">
+        <TouchableOpacity onPress={() => goBack()} accessibilityLabel="Go back">
           <Text style={styles.back}>← Back</Text>
         </TouchableOpacity>
         <Text style={styles.pageTitle}>{isGrooming ? 'Grooming Booking' : 'Dog Walk'}</Text>
@@ -122,6 +152,54 @@ export default function BookingDetailScreen() {
             />
           </View>
         </Card>
+
+        {/* Dispatch: the chosen partner's answer, or asking the customer to choose again */}
+        {searching && booking.dispatch?.mode === 'specific' && (
+          <Card style={styles.statusCard}>
+            {booking.dispatch.state === 'awaiting_partner' && (
+              <Text style={styles.statusTitle}>
+                Waiting for {booking.dispatch.requestedPartnerName ?? 'your partner'} to respond
+                {booking.dispatch.expiresAt ? ` · until ${format(new Date(booking.dispatch.expiresAt), 'h:mm a')}` : ''}
+              </Text>
+            )}
+            {(booking.dispatch.state === 'rejected' || booking.dispatch.state === 'expired') && (
+              <>
+                <Text style={styles.statusTitle}>
+                  {booking.dispatch.state === 'rejected'
+                    ? `${booking.dispatch.requestedPartnerName ?? 'Your partner'} can't take this booking`
+                    : `${booking.dispatch.requestedPartnerName ?? 'Your partner'} didn't respond in time`}
+                </Text>
+                <Text style={[styles.bookingId, { marginBottom: spacing[3] }]}>Choose someone else, or let any available partner accept.</Text>
+              </>
+            )}
+            <View style={{ gap: spacing[2] }}>
+              {booking.dispatch.state !== 'awaiting_partner' && (
+                <Button onPress={() => sendRedispatch({ assignmentMode: 'any', requestedPartnerId: null, requestedPartnerName: null, requestedPartnerDiscountPct: null })} loading={redispatching} fullWidth>
+                  Let anyone accept
+                </Button>
+              )}
+              <Button variant="outline" onPress={() => setChoosing(!choosing)} fullWidth>
+                {choosing ? 'Close' : 'Choose another partner'}
+              </Button>
+            </View>
+          </Card>
+        )}
+        {searching && choosing && (
+          <Card style={styles.statusCard}>
+            <PartnerChoice
+              type={isGrooming ? 'grooming' : 'walking'}
+              petId={booking.petId}
+              addressId={booking.addressId}
+              value={pick}
+              onChange={setPick}
+            />
+            <View style={{ marginTop: spacing[3] }}>
+              <Button onPress={() => sendRedispatch(pick)} loading={redispatching} disabled={pick.assignmentMode === 'specific' && !pick.requestedPartnerId} fullWidth>
+                {pick.assignmentMode === 'specific' ? `Send request to ${pick.requestedPartnerName ?? 'partner'}` : 'Let anyone accept'}
+              </Button>
+            </View>
+          </Card>
+        )}
 
         {/* Pet & Service */}
         <Section title="Pet & Service">
@@ -162,10 +240,12 @@ export default function BookingDetailScreen() {
         {/* Payment receipt */}
         <Section title="Receipt">
           <Row label="Subtotal" value={`₹${booking.subtotal}`} />
-          {Number(booking.discount) > 0 && (
-            <Row label="Discount" value={`-₹${booking.discount}`} valueColor={colors.success} />
-          )}
-          <Row label="Total" value={`₹${booking.total}`} bold />
+          {booking.discountSource === 'partner' ? (
+            <Row label={`Partner discount (${Number(booking.partnerDiscountPct)}%)`} value={`-₹${booking.partnerDiscountAmount}`} valueColor={colors.success} />
+          ) : Number(booking.discount) > 0 ? (
+            <Row label="Coupon discount" value={`-₹${booking.discount}`} valueColor={colors.success} />
+          ) : null}
+          <Row label={booking.paymentMethod === 'cash_after_service' ? 'You pay the partner' : 'Total'} value={`₹${booking.total}`} bold />
           <Row label="Payment" value={booking.paymentMethod?.replace(/_/g, ' ') ?? '—'} />
           <Row label="Status" value={booking.paymentStatus ?? '—'} />
         </Section>

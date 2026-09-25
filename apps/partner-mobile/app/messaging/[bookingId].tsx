@@ -4,12 +4,13 @@ import {
   KeyboardAvoidingView, Platform, Image, Alert,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
-import { router, useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, spacing, radii } from '@wag/design-tokens';
 import { Icon } from '@wag/ui-mobile';
 import { wagApi } from '../../src/lib/api';
 import { useAuthStore } from '../../src/store/auth.store';
+import { goBack } from '../../src/lib/nav';
 
 export default function PartnerMessagingScreen() {
   const { bookingId } = useLocalSearchParams<{ bookingId: string }>();
@@ -122,7 +123,7 @@ export default function PartnerMessagingScreen() {
   return (
     <SafeAreaView style={styles.safe}>
       <View style={styles.topBar}>
-        <TouchableOpacity onPress={() => router.back()} accessibilityLabel="Go back">
+        <TouchableOpacity onPress={() => goBack()} accessibilityLabel="Go back">
           <Text style={styles.back}>← Back</Text>
         </TouchableOpacity>
         <Text style={styles.title}>Customer Chat</Text>

@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
-import { router, useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button, Icon } from '@wag/ui-mobile';
 import { colors, spacing, typography, radii } from '@wag/design-tokens';
 import { wagApi } from '../../src/lib/api';
 import { addDays, format, setHours, startOfDay } from 'date-fns';
+import { goBack } from '../../src/lib/nav';
 
 export default function RescheduleScreen() {
   const { id: bookingId } = useLocalSearchParams<{ id: string }>();
@@ -27,7 +28,7 @@ export default function RescheduleScreen() {
     try {
       await wagApi.bookings.reschedule(bookingId!, newDate, 'Customer requested reschedule');
       Alert.alert('Rescheduled!', `Your booking has been moved to ${format(setHours(selectedDay, selectedHour), 'EEE, d MMM · h:mm a')}`, [
-        { text: 'OK', onPress: () => router.back() },
+        { text: 'OK', onPress: () => goBack() },
       ]);
     } catch (err: any) {
       Alert.alert('Error', err?.message ?? 'Could not reschedule');
@@ -39,7 +40,7 @@ export default function RescheduleScreen() {
   return (
     <SafeAreaView style={styles.safe}>
       <View style={styles.topBar}>
-        <TouchableOpacity onPress={() => router.back()} accessibilityLabel="Go back">
+        <TouchableOpacity onPress={() => goBack()} accessibilityLabel="Go back">
           <Text style={styles.back}>← Back</Text>
         </TouchableOpacity>
         <Text style={styles.title}>Reschedule</Text>

@@ -6,6 +6,7 @@ import { Button, Icon } from '@wag/ui-mobile';
 import { colors, spacing, typography, radii } from '@wag/design-tokens';
 import { useBookingStore } from '../../../src/store/booking.store';
 import { addDays, format, setHours, setMinutes, startOfDay } from 'date-fns';
+import { goBack } from '../../../src/lib/nav';
 
 const DAYS_AHEAD = 14;
 const TIME_SLOTS = [
@@ -39,7 +40,7 @@ export default function SelectDateTimeScreen() {
   return (
     <SafeAreaView style={styles.safe}>
       <View style={styles.topBar}>
-        <TouchableOpacity onPress={() => router.back()} accessibilityLabel="Go back">
+        <TouchableOpacity onPress={() => goBack()} accessibilityLabel="Go back">
           <Text style={styles.back}>← Back</Text>
         </TouchableOpacity>
         <Text style={styles.title}>Pick a Date & Time</Text>

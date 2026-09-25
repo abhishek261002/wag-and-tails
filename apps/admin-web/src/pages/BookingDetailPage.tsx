@@ -113,7 +113,7 @@ export default function BookingDetailPage() {
             </CardHeader>
             <Kv k="Customer" v={customerName} />
             <Kv k="Phone" v={b.customer?.phone ?? '—'} />
-            <Kv k="Pet" v={`${b.petName}${b.petBreed ? ' · ' + b.petBreed : ''}`} />
+            <Kv k="Pet" v={`${b.petName}${b.petSpecies ? ' · ' + (b.petSpecies === 'cat' ? 'Cat' : 'Dog') : ''}${b.petBreed ? ' · ' + b.petBreed : ''}`} />
             <Kv k="Service" v={serviceLabel} />
             <Kv k="Address" v={<span className="max-w-[280px] inline-block text-right">{b.addressLine}</span>} />
             <Kv k="Channel" v={b.channel?.replace(/_/g, ' ') ?? 'app'} />

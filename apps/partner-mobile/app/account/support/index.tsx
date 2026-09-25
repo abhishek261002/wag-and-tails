@@ -7,6 +7,7 @@ import { colors, spacing, radii } from '@wag/design-tokens';
 import { wagApi } from '../../../src/lib/api';
 import type { SupportTicket } from '@wag/api-client';
 import { formatDistanceToNow } from 'date-fns';
+import { goBack } from '../../../src/lib/nav';
 
 const STATUS_VARIANT: Record<string, any> = { open: 'warning', in_progress: 'marigold', resolved: 'success' };
 
@@ -43,7 +44,7 @@ export default function PartnerSupportScreen() {
   return (
     <SafeAreaView style={styles.safe}>
       <View style={styles.topBar}>
-        <TouchableOpacity onPress={() => router.back()} accessibilityLabel="Go back"><Text style={styles.back}>← Back</Text></TouchableOpacity>
+        <TouchableOpacity onPress={() => goBack()} accessibilityLabel="Go back"><Text style={styles.back}>← Back</Text></TouchableOpacity>
         <Text style={styles.title}>Partner Support</Text>
         <View style={{ width: 50 }} />
       </View>

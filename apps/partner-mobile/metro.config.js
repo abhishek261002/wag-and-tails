@@ -23,9 +23,6 @@ const SINGLETON_MODULES = [
   'react-dom',
   'react-native',
   'react-native-web',
-  'react-native-safe-area-context',
-  'react-native-screens',
-  'react-native-gesture-handler',
 ];
 
 const singletonMap = {};
@@ -61,9 +58,19 @@ config.resolver.resolveRequest = (context, moduleName, platform) => {
     } catch {}
   }
 
-  const result = existingResolveRequest
-    ? existingResolveRequest(context, moduleName, platform)
-    : context.resolveRequest(context, moduleName, platform);
+  // Workspace packages are TypeScript written for NodeNext, so they import './x.js' meaning './x.ts'.
+  // Metro does not map that, so retry a failed relative '.js' import without the extension.
+  const resolveDefault = (name) =>
+    existingResolveRequest
+      ? existingResolveRequest(context, name, platform)
+      : context.resolveRequest(context, name, platform);
+  let result;
+  try {
+    result = resolveDefault(moduleName);
+  } catch (err) {
+    if (/^\.{1,2}\/.*\.js$/.test(moduleName)) result = resolveDefault(moduleName.slice(0, -3));
+    else throw err;
+  }
 
   if (result && result.type === 'sourceFile' && result.filePath) {
     const resolved = result.filePath.replace(/\\/g, '/');

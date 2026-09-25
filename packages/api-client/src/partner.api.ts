@@ -1,5 +1,5 @@
 import type { ApiClient } from './client.js';
-import type { Partner, PartnerJobCard, PartnerEarnings, PayoutRequest } from '@wag/shared-types';
+import type { Partner, PartnerJobCard, PartnerEarnings, PayoutRequest, DuesStatus, DuesPayOrder } from '@wag/shared-types';
 
 export class PartnerApi {
   constructor(private client: ApiClient) {}
@@ -49,7 +49,7 @@ export class PartnerApi {
 
   completeJob(
     bookingId: string,
-    data: { otp: string; checklistItems: string[]; beforePhotos: string[]; afterPhotos: string[] }
+    data: { otp: string; checklistItems: string[]; afterPhotos: string[] }
   ): Promise<void> {
     return this.client.patch(`/partner/jobs/${bookingId}/complete`, data);
   }
@@ -81,10 +81,45 @@ export class PartnerApi {
     return this.client.get('/partner/payouts');
   }
 
-  uploadPhoto(bookingId: string, formData: FormData): Promise<{ url: string }> {
-    return this.client.post(`/partner/jobs/${bookingId}/photos`, formData, {
+  // Uploads one job photo (fetch-to-blob so it works on native and web) and returns its stored URL.
+  async uploadJobPhoto(bookingId: string, file: { uri: string; name: string; type: string }): Promise<string> {
+    const blob = await (await fetch(file.uri)).blob();
+    const formData = new FormData();
+    formData.append('file', blob, file.name);
+    formData.append('entity', 'booking');
+    formData.append('entityId', bookingId);
+    const uploaded = await this.client.post<{ url: string; id: string }>('/files/upload', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     });
+    return uploaded.url;
+  }
+
+  // Commission dues: what the partner owes the company, and paying it.
+  getDues(): Promise<DuesStatus> {
+    return this.client.get('/partner/dues');
+  }
+
+  createDuesOrder(amount?: number): Promise<DuesPayOrder> {
+    return this.client.post('/partner/dues/pay-order', amount === undefined ? {} : { amount });
+  }
+
+  confirmDuesPayment(data: { commissionPaymentId: string; providerPaymentId: string; signature?: string }): Promise<DuesStatus> {
+    return this.client.post('/partner/dues/pay-confirm', data);
+  }
+
+  // Pay-after-service: confirm the customer paid the partner directly. Required before completing the job.
+  collectPayment(bookingId: string, method: 'cash' | 'upi'): Promise<{ collected: true; amount: number; method: string }> {
+    return this.client.post(`/partner/jobs/${bookingId}/collect-payment`, { method });
+  }
+
+  // Decline a job a customer reserved for you specifically.
+  rejectJob(bookingId: string): Promise<{ rejected: true }> {
+    return this.client.post(`/partner/jobs/${bookingId}/reject`);
+  }
+
+  // Attaches already-uploaded photos as the job's before-photos. Required before verifyStartOtp.
+  addBeforePhotos(bookingId: string, urls: string[]): Promise<{ beforePhotos: string[] }> {
+    return this.client.post(`/partner/jobs/${bookingId}/before-photos`, { urls });
   }
 
   // KYC profile photo, uploaded right after sign-up (once the account —

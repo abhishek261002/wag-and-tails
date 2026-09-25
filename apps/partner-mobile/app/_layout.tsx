@@ -7,12 +7,14 @@ import * as SplashScreen from 'expo-splash-screen';
 import { useFonts, Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold } from '@expo-google-fonts/inter';
 import { PlusJakartaSans_700Bold, PlusJakartaSans_800ExtraBold } from '@expo-google-fonts/plus-jakarta-sans';
 import { useAuthStore } from '../src/store/auth.store';
+import { usePushSetup } from '../src/lib/push';
 import { colors } from '@wag/design-tokens';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
 export default function RootLayout() {
   const { loadFromStorage } = useAuthStore();
+  usePushSetup();
   // Without these, every `fontFamily: 'Inter'` in this app silently fell
   // back to the system font — the partner app was the only surface never
   // loading the brand faces.
@@ -44,9 +46,7 @@ export default function RootLayout() {
           <Stack.Screen name="(tabs)" />
           <Stack.Screen name="job/[id]" />
           <Stack.Screen name="walk/[id]" />
-          <Stack.Screen name="messaging" options={{ headerShown: false }} />
-          <Stack.Screen name="account" options={{ headerShown: false }} />
-          <Stack.Screen name="store" options={{ headerShown: false }} />
+          <Stack.Screen name="navigate/[id]" options={{ gestureEnabled: false }} />
         </Stack>
       </SafeAreaProvider>
     </GestureHandlerRootView>

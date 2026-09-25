@@ -6,6 +6,9 @@ import type {
   OtpVerify,
   RegisterRequest,
   RegisterPartnerRequest,
+  DigilockerStartRequest,
+  DigilockerStartResponse,
+  DigilockerStatus,
   LoginRequest,
 } from '@wag/shared-types';
 
@@ -32,6 +35,16 @@ export class AuthApi {
 
   registerPartner(data: RegisterPartnerRequest): Promise<AuthResponse> {
     return this.client.post('/auth/register/partner', data);
+  }
+
+  // Partner onboarding: returns the DigiLocker URL to open in an in-app browser session.
+  startDigilocker(data: DigilockerStartRequest): Promise<DigilockerStartResponse> {
+    return this.client.post('/auth/partner/digilocker/start', data);
+  }
+
+  // Source of truth after the browser session closes. Verified -> carries the kycToken registerPartner requires.
+  getDigilockerStatus(requestId: string): Promise<DigilockerStatus> {
+    return this.client.get(`/auth/partner/digilocker/status/${requestId}`);
   }
 
   login(data: LoginRequest): Promise<AuthResponse> {

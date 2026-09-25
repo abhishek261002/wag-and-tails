@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
-import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button } from '@wag/ui-mobile';
 import { colors, spacing, radii } from '@wag/design-tokens';
 import { wagApi } from '../../src/lib/api';
+import { goBack } from '../../src/lib/nav';
 
 const DAYS = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
 const DAY_LABELS: Record<string, string> = { mon: 'Mon', tue: 'Tue', wed: 'Wed', thu: 'Thu', fri: 'Fri', sat: 'Sat', sun: 'Sun' };
@@ -49,7 +49,7 @@ export default function WorkingHoursScreen() {
   return (
     <SafeAreaView style={styles.safe}>
       <View style={styles.topBar}>
-        <TouchableOpacity onPress={() => router.back()} accessibilityLabel="Go back"><Text style={styles.back}>← Back</Text></TouchableOpacity>
+        <TouchableOpacity onPress={() => goBack()} accessibilityLabel="Go back"><Text style={styles.back}>← Back</Text></TouchableOpacity>
         <Text style={styles.title}>Working Hours</Text>
         <View style={{ width: 50 }} />
       </View>

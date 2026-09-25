@@ -40,7 +40,35 @@ enum CoatType {
   long
   curly
   double
+  hairless
   other
+}
+
+enum KycRequestStatus {
+  otp_sent
+  verified
+  locked
+  expired
+  consumed
+  redirect_started
+  failed
+  cancelled
+}
+
+enum PartnerKycStatus {
+  verified
+  legacy_unverified
+}
+
+enum PetSpecies {
+  dog
+  cat
+}
+
+enum PetVaccinationStatus {
+  recorded
+  not_vaccinated_yet
+  unknown
 }
 
 enum PetSize {
@@ -72,6 +100,12 @@ enum BookingStatus {
   searching_partner
   accepted
   expired
+}
+
+// How a booking finds its partner: any eligible partner may claim it, or it is offered to one chosen partner.
+enum AssignmentMode {
+  any
+  specific
 }
 
 enum BookingChannel {
@@ -107,6 +141,29 @@ enum OrderStatus {
   refunded
 }
 
+// Movements on a partner's commission account. Balance = sum(amount) = commission currently owed to the company.
+//   commission_due  (+) company's cut of a cash/UPI-after-service job the partner collected
+//   commission_paid (-) partner paid the company (in-app Razorpay or recorded offline)
+//   payout_offset   (-) dues netted against an online-booking payout
+//   adjustment      (+/-) admin correction
+enum LedgerEntryType {
+  commission_due
+  commission_paid
+  payout_offset
+  adjustment
+}
+
+enum PartnerDiscountStatus {
+  active
+  inactive
+}
+
+enum CommissionPaymentStatus {
+  pending
+  paid
+  failed
+}
+
 enum PayoutStatus {
   pending
   requested
@@ -124,35 +181,36 @@ enum DiscountType {
 // ─── Auth ────────────────────────────────────────────────────────────────────
 
 model User {
-  id              String                    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  phone           String                    @unique
-  email           String?                   @unique
-  passwordHash    String?                   @map("password_hash")
-  role            UserRole                  @default(customer)
-  isActive        Boolean                   @default(true) @map("is_active")
-  createdAt       DateTime                  @default(now()) @map("created_at")
-  updatedAt       DateTime                  @updatedAt @map("updated_at")
-  pets            Pet[]
+  id                     String                    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  phone                  String                    @unique
+  email                  String?                   @unique
+  passwordHash           String?                   @map("password_hash")
+  role                   UserRole                  @default(customer)
+  isActive               Boolean                   @default(true) @map("is_active")
+  createdAt              DateTime                  @default(now()) @map("created_at")
+  updatedAt              DateTime                  @updatedAt @map("updated_at")
+  pets                   Pet[]
   // Relations
-  profile         UserProfile?
-  customerProfile CustomerProfile?
-  partnerProfile  PartnerProfile?
-  staffProfile    StaffProfile?
-  addresses       Address[]
-  bookings        Booking[]                 @relation("CustomerBookings")
-  refreshTokens   RefreshToken[]
-  pushTokens      PushToken[]
-  notifications   Notification[]
-  conversations   ConversationParticipant[]
-  sentMessages    Message[]
-  aiChatSessions  AiChatSession[]
-  carts           Cart[]
-  storeOrders     StoreOrder[]
-  reviews         Review[]                  @relation("ReviewerRelation")
-  uploadedFiles   UploadedFile[]
-  auditLogs       AuditLog[]
-  payments        Payment[]
-  supportTickets  SupportTicket[]
+  profile                UserProfile?
+  customerProfile        CustomerProfile?
+  partnerProfile         PartnerProfile?
+  staffProfile           StaffProfile?
+  addresses              Address[]
+  bookings               Booking[]                 @relation("CustomerBookings")
+  refreshTokens          RefreshToken[]
+  pushTokens             PushToken[]
+  notificationPreference NotificationPreference?
+  notifications          Notification[]
+  conversations          ConversationParticipant[]
+  sentMessages           Message[]
+  aiChatSessions         AiChatSession[]
+  carts                  Cart[]
+  storeOrders            StoreOrder[]
+  reviews                Review[]                  @relation("ReviewerRelation")
+  uploadedFiles          UploadedFile[]
+  auditLogs              AuditLog[]
+  payments               Payment[]
+  supportTickets         SupportTicket[]
 
   @@map("users")
 }
@@ -186,55 +244,113 @@ model CustomerProfile {
 }
 
 model PartnerProfile {
-  id                String        @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  userId            String        @unique @map("user_id") @db.Uuid
-  status            PartnerStatus @default(pending)
-  modes             String[]      @default([]) // 'grooming' | 'walking'
+  id                      String           @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  userId                  String           @unique @map("user_id") @db.Uuid
+  status                  PartnerStatus    @default(pending)
+  modes                   String[]         @default([]) // 'grooming' | 'walking'
+  // Which animals this partner accepts for grooming ('dog' | 'cat'). Walking is dogs only.
+  petSpecies              String[]         @default(["dog", "cat"]) @map("pet_species")
   // Operations are per-city (Kanpur, Lucknow, Delhi), not radius-based — a
   // partner serves every booking in their assigned city, full stop. Kept
   // alongside serviceRadiusKm/currentLat/currentLng rather than replacing
   // them, since those still back the dev-only distance-based bypass path.
-  city              String?
+  city                    String?
   // KYC details collected at partner sign-up — reviewed by staff before
   // approval flips `status` to 'approved'. Kept on PartnerProfile (not
   // UserProfile) since these are onboarding-review fields specific to
   // partners, not general account data.
-  age               Int?
-  address           String?
-  aadhaarNumber     String?       @map("aadhaar_number")
-  photoUrl          String?       @map("photo_url")
-  serviceRadiusKm   Int           @default(5) @map("service_radius_km")
-  isOnline          Boolean       @default(false) @map("is_online")
-  currentLat        Float?        @map("current_lat")
-  currentLng        Float?        @map("current_lng")
-  bio               String?
-  rating            Decimal       @default(5.0) @db.Decimal(3, 2)
-  reviewCount       Int           @default(0) @map("review_count")
-  completedJobs     Int           @default(0) @map("completed_jobs")
-  bankAccountNumber String?       @map("bank_account_number")
-  ifscCode          String?       @map("ifsc_code")
-  approvedBy        String?       @map("approved_by") @db.Uuid
-  approvedAt        DateTime?     @map("approved_at")
-  suspendReason     String?       @map("suspend_reason")
-  lastSeenAt        DateTime?     @map("last_seen_at")
-  createdAt         DateTime      @default(now()) @map("created_at")
-  updatedAt         DateTime      @updatedAt @map("updated_at")
+  age                     Int?
+  address                 String?
+  // Legacy plaintext column: no longer written (Aadhaar is never stored in full). Existing values
+  // are hashed into aadhaarRefHash/aadhaarLast4 by the backfill script and then nulled.
+  aadhaarNumber           String?          @map("aadhaar_number")
+  aadhaarLast4            String?          @map("aadhaar_last4")
+  // HMAC-SHA256(pepper, aadhaar). Unique, so one Aadhaar can only ever back one partner account.
+  aadhaarRefHash          String?          @unique @map("aadhaar_ref_hash")
+  kycStatus               PartnerKycStatus @default(legacy_unverified) @map("kyc_status")
+  kycProvider             String?          @map("kyc_provider")
+  kycVerifiedAt           DateTime?        @map("kyc_verified_at")
+  kycName                 String?          @map("kyc_name")
+  kycDob                  DateTime?        @map("kyc_dob") @db.Date
+  kycGender               String?          @map("kyc_gender")
+  kycAddress              String?          @map("kyc_address")
+  kycConsentAt            DateTime?        @map("kyc_consent_at")
+  // Whether the name entered at sign-up matches the Aadhaar name; a mismatch is flagged for staff, never auto-rejected.
+  kycNameMatch            Boolean?         @map("kyc_name_match")
+  photoUrl                String?          @map("photo_url")
+  serviceRadiusKm         Int              @default(5) @map("service_radius_km")
+  isOnline                Boolean          @default(false) @map("is_online")
+  currentLat              Float?           @map("current_lat")
+  currentLng              Float?           @map("current_lng")
+  bio                     String?
+  rating                  Decimal          @default(5.0) @db.Decimal(3, 2)
+  reviewCount             Int              @default(0) @map("review_count")
+  completedJobs           Int              @default(0) @map("completed_jobs")
+  bankAccountNumber       String?          @map("bank_account_number")
+  ifscCode                String?          @map("ifsc_code")
+  approvedBy              String?          @map("approved_by") @db.Uuid
+  approvedAt              DateTime?        @map("approved_at")
+  suspendReason           String?          @map("suspend_reason")
+  // Company's commission share of each job, in percent (30 = 70/30 split). Null = platform default.
+  commissionPct           Decimal?         @map("commission_pct") @db.Decimal(5, 2)
+  // Overrides the platform commission-due limit for this partner. Null = platform default.
+  commissionLimitOverride Decimal?         @map("commission_limit_override") @db.Decimal(10, 2)
+  lastSeenAt              DateTime?        @map("last_seen_at")
+  createdAt               DateTime         @default(now()) @map("created_at")
+  updatedAt               DateTime         @updatedAt @map("updated_at")
 
   // Vet info (for the partner as a dog handler)
   vetDoctorName String? @map("vet_doctor_name")
   vetClinic     String? @map("vet_clinic")
   vetPhone      String? @map("vet_phone")
 
-  user            User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
-  availability    PartnerAvailability[]
-  neighborhoods   PartnerNeighborhood[]
-  documents       PartnerDocument[]
-  payouts         Payout[]
-  location        PartnerLocation?
-  partnerBookings Booking[]             @relation("PartnerBookings")
-  walkSessions    WalkSession[]
+  user               User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  availability       PartnerAvailability[]
+  neighborhoods      PartnerNeighborhood[]
+  documents          PartnerDocument[]
+  payouts            Payout[]
+  discounts          PartnerDiscount[]
+  ledgerEntries      PartnerLedgerEntry[]
+  commissionPayments CommissionPayment[]
+  location           PartnerLocation?
+  partnerBookings    Booking[]             @relation("PartnerBookings")
+  walkSessions       WalkSession[]
 
   @@map("partner_profiles")
+}
+
+// One row per Aadhaar OTP attempt. Identity fields are held only until the partner account is
+// created (then copied to the profile and wiped here); expired rows are purged by a scheduled job.
+model KycRequest {
+  id              String           @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  // Known only after the provider (DigiLocker) has verified the person, so both are nullable.
+  aadhaarRefHash  String?          @map("aadhaar_ref_hash")
+  aadhaarLast4    String?          @map("aadhaar_last4")
+  provider        String
+  // OAuth redirect flow: single-use state and PKCE verifier (server-side only), where to send the user back to.
+  state           String?          @unique
+  codeVerifier    String?          @map("code_verifier")
+  appRedirect     String?          @map("app_redirect")
+  hintName        String?          @map("hint_name")
+  hintAge         Int?             @map("hint_age")
+  failureReason   String?          @map("failure_reason")
+  providerRef     String?          @map("provider_ref")
+  status          KycRequestStatus @default(otp_sent)
+  attempts        Int              @default(0)
+  ipHash          String?          @map("ip_hash")
+  consentAt       DateTime         @map("consent_at")
+  expiresAt       DateTime         @map("expires_at")
+  verifiedAt      DateTime?        @map("verified_at")
+  consumedAt      DateTime?        @map("consumed_at")
+  identityName    String?          @map("identity_name")
+  identityDob     DateTime?        @map("identity_dob") @db.Date
+  identityGender  String?          @map("identity_gender")
+  identityAddress String?          @map("identity_address")
+  createdAt       DateTime         @default(now()) @map("created_at")
+
+  @@index([aadhaarRefHash, createdAt])
+  @@index([ipHash, createdAt])
+  @@map("kyc_requests")
 }
 
 model StaffProfile {
@@ -316,26 +432,31 @@ model Address {
 // ─── Pets ────────────────────────────────────────────────────────────────────
 
 model Pet {
-  id            String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  customerId    String    @map("customer_id") @db.Uuid
-  name          String
-  breed         String
-  sex           PetSex
-  dateOfBirth   DateTime? @map("date_of_birth") @db.Date
-  weightKg      Float?    @map("weight_kg")
-  size          PetSize   @default(medium)
-  coatType      CoatType  @default(short) @map("coat_type")
-  isNeutered    Boolean   @default(false) @map("is_neutered")
-  temperament   String?
-  allergies     String?
-  avatarUrl     String?   @map("avatar_url")
-  vetDoctorName String?   @map("vet_doctor_name")
-  vetClinic     String?   @map("vet_clinic")
-  vetPhone      String?   @map("vet_phone")
-  microchip     String?
-  isActive      Boolean   @default(true) @map("is_active")
-  createdAt     DateTime  @default(now()) @map("created_at")
-  updatedAt     DateTime  @updatedAt @map("updated_at")
+  id                String               @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  customerId        String               @map("customer_id") @db.Uuid
+  species           PetSpecies           @default(dog)
+  name              String
+  breed             String
+  sex               PetSex
+  dateOfBirth       DateTime?            @map("date_of_birth") @db.Date
+  weightKg          Float?               @map("weight_kg")
+  size              PetSize              @default(medium)
+  coatType          CoatType             @default(short) @map("coat_type")
+  isNeutered        Boolean              @default(false) @map("is_neutered")
+  temperament       String?
+  allergies         String?
+  avatarUrl         String?              @map("avatar_url")
+  vetDoctorName     String?              @map("vet_doctor_name")
+  vetClinic         String?              @map("vet_clinic")
+  vetPhone          String?              @map("vet_phone")
+  microchip         String?
+  // 'recorded' once at least one vaccination row exists; 'not_vaccinated_yet'
+  // is an explicit answer (puppies/kittens); 'unknown' is legacy pets that
+  // predate the mandatory question.
+  vaccinationStatus PetVaccinationStatus @default(unknown) @map("vaccination_status")
+  isActive          Boolean              @default(true) @map("is_active")
+  createdAt         DateTime             @default(now()) @map("created_at")
+  updatedAt         DateTime             @updatedAt @map("updated_at")
 
   customer     User             @relation(fields: [customerId], references: [id], onDelete: Cascade)
   careNotes    PetCareNote[]
@@ -380,14 +501,15 @@ model PetVaccination {
 // ─── Grooming Catalogue ───────────────────────────────────────────────────────
 
 model GroomingPackage {
-  id          String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  name        String
-  mrp         Decimal  @db.Decimal(10, 2)
-  price       Decimal  @db.Decimal(10, 2)
-  description String?
-  isActive    Boolean  @default(true) @map("is_active")
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  id                String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  name              String
+  mrp               Decimal  @db.Decimal(10, 2)
+  price             Decimal  @db.Decimal(10, 2)
+  description       String?
+  applicableSpecies String[] @default(["dog", "cat"]) @map("applicable_species")
+  isActive          Boolean  @default(true) @map("is_active")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
 
   items    GroomingPackageItem[]
   bookings Booking[]
@@ -443,11 +565,19 @@ model Booking {
   petId      String  @map("pet_id") @db.Uuid
   partnerId  String? @map("partner_id") @db.Uuid
 
+  // Dispatch. `specific` reserves the job for requestedPartnerId until requestExpiresAt; if that partner
+  // rejects or lets it lapse, requestOutcome records why and the customer chooses again (see BookingsService.redispatch).
+  assignmentMode     AssignmentMode @default(any) @map("assignment_mode")
+  requestedPartnerId String?        @map("requested_partner_id") @db.Uuid
+  requestExpiresAt   DateTime?      @map("request_expires_at")
+  requestOutcome     String?        @map("request_outcome") // 'rejected'
+
   // Denormalised pet snapshot (so changes to pet don't affect historical bookings)
-  petName      String  @map("pet_name")
-  petBreed     String  @map("pet_breed")
-  petSize      String  @map("pet_size")
-  petCareNotes String? @map("pet_care_notes")
+  petName      String     @map("pet_name")
+  petSpecies   PetSpecies @default(dog) @map("pet_species")
+  petBreed     String     @map("pet_breed")
+  petSize      String     @map("pet_size")
+  petCareNotes String?    @map("pet_care_notes")
 
   // Grooming specific
   packageId    String?  @map("package_id") @db.Uuid
@@ -455,7 +585,7 @@ model Booking {
   packagePrice Decimal? @map("package_price") @db.Decimal(10, 2)
 
   // Walking specific
-  durationMinutes Int?    @map("duration_minutes")
+  durationMinutes Int? @map("duration_minutes")
 
   // Schedule & Location
   scheduledAt DateTime? @map("scheduled_at")
@@ -477,6 +607,21 @@ model Booking {
   // complete the job. Cleared once used.
   endOtp           String?   @map("end_otp")
   sessionStartedAt DateTime? @map("session_started_at")
+
+  // Partner discount + commission snapshot, computed server-side when a partner claims the job.
+  // total = subtotal - discount; discountSource says which discount won (never stacked).
+  partnerDiscountPct    Decimal?  @map("partner_discount_pct") @db.Decimal(5, 2)
+  partnerDiscountAmount Decimal   @default(0) @map("partner_discount_amount") @db.Decimal(10, 2)
+  discountSource        String?   @map("discount_source") // 'coupon' | 'partner'
+  commissionPct         Decimal?  @map("commission_pct") @db.Decimal(5, 2)
+  commissionAmount      Decimal?  @map("commission_amount") @db.Decimal(10, 2)
+  partnerShareAmount    Decimal?  @map("partner_share_amount") @db.Decimal(10, 2)
+  // Pay-after-service (COD-style): the partner marks the money as collected before the job can be completed.
+  collectedAt           DateTime? @map("collected_at")
+  collectedMethod       String?   @map("collected_method") // 'cash' | 'upi'
+  collectedAmount       Decimal?  @map("collected_amount") @db.Decimal(10, 2)
+  // Set once the completed job has been posted to the partner's ledger / payouts.
+  settledAt             DateTime? @map("settled_at")
 
   // Pricing
   subtotal Decimal @default(0) @db.Decimal(10, 2)
@@ -516,6 +661,7 @@ model Booking {
   @@index([partnerId])
   @@index([status])
   @@index([scheduledAt])
+  @@index([requestedPartnerId])
   @@map("bookings")
 }
 
@@ -746,6 +892,7 @@ model Notification {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, isRead])
+  @@index([userId, createdAt])
   @@map("notifications")
 }
 
@@ -807,6 +954,8 @@ model Product {
   categoryId      String   @map("category_id") @db.Uuid
   name            String
   slug            String   @unique
+  // Stable key for bulk import/update; optional so manually added products keep working.
+  sku             String?  @unique
   description     String?  @db.Text
   imageUrls       String[] @default([]) @map("image_urls")
   mrp             Decimal  @db.Decimal(10, 2)
@@ -1039,21 +1188,21 @@ model UploadedFile {
 // ─── Support ─────────────────────────────────────────────────────────────────
 
 model SupportTicket {
-  id          String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  userId      String    @map("user_id") @db.Uuid
-  subject     String
-  description String    @db.Text
-  status      String    @default("open")
-  priority    String    @default("normal")
-  resolvedAt  DateTime? @map("resolved_at")
+  id              String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  userId          String    @map("user_id") @db.Uuid
+  subject         String
+  description     String    @db.Text
+  status          String    @default("open")
+  priority        String    @default("normal")
+  resolvedAt      DateTime? @map("resolved_at")
   // Set by staff when an issue is beyond what they can resolve — surfaces
   // the ticket on the admin console. Staff keep working the ticket
   // (escalation doesn't hand it off), so no separate "assignee" concept.
   escalated       Boolean   @default(false)
   escalatedAt     DateTime? @map("escalated_at")
   escalatedReason String?   @map("escalated_reason")
-  createdAt   DateTime  @default(now()) @map("created_at")
-  updatedAt   DateTime  @updatedAt @map("updated_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
 
   user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
   conversation Conversation?
@@ -1115,4 +1264,120 @@ model AiChatMessage {
 
   @@index([sessionId])
   @@map("ai_chat_messages")
+}
+
+// ─── Commission, discounts, dues ─────────────────────────────────────────────
+
+// Single row (id = 1) holding the platform-wide money settings, edited by the super admin.
+model PlatformSettings {
+  id                    Int      @id @default(1)
+  defaultCommissionPct  Decimal  @default(20) @map("default_commission_pct") @db.Decimal(5, 2)
+  // When a partner's outstanding commission reaches this (INR) they see no jobs until they pay.
+  commissionLimit       Decimal  @default(1500) @map("commission_limit") @db.Decimal(10, 2)
+  // Highest partner discount staff may activate.
+  maxPartnerDiscountPct Decimal  @default(50) @map("max_partner_discount_pct") @db.Decimal(5, 2)
+  updatedBy             String?  @map("updated_by") @db.Uuid
+  updatedAt             DateTime @updatedAt @map("updated_at")
+
+  @@map("platform_settings")
+}
+
+// A percentage a partner offers customers on the service price, valid only inside [startsAt, endsAt] and
+// only while status = active. Activation by staff/admin is the approval. One active discount per partner.
+model PartnerDiscount {
+  id          String                @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  partnerId   String                @map("partner_id") @db.Uuid
+  percent     Decimal               @db.Decimal(5, 2)
+  startsAt    DateTime              @map("starts_at")
+  endsAt      DateTime              @map("ends_at")
+  status      PartnerDiscountStatus @default(active)
+  note        String?
+  createdBy   String                @map("created_by") @db.Uuid
+  activatedBy String?               @map("activated_by") @db.Uuid
+  createdAt   DateTime              @default(now()) @map("created_at")
+  updatedAt   DateTime              @updatedAt @map("updated_at")
+
+  partner PartnerProfile @relation(fields: [partnerId], references: [userId], onDelete: Cascade)
+
+  @@index([partnerId, status])
+  @@map("partner_discounts")
+}
+
+model PartnerLedgerEntry {
+  id        String          @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  partnerId String          @map("partner_id") @db.Uuid
+  bookingId String?         @map("booking_id") @db.Uuid
+  type      LedgerEntryType
+  // Signed: positive raises what the partner owes, negative lowers it.
+  amount    Decimal         @db.Decimal(10, 2)
+  note      String?
+  createdBy String?         @map("created_by") @db.Uuid
+  createdAt DateTime        @default(now()) @map("created_at")
+
+  partner PartnerProfile @relation(fields: [partnerId], references: [userId], onDelete: Cascade)
+
+  // A booking can post each entry type once, so completing twice can never double-count.
+  @@unique([bookingId, type])
+  @@index([partnerId, createdAt])
+  @@map("partner_ledger_entries")
+}
+
+// A partner paying their commission dues to the company through the payment provider.
+model CommissionPayment {
+  id                String                  @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  partnerId         String                  @map("partner_id") @db.Uuid
+  amount            Decimal                 @db.Decimal(10, 2)
+  status            CommissionPaymentStatus @default(pending)
+  providerOrderId   String                  @map("provider_order_id")
+  providerPaymentId String?                 @unique @map("provider_payment_id")
+  createdAt         DateTime                @default(now()) @map("created_at")
+  paidAt            DateTime?               @map("paid_at")
+
+  partner PartnerProfile @relation(fields: [partnerId], references: [userId], onDelete: Cascade)
+
+  @@index([partnerId, status])
+  @@map("commission_payments")
+}
+
+// A bulk product upload: validated first (preview), applied only when an admin commits it.
+model CatalogImport {
+  id        String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  createdBy String    @map("created_by") @db.Uuid
+  filename  String
+  mode      String // upsert | create_only | update_only
+  // pending -> committing -> committed, or discarded
+  status    String    @default("pending")
+  summary   Json
+  plan      Json
+  appliedAt DateTime? @map("applied_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  @@index([createdAt])
+  @@map("catalog_imports")
+}
+
+// Which optional notifications a user wants. Transactional ones (booking status, payments, dues) are always sent.
+model NotificationPreference {
+  userId    String   @id @map("user_id") @db.Uuid
+  // Vaccination and grooming reminders for their pets.
+  reminders Boolean  @default(true)
+  // Weekly pet-care tips.
+  tips      Boolean  @default(true)
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("notification_preferences")
+}
+
+// One row per reminder already sent. The unique key is what makes the daily job safe to re-run or run twice.
+model ReminderLog {
+  id        String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  dedupeKey String   @unique @map("dedupe_key")
+  kind      String
+  userId    String   @map("user_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@index([createdAt])
+  @@map("reminder_logs")
 }

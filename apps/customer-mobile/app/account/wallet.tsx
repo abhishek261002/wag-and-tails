@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
-import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, spacing, typography, radii } from '@wag/design-tokens';
 import { Icon } from '@wag/ui-mobile';
 import { wagApi } from '../../src/lib/api';
+import { goBack } from '../../src/lib/nav';
 
 export default function WalletScreen() {
   const [profile, setProfile] = useState<any>(null);
@@ -18,7 +18,7 @@ export default function WalletScreen() {
   return (
     <SafeAreaView style={styles.safe}>
       <View style={styles.topBar}>
-        <TouchableOpacity onPress={() => router.back()} accessibilityLabel="Go back">
+        <TouchableOpacity onPress={() => goBack()} accessibilityLabel="Go back">
           <Text style={styles.back}>← Back</Text>
         </TouchableOpacity>
         <Text style={styles.title}>Wallet & Credits</Text>

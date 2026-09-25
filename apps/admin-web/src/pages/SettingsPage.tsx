@@ -1,5 +1,6 @@
 import React from 'react';
-import { PageHeader, Card, CardHeader, CardTitle, Badge, Button, useToast, Icon } from '@wag/ui-web';
+import { PageHeader, Card, CardHeader, CardTitle, Badge, Button, useToast, Icon, MoneySettingsCard } from '@wag/ui-web';
+import { wagApi } from '../lib/api';
 
 const INTEGRATIONS = [
   { icon: 'chat', tone: 'ok', title: 'WhatsApp Business API', sub: 'Not connected in this environment', live: false },
@@ -28,10 +29,11 @@ export default function SettingsPage() {
             </div>
           </Card>
 
+          <MoneySettingsCard api={wagApi.client} canEdit />
+
           <Card>
-            <CardHeader><CardTitle>Commission</CardTitle></CardHeader>
-            <div className="grid grid-cols-3 gap-4">
-              <ReadOnlyField label="Platform commission" value="20%" />
+            <CardHeader><CardTitle>Cancellation</CardTitle></CardHeader>
+            <div className="grid grid-cols-2 gap-4">
               <ReadOnlyField label="Free cancellation window" value="4 hours" />
               <ReadOnlyField label="Late cancellation fee" value="₹200" />
             </div>

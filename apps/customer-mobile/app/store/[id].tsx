@@ -6,6 +6,7 @@ import { Button, Badge, Icon } from '@wag/ui-mobile';
 import { colors, spacing, typography, radii } from '@wag/design-tokens';
 import { wagApi } from '../../src/lib/api';
 import { useAuthStore } from '../../src/store/auth.store';
+import { goBack } from '../../src/lib/nav';
 
 export default function ProductDetailScreen() {
   const { id: productId } = useLocalSearchParams<{ id: string }>();
@@ -76,7 +77,7 @@ export default function ProductDetailScreen() {
   return (
     <SafeAreaView style={styles.safe}>
       <View style={styles.topBar}>
-        <TouchableOpacity onPress={() => router.back()} accessibilityLabel="Go back">
+        <TouchableOpacity onPress={() => goBack()} accessibilityLabel="Go back">
           <Text style={styles.back}>← Back</Text>
         </TouchableOpacity>
         <TouchableOpacity onPress={() => router.push('/store/cart' as any)} accessibilityLabel="View cart">

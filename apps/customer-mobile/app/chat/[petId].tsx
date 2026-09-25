@@ -3,12 +3,13 @@ import {
   View, Text, StyleSheet, FlatList, TextInput, TouchableOpacity,
   KeyboardAvoidingView, Platform, ActivityIndicator,
 } from 'react-native';
-import { router, useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, spacing, typography, radii } from '@wag/design-tokens';
 import { Icon } from '@wag/ui-mobile';
 import { wagApi } from '../../src/lib/api';
 import type { AiChatMessage, Pet } from '@wag/shared-types';
+import { goBack } from '../../src/lib/nav';
 
 type ChatItem = AiChatMessage & { failed?: boolean };
 
@@ -103,7 +104,7 @@ export default function PetChatScreen() {
     <SafeAreaView style={styles.safe}>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={0}>
         <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} accessibilityLabel="Go back" style={styles.backBtn}>
+          <TouchableOpacity onPress={() => goBack()} accessibilityLabel="Go back" style={styles.backBtn}>
             <Icon name="back" size={22} color={colors.brandBrown} />
           </TouchableOpacity>
           <View style={styles.headerCenter}>

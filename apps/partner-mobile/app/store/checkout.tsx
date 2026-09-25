@@ -5,6 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button, Icon, type IconName } from '@wag/ui-mobile';
 import { colors, spacing, radii } from '@wag/design-tokens';
 import { wagApi } from '../../src/lib/api';
+import { goBack } from '../../src/lib/nav';
 
 const PAYMENT_OPTIONS: { label: string; value: 'upi' | 'card' | 'cod'; icon: IconName }[] = [
   { label: 'UPI', value: 'upi', icon: 'phone' },
@@ -69,7 +70,7 @@ export default function PartnerCheckoutScreen() {
   return (
     <SafeAreaView style={styles.safe}>
       <View style={styles.topBar}>
-        <TouchableOpacity onPress={() => router.back()} accessibilityLabel="Go back">
+        <TouchableOpacity onPress={() => goBack()} accessibilityLabel="Go back">
           <Text style={styles.back}>← Back</Text>
         </TouchableOpacity>
         <Text style={styles.title}>Checkout</Text>

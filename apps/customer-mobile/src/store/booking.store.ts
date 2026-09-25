@@ -15,6 +15,10 @@ interface BookingDraft {
   couponCode: string | null;
   discount: number;
   paymentMethod: 'upi' | 'card' | 'wallet' | 'cash_after_service';
+  assignmentMode: 'any' | 'specific';
+  requestedPartnerId: string | null;
+  requestedPartnerName: string | null;
+  requestedPartnerDiscountPct: number | null;
 }
 
 interface WalkDraft {
@@ -28,6 +32,10 @@ interface WalkDraft {
   couponCode: string | null;
   discount: number;
   paymentMethod: 'upi' | 'card' | 'wallet' | 'cash_after_service';
+  assignmentMode: 'any' | 'specific';
+  requestedPartnerId: string | null;
+  requestedPartnerName: string | null;
+  requestedPartnerDiscountPct: number | null;
 }
 
 interface BookingStore {
@@ -44,12 +52,14 @@ const defaultGroomingDraft: BookingDraft = {
   addOnIds: [], addOns: [], scheduledAt: null, addressId: null,
   addressLine: null, notes: '', couponCode: null, discount: 0,
   paymentMethod: 'upi',
+  assignmentMode: 'any', requestedPartnerId: null, requestedPartnerName: null, requestedPartnerDiscountPct: null,
 };
 
 const defaultWalkDraft: WalkDraft = {
   petId: null, pet: null, durationMinutes: 30,
   scheduleNow: true, scheduledAt: null, addressId: null,
   addressLine: null, couponCode: null, discount: 0, paymentMethod: 'upi',
+  assignmentMode: 'any', requestedPartnerId: null, requestedPartnerName: null, requestedPartnerDiscountPct: null,
 };
 
 export const useBookingStore = create<BookingStore>((set) => ({

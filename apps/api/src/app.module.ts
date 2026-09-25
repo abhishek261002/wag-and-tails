@@ -15,6 +15,10 @@ import { StoreModule } from './store/store.module.js';
 import { OrdersModule } from './orders/orders.module.js';
 import { PaymentsModule } from './payments/payments.module.js';
 import { PayoutsModule } from './payouts/payouts.module.js';
+import { CatalogImportModule } from './catalog-import/catalog-import.module.js';
+import { ScheduleModule } from '@nestjs/schedule';
+import { RemindersModule } from './reminders/reminders.module.js';
+import { CommissionModule } from './commission/commission.module.js';
 import { CouponsModule } from './coupons/coupons.module.js';
 import { MessagingModule } from './messaging/messaging.module.js';
 import { NotificationsModule } from './notifications/notifications.module.js';
@@ -36,6 +40,7 @@ import { RealtimeModule } from './realtime/realtime.module.js';
         ? process.env['REDIS_URL']
         : { host: 'localhost', port: 6379 },
     }),
+    ScheduleModule.forRoot(),
     PrismaModule,
     AuthModule,
     UsersModule,
@@ -48,6 +53,9 @@ import { RealtimeModule } from './realtime/realtime.module.js';
     OrdersModule,
     PaymentsModule,
     PayoutsModule,
+    CommissionModule,
+    CatalogImportModule,
+    RemindersModule,
     CouponsModule,
     MessagingModule,
     NotificationsModule,

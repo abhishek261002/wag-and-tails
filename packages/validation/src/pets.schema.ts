@@ -1,10 +1,12 @@
 import { z } from 'zod';
 
 export const petSexSchema = z.enum(['male', 'female']);
-export const coatTypeSchema = z.enum(['short', 'medium', 'long', 'curly', 'double', 'other']);
+export const coatTypeSchema = z.enum(['short', 'medium', 'long', 'curly', 'double', 'hairless', 'other']);
+export const petSpeciesSchema = z.enum(['dog', 'cat']);
 export const petSizeSchema = z.enum(['small', 'medium', 'large', 'extra_large']);
 
-export const createPetSchema = z.object({
+const petBaseSchema = z.object({
+  species: petSpeciesSchema,
   name: z.string().min(1, 'Pet name is required').max(60),
   breed: z.string().min(1, 'Breed is required').max(80),
   sex: petSexSchema,
@@ -20,9 +22,18 @@ export const createPetSchema = z.object({
   vetDoctorName: z.string().max(100).optional(),
   vetClinic: z.string().max(100).optional(),
   vetPhone: z.string().max(20).optional(),
+  lastVaccinationDate: z.string().regex(/^d{4}-d{2}-d{2}$/).optional(),
+  lastVaccineName: z.string().max(100).optional(),
+  notVaccinatedYet: z.boolean().optional(),
 });
 
-export const updatePetSchema = createPetSchema.partial();
+export const createPetSchema = petBaseSchema.refine((d) => !!d.lastVaccinationDate !== !!d.notVaccinatedYet, {
+  message: 'Provide the last vaccination date, or choose "Not vaccinated yet"',
+  path: ['lastVaccinationDate'],
+});
+
+// Species is fixed once a pet exists.
+export const updatePetSchema = petBaseSchema.omit({ species: true }).partial();
 
 export const addCareNoteSchema = z.object({
   petId: z.string().uuid(),

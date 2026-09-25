@@ -6,6 +6,7 @@ import { colors, spacing, typography, radii } from '@wag/design-tokens';
 import { wagApi } from '../../../src/lib/api';
 import { useBookingStore } from '../../../src/store/booking.store';
 import type { GroomingPackage } from '@wag/shared-types';
+import { goBack } from '../../../src/lib/nav';
 
 export default function SelectPackageScreen() {
   const [packages, setPackages] = useState<GroomingPackage[]>([]);
@@ -24,7 +25,7 @@ export default function SelectPackageScreen() {
   return (
     <SafeAreaView style={styles.safe}>
       <View style={styles.topBar}>
-        <TouchableOpacity onPress={() => router.back()}>
+        <TouchableOpacity onPress={() => goBack()}>
           <Text style={styles.backText}>← Back</Text>
         </TouchableOpacity>
         <Text style={styles.title}>Choose a package</Text>

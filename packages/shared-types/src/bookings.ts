@@ -54,15 +54,55 @@ export interface WalkPricing {
   isActive: boolean;
 }
 
+export type AssignmentMode = 'any' | 'specific';
+
+/** open: anyone may claim. awaiting_partner: reserved for the chosen partner. rejected/expired: customer must choose again. */
+export type DispatchState = 'open' | 'awaiting_partner' | 'rejected' | 'expired';
+
+export interface BookingDispatchInfo {
+  mode: AssignmentMode;
+  state: DispatchState;
+  requestedPartnerId: string | null;
+  requestedPartnerName: string | null;
+  expiresAt: string | null;
+  ttlMinutes: number;
+}
+
+/** A partner card shown at checkout. */
+export interface PartnerOption {
+  partnerId: string;
+  name: string;
+  photoUrl: string | null;
+  rating: number;
+  reviewCount: number;
+  completedJobs: number;
+  bio: string | null;
+  isOnline: boolean;
+  isPast: boolean;
+  timesBookedByYou: number;
+  lastBookedAt: string | null;
+  /** Percent off the service price this partner is offering right now (staff-approved, in its window). */
+  discountPct: number | null;
+}
+
 export interface Booking {
+  dispatch?: BookingDispatchInfo;
   id: string;
   type: BookingType;
   customerId: string;
   petId: string;
   petName: string;
+  petSpecies?: "dog" | "cat";
   petBreed: string;
   petSize: string;
   petCareNotes: string | null;
+  /** Stored photo URLs (relative /uploads/... or absolute). Before-photos are required before the session can start. */
+  beforePhotos?: string[];
+  /** Set when a partner claims the job: their discount, which discount won, and the price the customer pays. */
+  partnerDiscountPct?: string | number | null;
+  partnerDiscountAmount?: string | number;
+  discountSource?: 'coupon' | 'partner' | null;
+  afterPhotos?: string[];
   partnerId: string | null;
   partnerName: string | null;
   status: GroomingBookingStatus | WalkingBookingStatus;
@@ -127,6 +167,9 @@ export interface CreateGroomingBookingInput {
   couponCode?: string;
   paymentMethod: PaymentMethod;
   channel?: BookingChannel;
+  /** "any" (default) lets any eligible partner claim it; "specific" reserves it for requestedPartnerId. */
+  assignmentMode?: AssignmentMode;
+  requestedPartnerId?: string;
 }
 
 export interface CreateWalkingBookingInput {
@@ -137,4 +180,6 @@ export interface CreateWalkingBookingInput {
   addressId: string;
   couponCode?: string;
   paymentMethod: PaymentMethod;
+  assignmentMode?: AssignmentMode;
+  requestedPartnerId?: string;
 }

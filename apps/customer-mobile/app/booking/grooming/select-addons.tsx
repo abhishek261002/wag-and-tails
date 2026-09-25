@@ -7,6 +7,7 @@ import { colors, spacing, typography, radii } from '@wag/design-tokens';
 import { wagApi } from '../../../src/lib/api';
 import { useBookingStore } from '../../../src/store/booking.store';
 import type { AddOn } from '@wag/shared-types';
+import { goBack } from '../../../src/lib/nav';
 
 export default function SelectAddOnsScreen() {
   const [addOns, setAddOns] = useState<AddOn[]>([]);
@@ -31,7 +32,7 @@ export default function SelectAddOnsScreen() {
   return (
     <SafeAreaView style={styles.safe}>
       <View style={styles.topBar}>
-        <TouchableOpacity onPress={() => router.back()} accessibilityLabel="Go back">
+        <TouchableOpacity onPress={() => goBack()} accessibilityLabel="Go back">
           <Text style={styles.back}>← Back</Text>
         </TouchableOpacity>
         <Text style={styles.title}>Add-ons</Text>

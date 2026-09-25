@@ -1,12 +1,14 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, TextInput } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, TextInput, Image } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button, SlideToComplete, LiveMapView, Icon } from '@wag/ui-mobile';
 import { colors, spacing, typography, radii } from '@wag/design-tokens';
-import { wagApi } from '../../src/lib/api';
+import { wagApi, resolveMediaUrl } from '../../src/lib/api';
+import { CollectPaymentCard } from '../../src/components/CollectPaymentCard';
 import * as ImagePicker from 'expo-image-picker';
 import { useJobLocationBroadcast } from '../../src/hooks/useJobLocationBroadcast';
+import { goBack } from '../../src/lib/nav';
 
 export default function WalkDetailScreen() {
   const { id: bookingId } = useLocalSearchParams<{ id: string }>();
@@ -14,6 +16,7 @@ export default function WalkDetailScreen() {
   const [elapsed, setElapsed] = useState(0);
   const [photos, setPhotos] = useState<string[]>([]);
   const [ending, setEnding] = useState(false);
+  const [beforeUploading, setBeforeUploading] = useState(false);
   const [transitioning, setTransitioning] = useState(false);
   const [otpInput, setOtpInput] = useState('');
   const [endOtpInput, setEndOtpInput] = useState('');
@@ -42,6 +45,7 @@ export default function WalkDetailScreen() {
     try {
       await wagApi.partner.markOnTheWay(bookingId!);
       await load();
+      router.push({ pathname: '/navigate/[id]', params: { id: bookingId! } } as any);
     } catch (err: any) {
       Alert.alert('Error', err?.message ?? 'Could not update status');
     } finally {
@@ -61,6 +65,28 @@ export default function WalkDetailScreen() {
     }
   };
 
+  // Server refuses the start code until a before-photo of the dog is on file.
+  const takeBeforePhoto = async () => {
+    const perm = await ImagePicker.requestCameraPermissionsAsync();
+    if (!perm.granted) {
+      Alert.alert('Camera needed', 'Allow camera access to photograph the dog before starting.');
+      return;
+    }
+    const res = await ImagePicker.launchCameraAsync({ quality: 0.7 });
+    if (res.canceled || !res.assets[0]) return;
+    const a = res.assets[0];
+    setBeforeUploading(true);
+    try {
+      const url = await wagApi.partner.uploadJobPhoto(bookingId!, { uri: a.uri, name: a.fileName ?? `photo-${Date.now()}.jpg`, type: a.mimeType ?? 'image/jpeg' });
+      await wagApi.partner.addBeforePhotos(bookingId!, [url]);
+      await load();
+    } catch (err: any) {
+      Alert.alert('Upload failed', err?.response?.data?.message ?? err?.message ?? 'Please try again.');
+    } finally {
+      setBeforeUploading(false);
+    }
+  };
+
   const handleVerifyOtp = async () => {
     if (otpInput.length < 4) return;
     setTransitioning(true);
@@ -69,7 +95,8 @@ export default function WalkDetailScreen() {
       setOtpInput('');
       await load();
     } catch (err: any) {
-      Alert.alert('Incorrect code', err?.message ?? 'Ask the customer for the code again.');
+      const data = err?.response?.data;
+      Alert.alert(data?.code === 'BEFORE_PHOTO_REQUIRED' ? 'Photo needed' : 'Incorrect code', data?.message ?? err?.message ?? 'Ask the customer for the code again.');
     } finally {
       setTransitioning(false);
     }
@@ -91,11 +118,14 @@ export default function WalkDetailScreen() {
     if (timerRef.current) clearInterval(timerRef.current);
     setEnding(true);
     try {
+      const uploaded: string[] = [];
+      for (const uri of photos) {
+        uploaded.push(await wagApi.partner.uploadJobPhoto(bookingId!, { uri, name: `walk-${Date.now()}.jpg`, type: 'image/jpeg' }));
+      }
       await wagApi.partner.completeJob(bookingId!, {
         otp: endOtpInput,
         checklistItems: [],
-        beforePhotos: [],
-        afterPhotos: photos,
+        afterPhotos: uploaded,
       });
       Alert.alert('Walk complete!', 'Great job! The customer has been notified.', [
         { text: 'OK', onPress: () => router.replace('/(tabs)/jobs') },
@@ -120,7 +150,7 @@ export default function WalkDetailScreen() {
   return (
     <SafeAreaView style={styles.safe}>
       <View style={styles.topBar}>
-        <TouchableOpacity onPress={() => router.back()} accessibilityLabel="Go back">
+        <TouchableOpacity onPress={() => goBack()} accessibilityLabel="Go back">
           <Text style={styles.back}>← Back</Text>
         </TouchableOpacity>
         <Text style={styles.pageTitle}>Dog Walk</Text>
@@ -218,11 +248,24 @@ export default function WalkDetailScreen() {
             <Button onPress={handleOnTheWay} loading={transitioning} fullWidth>On my way to pickup</Button>
           )}
           {status === 'partner_on_the_way' && (
-            <Button onPress={handleArrived} loading={transitioning} fullWidth>I've arrived</Button>
+            <View style={{ gap: 8 }}>
+              <Button variant="outline" onPress={() => router.push({ pathname: '/navigate/[id]', params: { id: bookingId! } } as any)} fullWidth>Open directions</Button>
+              <Button onPress={handleArrived} loading={transitioning} fullWidth>I've arrived</Button>
+            </View>
           )}
           {status === 'arrived' && (
             <View style={styles.otpCard}>
-              <Text style={styles.otpTitle}>Ask the customer for their code</Text>
+              <Text style={styles.otpTitle}>1. Photograph the dog</Text>
+              <Text style={styles.otpSubtitle}>A clear before-photo is required before the walk can start.</Text>
+              <View style={styles.photosRow}>
+                {((booking?.beforePhotos ?? []) as string[]).map((u: string, i: number) => (
+                  <Image key={i} source={{ uri: resolveMediaUrl(u) }} style={styles.photoThumb} />
+                ))}
+                <TouchableOpacity style={styles.addPhoto} onPress={takeBeforePhoto} disabled={beforeUploading} accessibilityLabel="Add before photo">
+                  <Text style={{ fontSize: 24, color: colors.textMuted }}>{beforeUploading ? '…' : '+'}</Text>
+                </TouchableOpacity>
+              </View>
+              <Text style={styles.otpTitle}>2. Ask the customer for their code</Text>
               <Text style={styles.otpSubtitle}>They see a 4-digit code once you accept. Enter it to start the walk.</Text>
               <TextInput
                 style={styles.otpInput}
@@ -233,7 +276,7 @@ export default function WalkDetailScreen() {
                 maxLength={4}
                 accessibilityLabel="Start code"
               />
-              <Button onPress={handleVerifyOtp} loading={transitioning} disabled={otpInput.length < 4} fullWidth>
+              <Button onPress={handleVerifyOtp} loading={transitioning} disabled={otpInput.length < 4 || ((booking?.beforePhotos ?? []) as string[]).length === 0} fullWidth>
                 Start walk
               </Button>
             </View>
@@ -253,6 +296,8 @@ export default function WalkDetailScreen() {
                   <Text style={styles.cannotCompleteText}>Add at least one photo from the walk first</Text>
                 </View>
               </View>
+            ) : booking?.paymentStatus !== 'paid' ? (
+              <CollectPaymentCard bookingId={bookingId!} amount={Number(booking?.total ?? 0)} onCollected={load} />
             ) : (
               <View style={styles.otpCard}>
                 <Text style={styles.otpTitle}>Ask the customer for their end code</Text>

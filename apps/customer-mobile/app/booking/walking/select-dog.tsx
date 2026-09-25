@@ -6,25 +6,31 @@ import { PetAvatar, Icon } from '@wag/ui-mobile';
 import { colors, spacing, typography, radii } from '@wag/design-tokens';
 import { wagApi, resolveMediaUrl } from '../../../src/lib/api';
 import { useBookingStore } from '../../../src/store/booking.store';
-import type { Pet } from '@wag/shared-types';
+import { speciesSupportsService, type Pet } from '@wag/shared-types';
+import { goBack } from '../../../src/lib/nav';
 
 export default function WalkSelectDogScreen() {
-  const [pets, setPets] = useState<Pet[]>([]);
+  const [allPets, setAllPets] = useState<Pet[]>([]);
+  const [loaded, setLoaded] = useState(false);
   const { updateWalkDraft } = useBookingStore();
 
   useEffect(() => {
-    wagApi.pets.list().then(setPets).catch(() => {});
+    wagApi.pets.list().then(setAllPets).catch(() => {}).finally(() => setLoaded(true));
   }, []);
 
+  // Walks are for dogs only; cats can still be booked for grooming.
+  const pets = allPets.filter((p) => !p.species || speciesSupportsService(p.species, 'walking'));
+  const onlyCats = loaded && allPets.length > 0 && pets.length === 0;
+
   const select = (pet: Pet) => {
-    updateWalkDraft({ petId: pet.id, pet });
+    updateWalkDraft({ petId: pet.id, pet, assignmentMode: 'any', requestedPartnerId: null, requestedPartnerName: null, requestedPartnerDiscountPct: null });
     router.push('/booking/walking/select-duration');
   };
 
   return (
     <SafeAreaView style={styles.safe}>
       <View style={styles.topBar}>
-        <TouchableOpacity onPress={() => router.back()} accessibilityLabel="Go back">
+        <TouchableOpacity onPress={() => goBack()} accessibilityLabel="Go back">
           <Text style={styles.back}>← Back</Text>
         </TouchableOpacity>
         <Text style={styles.title}>Who's going for a walk?</Text>
@@ -57,9 +63,14 @@ export default function WalkSelectDogScreen() {
         ListEmptyComponent={
           <View style={styles.empty}>
             <Icon name="paw" size={40} color={colors.textDisabled} />
-            <Text style={styles.emptyText}>No pets added yet</Text>
+            <Text style={styles.emptyText}>
+              {onlyCats ? 'Walks are available for dogs only' : 'No dogs added yet'}
+            </Text>
+            {onlyCats && (
+              <Text style={styles.emptySub}>Your cats can be booked for a grooming session instead.</Text>
+            )}
             <TouchableOpacity onPress={() => router.push('/pet/add')}>
-              <Text style={styles.addPet}>+ Add a pet first</Text>
+              <Text style={styles.addPet}>{onlyCats ? 'Add a dog' : 'Add a dog first'}</Text>
             </TouchableOpacity>
           </View>
         }
@@ -82,5 +93,6 @@ const styles = StyleSheet.create({
   chevron: { fontSize: 22, color: colors.textMuted },
   empty: { alignItems: 'center', paddingTop: spacing[16] },
   emptyText: { fontFamily: 'Inter', fontSize: 15, color: colors.textMuted, marginTop: spacing[3] },
+  emptySub: { fontFamily: 'Inter', fontSize: 13, color: colors.textMuted, marginTop: spacing[1], textAlign: 'center', paddingHorizontal: spacing[6] },
   addPet: { fontFamily: 'Inter', fontSize: 15, color: colors.marigoldDark, fontWeight: '700', marginTop: spacing[2] },
 });

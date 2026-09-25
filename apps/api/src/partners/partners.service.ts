@@ -1,12 +1,20 @@
-import { Injectable, NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
+import { Logger, Injectable, NotFoundException, ForbiddenException, BadRequestException, ConflictException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { RealtimeGateway } from '../realtime/realtime.gateway.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
 import { MessagingService } from '../messaging/messaging.service.js';
+import { DispatchService, claimableBy } from '../bookings/dispatch.service.js';
+import { CommissionService } from '../commission/commission.service.js';
+import { TrackingService } from '../routing/tracking.service.js';
 import { isLocationFilteringEnabled } from '../common/feature-flags.js';
 import { normalizeCity } from '../common/city.js';
 import { BUSINESS_CONFIG } from '@wag/config';
-import { BookingType, PartnerStatus, Prisma } from '@prisma/client';
+import { BookingType, PartnerStatus, PetSpecies, Prisma } from '@prisma/client';
+
+const MAX_JOB_PHOTOS = 10;
+// Photos come from our own upload endpoint (/files/upload -> /uploads/...); never accept device-local URIs.
+const isStoredPhotoUrl = (u: unknown): u is string =>
+  typeof u === 'string' && u.length <= 500 && (/^\/uploads\/[\w.\-]+$/.test(u) || /^https:\/\/[^\s]+$/.test(u));
 
 function generateOtp(): string {
   return String(Math.floor(1000 + Math.random() * 9000));
@@ -14,11 +22,16 @@ function generateOtp(): string {
 
 @Injectable()
 export class PartnersService {
+  private readonly logger = new Logger(PartnersService.name);
+
   constructor(
     private prisma: PrismaService,
     private realtime: RealtimeGateway,
     private notificationsService: NotificationsService,
-    private messagingService: MessagingService
+    private messagingService: MessagingService,
+    private dispatch: DispatchService,
+    private commission: CommissionService,
+    private tracking: TrackingService
   ) {}
 
   async getProfile(partnerId: string) {
@@ -32,15 +45,58 @@ export class PartnersService {
     });
     if (!partner) throw new NotFoundException('Partner profile not found');
     const { passwordHash, ...user } = partner.user;
-    return { ...partner, user };
+    const { aadhaarRefHash: _h, aadhaarNumber: _n, ...safe } = partner;
+    return { ...safe, user };
   }
 
-  async updateProfile(partnerId: string, data: Partial<{
-    serviceRadiusKm: number; modes: string[]; city: string;
-    bio: string; bankAccountNumber: string; ifscCode: string;
-    photoUrl: string; age: number; address: string; aadhaarNumber: string;
-  }>) {
-    return this.prisma.partnerProfile.update({ where: { userId: partnerId }, data });
+  // Partners may only change these fields themselves. Everything else (status, rating, KYC data,
+  // approval fields, job counts...) is controlled by staff or the system, so the request body is
+  // whitelisted field by field instead of being handed to Prisma as-is.
+  async updateProfile(partnerId: string, body: Record<string, unknown>) {
+    const data: Prisma.PartnerProfileUpdateInput = {};
+    const str = (v: unknown, max: number, field: string) => {
+      if (typeof v !== 'string' || v.length > max) throw new BadRequestException(`${field} is invalid`);
+      return v.trim();
+    };
+
+    if (body['serviceRadiusKm'] !== undefined) {
+      const n = Number(body['serviceRadiusKm']);
+      if (!Number.isInteger(n) || n < 1 || n > 50) throw new BadRequestException('serviceRadiusKm must be between 1 and 50');
+      data.serviceRadiusKm = n;
+    }
+    if (body['modes'] !== undefined) {
+      const modes = body['modes'];
+      if (!Array.isArray(modes) || modes.length === 0 || !modes.every((m) => m === 'grooming' || m === 'walking')) {
+        throw new BadRequestException('modes must be a non-empty list of grooming/walking');
+      }
+      data.modes = Array.from(new Set(modes as string[]));
+    }
+    if (body['petSpecies'] !== undefined) {
+      const sp = body['petSpecies'];
+      if (!Array.isArray(sp) || sp.length === 0 || !sp.every((x) => x === 'dog' || x === 'cat')) {
+        throw new BadRequestException('petSpecies must be a non-empty list of dog/cat');
+      }
+      data.petSpecies = Array.from(new Set(sp as string[]));
+    }
+    if (body['city'] !== undefined) data.city = str(body['city'], 80, 'city');
+    if (body['bio'] !== undefined) data.bio = str(body['bio'], 500, 'bio');
+    if (body['address'] !== undefined) data.address = str(body['address'], 300, 'address');
+    if (body['photoUrl'] !== undefined) data.photoUrl = str(body['photoUrl'], 500, 'photoUrl');
+    if (body['bankAccountNumber'] !== undefined) {
+      const v = str(body['bankAccountNumber'], 20, 'bankAccountNumber');
+      if (!/^\d{6,20}$/.test(v)) throw new BadRequestException('bankAccountNumber is invalid');
+      data.bankAccountNumber = v;
+    }
+    if (body['ifscCode'] !== undefined) {
+      const v = str(body['ifscCode'], 11, 'ifscCode').toUpperCase();
+      if (!/^[A-Z]{4}0[A-Z0-9]{6}$/.test(v)) throw new BadRequestException('ifscCode is invalid');
+      data.ifscCode = v;
+    }
+
+    if (Object.keys(data).length === 0) throw new BadRequestException('Nothing to update');
+    const updated = await this.prisma.partnerProfile.update({ where: { userId: partnerId }, data });
+    const { aadhaarRefHash: _h, aadhaarNumber: _n, ...safe } = updated;
+    return safe;
   }
 
   async setOnlineStatus(partnerId: string, online: boolean) {
@@ -50,37 +106,53 @@ export class PartnersService {
     });
   }
 
-  async updateLocation(partnerId: string, lat: number, lng: number, heading?: number) {
-    await this.prisma.partnerProfile.update({
-      where: { userId: partnerId },
-      data: { currentLat: lat, currentLng: lng },
-    });
+  // One update per partner per second at most: a misbehaving client cannot flood the database or the sockets.
+  private lastLocationAt = new Map<string, number>();
 
-    // Upsert real-time location record
+  async updateLocation(partnerId: string, lat: unknown, lng: unknown, heading?: unknown) {
+    const la = Number(lat), ln = Number(lng);
+    if (!Number.isFinite(la) || !Number.isFinite(ln) || Math.abs(la) > 90 || Math.abs(ln) > 180 || (la === 0 && ln === 0)) {
+      throw new BadRequestException('lat and lng must be a valid position');
+    }
+    let hd: number | null = null;
+    if (heading !== undefined && heading !== null) {
+      const h = Number(heading);
+      if (!Number.isFinite(h)) throw new BadRequestException('heading must be a number');
+      // Devices report -1 when they have no heading.
+      hd = h >= 0 && h <= 360 ? h : null;
+    }
+    const now = Date.now();
+    if (now - (this.lastLocationAt.get(partnerId) ?? 0) < 1000) return;
+    this.lastLocationAt.set(partnerId, now);
+    if (this.lastLocationAt.size > 5000) this.lastLocationAt.delete(this.lastLocationAt.keys().next().value as string);
+
+    await this.prisma.partnerProfile.update({ where: { userId: partnerId }, data: { currentLat: la, currentLng: ln } });
     await this.prisma.partnerLocation.upsert({
       where: { partnerId },
-      update: { lat, lng, heading: heading ?? null, updatedAt: new Date() },
-      create: { partnerId, lat, lng, heading: heading ?? null },
+      update: { lat: la, lng: ln, heading: hd, updatedAt: new Date() },
+      create: { partnerId, lat: la, lng: ln, heading: hd },
     });
 
-    // Broadcast to whichever booking this partner is actively on, so the
-    // customer's tracking screen (and the partner's own, for the mirrored
-    // view) updates live instead of polling.
+    // Broadcast to whichever booking this partner is actively on, so the customer's tracking screen (and the
+    // partner's own) updates live instead of polling. While the partner is heading there, the update carries
+    // an ETA and the distance left, so the customer sees "arriving in 8 min" without asking.
     const activeBooking = await this.prisma.booking.findFirst({
-      where: {
-        partnerId,
-        status: { in: ['assigned', 'accepted', 'partner_on_the_way', 'arrived', 'in_progress'] },
-      },
-      select: { id: true },
+      where: { partnerId, status: { in: ['assigned', 'accepted', 'partner_on_the_way', 'arrived', 'in_progress'] } },
+      select: { id: true, status: true, address: { select: { lat: true, lng: true } } },
     });
     if (activeBooking) {
+      const heading = ['assigned', 'accepted', 'partner_on_the_way'].includes(activeBooking.status);
+      const eta = heading && activeBooking.address
+        ? this.tracking.etaFor(activeBooking.id, { lat: la, lng: ln }, { lat: activeBooking.address.lat, lng: activeBooking.address.lng })
+        : null;
       this.realtime.emitToBooking(activeBooking.id, 'partner:location_updated', {
         partnerId,
         bookingId: activeBooking.id,
-        lat,
-        lng,
-        heading: heading ?? null,
+        lat: la,
+        lng: ln,
+        heading: hd,
         timestamp: new Date().toISOString(),
+        ...(eta ? { etaSeconds: Math.round(eta.seconds), distanceMeters: Math.round(eta.meters), etaApproximate: eta.approximate } : {}),
       });
     }
   }
@@ -91,6 +163,8 @@ export class PartnersService {
       include: { neighborhoods: true },
     });
     if (!partner || !partner.isOnline) return [];
+    // A partner over their commission limit sees no jobs until they pay (see CommissionService).
+    if (await this.commission.isBlocked(partnerId)) return [];
 
     // Jobs that need a partner and match this partner's mode and radius
     const validModes = partner.modes.filter((m): m is BookingType =>
@@ -100,9 +174,13 @@ export class PartnersService {
     const openBookings = await this.prisma.booking.findMany({
       where: {
         type: { in: validModes },
+        // Cats are groomed only, and not every groomer takes cats.
+        petSpecies: { in: (partner.petSpecies as PetSpecies[]) },
         status: 'needs_partner',
         partnerId: null,
         scheduledAt: { gte: new Date() },
+        // Jobs a customer reserved for another partner are invisible to everyone else.
+        ...claimableBy(partnerId),
       },
       include: {
         pet: true,
@@ -139,6 +217,7 @@ export class PartnersService {
         bookingId: b.id,
         type: b.type,
         petName: b.petName,
+        petSpecies: b.petSpecies,
         petBreed: b.petBreed,
         petSize: b.petSize,
         petWeightKg: b.pet?.weightKg ?? null,
@@ -155,27 +234,69 @@ export class PartnersService {
         durationMinutes: b.durationMinutes,
         partnerPayout: Math.round(Number(b.total) * (1 - BUSINESS_CONFIG.PLATFORM_COMMISSION_RATE)),
         status: b.status,
+        isDirectRequest: b.assignmentMode === 'specific',
+        requestExpiresAt: b.requestExpiresAt,
       }));
   }
 
-  async claimJob(bookingId: string, partnerId: string) {
-    const booking = await this.prisma.booking.findFirst({
-      where: { id: bookingId, status: 'needs_partner' },
-    });
-    if (!booking) throw new NotFoundException('Job not available');
-
-    const startOtp = generateOtp();
-    const updated = await this.prisma.booking.update({
-      where: { id: bookingId },
-      data: {
-        partnerId,
-        status: 'assigned',
-        startOtp,
-        statusHistory: {
-          create: { status: 'assigned', changedBy: partnerId, note: 'Partner claimed job' },
-        },
+  // The chosen partner declines a direct request. The customer is told and picks someone else.
+  async rejectJob(bookingId: string, partnerId: string) {
+    const res = await this.prisma.booking.updateMany({
+      where: {
+        id: bookingId,
+        assignmentMode: 'specific',
+        requestedPartnerId: partnerId,
+        partnerId: null,
+        requestOutcome: null,
+        status: { in: ['needs_partner', 'searching_partner'] },
       },
+      data: { requestOutcome: 'rejected' },
     });
+    if (res.count === 0) throw new NotFoundException('No pending request from this customer for you');
+    await this.dispatch.notifyRejected(bookingId);
+    return { rejected: true };
+  }
+
+  async claimJob(bookingId: string, partnerId: string) {
+    const [partner, booking] = await Promise.all([
+      this.prisma.partnerProfile.findUnique({ where: { userId: partnerId } }),
+      this.prisma.booking.findUnique({ where: { id: bookingId }, include: { address: true } }),
+    ]);
+    if (!partner || partner.status !== 'approved') {
+      throw new ForbiddenException('Your account must be approved before you can accept jobs');
+    }
+    await this.commission.assertCanTakeJobs(partnerId);
+    if (!booking || booking.status !== 'needs_partner' || booking.partnerId) {
+      throw new ConflictException({ code: 'JOB_TAKEN', message: 'This job is no longer available' });
+    }
+    if (!partner.modes.includes(booking.type)) {
+      throw new ForbiddenException(`Your profile is not set up for ${booking.type} jobs`);
+    }
+    if (booking.assignmentMode === 'specific' && booking.requestedPartnerId !== partnerId) {
+      throw new ConflictException({ code: 'JOB_RESERVED', message: 'The customer chose another partner for this job' });
+    }
+    if (!(partner.petSpecies as string[]).includes(booking.petSpecies)) {
+      throw new ForbiddenException(`You do not take ${booking.petSpecies} bookings`);
+    }
+    if (isLocationFilteringEnabled() && booking.address && partner.city && normalizeCity(booking.address.city) !== normalizeCity(partner.city)) {
+      throw new ForbiddenException('This job is outside your service city');
+    }
+
+    // Conditional update: of any number of partners tapping "Accept" at once, exactly one row matches.
+    const startOtp = generateOtp();
+    const claimed = await this.prisma.booking.updateMany({
+      where: { id: bookingId, status: 'needs_partner', partnerId: null, ...claimableBy(partnerId) },
+      data: { partnerId, status: 'assigned', startOtp },
+    });
+    if (claimed.count === 0) {
+      throw new ConflictException({ code: 'JOB_TAKEN', message: 'Another partner just accepted this job' });
+    }
+    await this.prisma.bookingStatusHistory.create({
+      data: { bookingId, status: 'assigned', changedBy: partnerId, note: 'Partner claimed job' },
+    });
+    // Price the job for this partner (their discount, if valid right now, and their commission split).
+    await this.commission.applyClaimPricing(bookingId, partnerId);
+    const updated = await this.prisma.booking.findUniqueOrThrow({ where: { id: bookingId } });
 
     await this.notifyAssigned(bookingId, partnerId);
     // Chat opens the moment a job is claimed, not on-demand when someone
@@ -183,6 +304,23 @@ export class PartnersService {
     // the instant the partner is assigned.
     await this.messagingService.getOrCreateConversation(bookingId, partnerId);
     return updated;
+  }
+
+  // Before-photos must be on file before the start code can be entered. Photos are uploaded through
+  // /files/upload first; this attaches their stored URLs to the booking.
+  async addBeforePhotos(bookingId: string, partnerId: string, urls: unknown) {
+    if (!Array.isArray(urls) || urls.length === 0 || !urls.every(isStoredPhotoUrl)) {
+      throw new BadRequestException('Send the uploaded photo URLs');
+    }
+    const booking = await this.prisma.booking.findFirst({
+      where: { id: bookingId, partnerId, status: { in: ['assigned', 'partner_on_the_way', 'arrived'] } },
+      select: { beforePhotos: true },
+    });
+    if (!booking) throw new NotFoundException('Job not found or not open for photos');
+    const merged = [...new Set([...booking.beforePhotos, ...urls])];
+    if (merged.length > MAX_JOB_PHOTOS) throw new BadRequestException(`At most ${MAX_JOB_PHOTOS} before-photos per job`);
+    const updated = await this.prisma.booking.update({ where: { id: bookingId }, data: { beforePhotos: merged }, select: { beforePhotos: true } });
+    return { beforePhotos: updated.beforePhotos };
   }
 
   private async notifyAssigned(bookingId: string, partnerId: string) {
@@ -299,6 +437,10 @@ export class PartnersService {
       where: { id: bookingId, partnerId, status: 'arrived' },
     });
     if (!booking) throw new NotFoundException('Job not awaiting start');
+    // Photo first, code second: proves the pet's condition on arrival before any work starts.
+    if (booking.beforePhotos.length === 0) {
+      throw new ConflictException({ code: 'BEFORE_PHOTO_REQUIRED', message: "Take a photo of the pet before starting the session" });
+    }
     if (!booking.startOtp || booking.startOtp !== otp) {
       throw new BadRequestException('Incorrect code');
     }
@@ -343,8 +485,37 @@ export class PartnersService {
     return updated;
   }
 
+  // COD-style: for a booking the customer has not paid online, the partner confirms they received the
+  // money (cash or UPI, for the full amount) before the job can be completed. That confirmation is what
+  // makes the company's commission due (see CommissionService.settle).
+  async collectPayment(bookingId: string, partnerId: string, method: unknown) {
+    if (method !== 'cash' && method !== 'upi') throw new BadRequestException('method must be "cash" or "upi"');
+    const booking = await this.prisma.booking.findFirst({ where: { id: bookingId, partnerId, status: 'in_progress' } });
+    if (!booking) throw new NotFoundException('Active job not found');
+    if (booking.paymentStatus === 'paid' && !booking.collectedAt) {
+      throw new ConflictException({ code: 'ALREADY_PAID_ONLINE', message: 'The customer already paid online. Nothing to collect.' });
+    }
+    // Only the first confirmation counts; a double tap is a no-op.
+    const res = await this.prisma.booking.updateMany({
+      where: { id: bookingId, partnerId, collectedAt: null, paymentStatus: { not: 'paid' } },
+      data: { collectedAt: new Date(), collectedMethod: method, collectedAmount: booking.total, paymentStatus: 'paid' },
+    });
+    const updated = await this.prisma.booking.findUniqueOrThrow({ where: { id: bookingId } });
+    if (res.count > 0) {
+      this.realtime.emitToBooking(bookingId, 'booking:payment_collected', {
+        bookingId, amount: Number(updated.total), method, collectedAt: updated.collectedAt!.toISOString(),
+      });
+      await this.notificationsService.sendPush(booking.customerId, {
+        title: 'Payment received',
+        body: `Your partner marked ₹${Number(updated.total)} as received (${method === 'cash' ? 'cash' : 'UPI'}). Thank you!`,
+        data: { type: 'booking:payment_collected', bookingId },
+      }).catch(() => {});
+    }
+    return { collected: true, amount: Number(updated.total), method: updated.collectedMethod };
+  }
+
   async completeJob(bookingId: string, partnerId: string, data: {
-    otp: string; checklistItems: string[]; beforePhotos: string[]; afterPhotos: string[];
+    otp: string; checklistItems: string[]; afterPhotos: string[];
   }) {
     const booking = await this.prisma.booking.findFirst({
       where: { id: bookingId, partnerId, status: 'in_progress' },
@@ -353,8 +524,19 @@ export class PartnersService {
     if (!booking.endOtp || booking.endOtp !== data.otp) {
       throw new BadRequestException('Incorrect code');
     }
-    if (!data.afterPhotos || data.afterPhotos.length === 0) {
+    // Unpaid (pay-after-service) jobs cannot be closed until the partner has confirmed the payment.
+    if (booking.paymentStatus !== 'paid') {
+      throw new ConflictException({
+        code: 'PAYMENT_NOT_COLLECTED',
+        message: `Collect ₹${Number(booking.total)} from the customer and mark it received before completing the job`,
+        amount: Number(booking.total),
+      });
+    }
+    if (!Array.isArray(data.afterPhotos) || data.afterPhotos.length === 0) {
       throw new BadRequestException('At least one after-photo is required to complete the job');
+    }
+    if (data.afterPhotos.length > MAX_JOB_PHOTOS || !data.afterPhotos.every(isStoredPhotoUrl)) {
+      throw new BadRequestException('After-photos must be uploaded before completing the job');
     }
 
     const updated = await this.prisma.booking.update({
@@ -363,7 +545,6 @@ export class PartnersService {
         status: 'completed',
         completedAt: new Date(),
         endOtp: null,
-        beforePhotos: data.beforePhotos,
         afterPhotos: data.afterPhotos,
         checklistCompleted: data.checklistItems,
         statusHistory: {
@@ -371,6 +552,10 @@ export class PartnersService {
         },
       },
     });
+
+    // Post the finished job to the money books (commission owed, or online payout). Idempotent; a failure
+    // here is retried by CommissionService.reconcile and must not fail the completion itself.
+    await this.commission.settle(bookingId).catch((e) => this.logger.error(`settle failed for ${bookingId}: ${e.message}`));
 
     if (booking.type === 'walking') {
       const session = await this.prisma.walkSession.findFirst({
@@ -398,16 +583,7 @@ export class PartnersService {
   }
 
   async getEarnings(partnerId: string) {
-    const payouts = await this.prisma.payout.findMany({
-      where: { partnerId },
-      orderBy: { createdAt: 'desc' },
-    });
-
-    const total = payouts.filter((p) => p.status === 'paid').reduce((s, p) => s + Number(p.netAmount), 0);
-    const pending = payouts.filter((p) => ['pending', 'requested'].includes(p.status))
-      .reduce((s, p) => s + Number(p.netAmount), 0);
-
-    return { total, pending, payouts: payouts.slice(0, 20) };
+    return this.commission.getEarnings(partnerId);
   }
 
   async getAvailability(partnerId: string) {
@@ -484,9 +660,11 @@ export class PartnersService {
       this.prisma.partnerProfile.count({ where }),
     ]);
 
+    // Never expose the Aadhaar hash or any legacy plaintext number; only the last 4 digits leave the server.
     const safeData = data.map((p) => {
       const { passwordHash, ...user } = p.user;
-      return { ...p, user };
+      const { aadhaarRefHash: _h, aadhaarNumber: _n, ...safe } = p;
+      return { ...safe, user };
     });
 
     return { data: safeData, total, page, pageSize };

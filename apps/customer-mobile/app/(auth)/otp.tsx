@@ -3,12 +3,13 @@ import {
   View, Text, StyleSheet, TextInput, TouchableOpacity,
   Alert, KeyboardAvoidingView, Platform,
 } from 'react-native';
-import { router, useLocalSearchParams } from 'expo-router';
+import { Redirect, router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button } from '@wag/ui-mobile';
 import { colors, spacing, typography, radii } from '@wag/design-tokens';
 import { wagApi } from '../../src/lib/api';
 import { useAuthStore } from '../../src/store/auth.store';
+import { goBack } from '../../src/lib/nav';
 
 const OTP_LENGTH = 6;
 
@@ -23,7 +24,7 @@ export default function OtpScreen() {
   const { setTokens } = useAuthStore();
 
   useEffect(() => {
-    sendOtp();
+    if (phone) sendOtp();
   }, []);
 
   useEffect(() => {
@@ -98,11 +99,14 @@ export default function OtpScreen() {
 
   const pinValue = otp.join('');
 
+  // Opened without a number (reload or stale deep link): start from the login screen.
+  if (!phone) return <Redirect href="/(auth)/login" />;
+
   return (
     <SafeAreaView style={styles.safe}>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <View style={styles.container}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+          <TouchableOpacity onPress={() => goBack('/(auth)/login')} style={styles.backBtn}>
             <Text style={styles.backText}>← Back</Text>
           </TouchableOpacity>
 

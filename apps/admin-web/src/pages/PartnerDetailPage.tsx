@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { PageHeader, KpiCard, Card, CardHeader, CardTitle, Table, Badge, Button, Icon, useToast, RatingChip } from '@wag/ui-web';
+import { PageHeader, KpiCard, Card, CardHeader, CardTitle, Table, Badge, Button, Icon, useToast, RatingChip, PartnerMoneyPanel } from '@wag/ui-web';
 import { wagApi, resolveMediaUrl } from '../lib/api';
 import { format } from 'date-fns';
 import { useAuthStore } from '../store/auth.store';
@@ -45,7 +45,16 @@ export default function PartnerDetailPage() {
   const name = partner.user?.profile ? `${partner.user.profile.firstName} ${partner.user.profile.lastName}` : '—';
 
   const documents = [
-    { name: 'Aadhaar', sub: partner.aadhaarNumber ?? 'Not submitted', ok: !!partner.aadhaarNumber },
+    {
+      name: 'Aadhaar',
+      sub: partner.aadhaarLast4
+        ? `XXXX XXXX ${partner.aadhaarLast4}${partner.kycStatus === 'verified' ? ' · verified via DigiLocker' : ' · not DigiLocker-verified (legacy)'}`
+        : 'Not submitted',
+      ok: partner.kycStatus === 'verified',
+    },
+    ...(partner.kycStatus === 'verified'
+      ? [{ name: 'Name on Aadhaar', sub: partner.kycName + (partner.kycNameMatch === false ? ' (does not match sign-up name)' : ''), ok: partner.kycNameMatch !== false }]
+      : []),
     { name: 'Photo ID', sub: partner.photoUrl ? 'Uploaded' : 'Not submitted', ok: !!partner.photoUrl },
     { name: 'Address', sub: partner.address ?? 'Not submitted', ok: !!partner.address },
     { name: 'Age verification', sub: partner.age ? `${partner.age} years` : 'Not submitted', ok: !!partner.age },
@@ -116,6 +125,9 @@ export default function PartnerDetailPage() {
               )}
             </div>
           </Card>
+        </div>
+        <div className="mt-4">
+          <PartnerMoneyPanel api={wagApi.client} partnerId={partner.userId} isAdmin />
         </div>
       </div>
     </div>

@@ -23,3 +23,5 @@ export type { IconName } from './icons.js';
 export { Logo } from './Logo.js';
 export { PageHeader, FilterChip, Toolbar, Banner, Kv, Tile, RatingChip, Divider } from './Chrome.js';
 export { BarChart, Donut } from './Charts.js';
+export { MoneySettingsCard, PartnerMoneyPanel } from './Money.js';
+export type { MoneyApi } from './Money.js';

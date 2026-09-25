@@ -1,3 +1,6 @@
+import { RoutingModule } from '../routing/routing.module.js';
+import { BookingsModule } from '../bookings/bookings.module.js';
+import { CommissionModule } from '../commission/commission.module.js';
 import { Module } from '@nestjs/common';
 import { PartnersService } from './partners.service.js';
 import { PartnersController } from './partners.controller.js';
@@ -6,7 +9,7 @@ import { NotificationsModule } from '../notifications/notifications.module.js';
 import { MessagingModule } from '../messaging/messaging.module.js';
 
 @Module({
-  imports: [RealtimeModule, NotificationsModule, MessagingModule],
+  imports: [RealtimeModule, NotificationsModule, MessagingModule, BookingsModule, CommissionModule, RoutingModule],
   providers: [PartnersService],
   controllers: [PartnersController],
   exports: [PartnersService],

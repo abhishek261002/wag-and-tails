@@ -69,6 +69,8 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
 
   clearTokens: async () => {
+    // Stop this device receiving the account's notifications (loaded lazily: push.ts imports this store).
+    await import('../lib/push').then((m) => m.unregisterPush()).catch(() => {});
     await Promise.all([
       storage.deleteItem(ACCESS_KEY),
       storage.deleteItem(REFRESH_KEY),

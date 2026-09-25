@@ -25,10 +25,22 @@ export class BookingsController {
     return this.bookingsService.listAll(filters);
   }
 
+  @Get('partner-options')
+  @Roles('customer')
+  partnerOptions(@CurrentUser() user: { sub: string }, @Query() query: { type?: string; petId?: string; addressId?: string }) {
+    return this.bookingsService.getPartnerOptions(user.sub, query);
+  }
+
   @Get(':id')
   @Roles('customer', 'partner', 'staff', 'admin')
   get(@Param('id') id: string, @CurrentUser() user: { sub: string; role: string }) {
     return this.bookingsService.getById(id, user.sub, user.role);
+  }
+
+  @Get(':id/route')
+  @Roles('customer', 'partner')
+  route(@Param('id') id: string, @CurrentUser() user: { sub: string; role: string }, @Query() q: { fromLat?: string; fromLng?: string }) {
+    return this.bookingsService.getRoute(id, user, q);
   }
 
   @Get(':id/history')
@@ -47,6 +59,17 @@ export class BookingsController {
   @Roles('customer')
   createWalking(@CurrentUser() user: { sub: string }, @Body() body: any) {
     return this.bookingsService.createWalkingBooking(user.sub, body);
+  }
+
+  @Post(':id/redispatch')
+  @Roles('customer')
+  @HttpCode(HttpStatus.OK)
+  redispatch(
+    @Param('id') id: string,
+    @CurrentUser() user: { sub: string },
+    @Body() body: { assignmentMode?: string; requestedPartnerId?: string }
+  ) {
+    return this.bookingsService.redispatch(id, user.sub, body);
   }
 
   @Patch(':id/reschedule')

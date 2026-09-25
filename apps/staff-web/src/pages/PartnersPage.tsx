@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { PageHeader, Badge, Button, Modal, useToast, FilterChip, Toolbar, Card, Table, TableStrong, RatingChip, Icon } from '@wag/ui-web';
+import { PageHeader, Badge, Button, Modal, useToast, FilterChip, Toolbar, Card, Table, TableStrong, RatingChip, Icon, PartnerMoneyPanel } from '@wag/ui-web';
 import { wagApi, resolveMediaUrl } from '../lib/api';
 import { format } from 'date-fns';
 
@@ -78,6 +78,7 @@ export default function PartnersPage() {
         open={!!selected}
         onClose={() => setSelected(null)}
         title="Partner application"
+        size="lg"
         footer={
           selected?.status === 'pending' ? (
             <>
@@ -107,16 +108,55 @@ export default function PartnersPage() {
               <Field label="Email" value={selected.user?.email ?? '—'} />
               <Field label="Age" value={selected.age ?? '—'} />
               <Field label="City" value={selected.city ?? '—'} />
-              <Field label="Modes" value={(selected.modes as string[])?.join(', ') || '—'} />
+              <Field label="Role" value={roleLabel(selected.modes)} />
               <Field label="Applied on" value={format(new Date(selected.createdAt), 'd MMM yyyy')} />
               <div className="col-span-2"><Field label="Address" value={selected.address ?? '—'} /></div>
-              <div className="col-span-2"><Field label="Aadhaar number" value={selected.aadhaarNumber ?? '—'} /></div>
+              <div className="col-span-2">
+                <Field
+                  label="Aadhaar"
+                  value={
+                    <span className="inline-flex flex-wrap items-center gap-2">
+                      <span>{selected.aadhaarLast4 ? `XXXX XXXX ${selected.aadhaarLast4}` : '—'}</span>
+                      {selected.kycStatus === 'verified' ? (
+                        <Badge variant="ok">Verified via DigiLocker{selected.kycVerifiedAt ? ` ${format(new Date(selected.kycVerifiedAt), 'd MMM yyyy')}` : ''}</Badge>
+                      ) : (
+                        <Badge variant="warn">Not DigiLocker-verified (legacy)</Badge>
+                      )}
+                    </span>
+                  }
+                />
+              </div>
+              {selected.kycStatus === 'verified' && (
+                <div className="col-span-2 rounded-xl bg-[#F9F1E9] p-3">
+                  <div className="text-xs font-semibold text-[#9A8878] uppercase tracking-wide mb-1">Name on Aadhaar</div>
+                  <div className="text-[#1C1006]">
+                    {selected.kycName}
+                    {selected.kycDob ? ` · born ${format(new Date(selected.kycDob), 'd MMM yyyy')}` : ''}
+                  </div>
+                  {selected.kycNameMatch === false && (
+                    <div className="mt-2 text-xs font-semibold text-[#B4520F]">
+                      This does not match the name entered at sign-up. Check before approving.
+                    </div>
+                  )}
+                </div>
+              )}
             </dl>
           </div>
+        )}
+        {selected && selected.status === 'approved' && (
+          <div className="mt-5"><PartnerMoneyPanel api={wagApi.client} partnerId={selected.userId} isAdmin={false} /></div>
         )}
       </Modal>
     </div>
   );
+}
+
+function roleLabel(modes: string[] | undefined): string {
+  const m = modes ?? [];
+  if (m.includes('grooming') && m.includes('walking')) return 'Groomer and walker';
+  if (m.includes('grooming')) return 'Groomer';
+  if (m.includes('walking')) return 'Walker';
+  return '—';
 }
 
 function Field({ label, value }: { label: string; value: React.ReactNode }) {

@@ -5,23 +5,21 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
-    "splash": {
-      "backgroundColor": "#4A1E0B"
-    },
     "ios": {
       "bundleIdentifier": "in.wagandtails.partner",
       "infoPlist": {
-        "NSLocationAlwaysAndWhenInUseUsageDescription": "Share your live location while on an active job.",
-        "NSLocationWhenInUseUsageDescription": "Share your location with customers during jobs.",
-        "NSCameraUsageDescription": "Take before/after photos for grooming jobs and walk photos."
+        "NSLocationWhenInUseUsageDescription": "Share your live location with the customer and get directions while you are on a job.",
+        "NSCameraUsageDescription": "Take before/after photos for grooming jobs and walk photos.",
+        "NSPhotoLibraryUsageDescription": "Choose photos to attach to a job, such as before and after grooming photos.",
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
       "package": "in.wagandtails.partner",
       "permissions": [
         "ACCESS_FINE_LOCATION",
-        "ACCESS_BACKGROUND_LOCATION",
-        "CAMERA"
+        "CAMERA",
+        "ACCESS_COARSE_LOCATION"
       ]
     },
     "web": {
@@ -30,9 +28,20 @@
     "plugins": [
       "expo-router",
       "expo-secure-store",
-      "expo-location",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Share your live location with the customer and get directions while you are on a job."
+        }
+      ],
       "expo-notifications",
-      "expo-splash-screen"
+      "expo-web-browser",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#4A1E0B"
+        }
+      ]
     ],
     "scheme": "wagandtailspartner",
     "extra": {

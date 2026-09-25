@@ -20,6 +20,7 @@ export default function HomeScreen() {
   const [pastBookings, setPastBookings] = useState<AnyBooking[]>([]);
   const [profile, setProfile] = useState<any>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
 
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
@@ -32,6 +33,7 @@ export default function HomeScreen() {
         wagApi.bookings.list({ page: 1, pageSize: 4, status: 'completed' }),
         wagApi.client.get('/users/me').catch(() => null),
       ]);
+      wagApi.client.get<{ count: number }>('/notifications/unread-count').then((r) => setUnreadCount(r.count)).catch(() => {});
       setPets(petsData);
       setProfile(me);
       if (!selectedPetId && petsData.length > 0) setSelectedPetId(petsData[0]!.id);
@@ -89,6 +91,9 @@ export default function HomeScreen() {
               accessibilityLabel="Notifications"
             >
               <Icon name="bell" size={19} color={colors.white} />
+              {unreadCount > 0 && (
+                <View style={styles.bellBadge}><Text style={styles.bellBadgeText}>{unreadCount > 9 ? '9+' : unreadCount}</Text></View>
+              )}
             </TouchableOpacity>
           </View>
 
@@ -283,6 +288,8 @@ const styles = StyleSheet.create({
   heroName: { fontFamily: 'PlusJakartaSans-ExtraBold', fontSize: 23, fontWeight: '800', color: colors.white, marginTop: 2, letterSpacing: -0.4 },
   heroLoc: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: spacing[2], alignSelf: 'flex-start' },
   heroLocText: { fontFamily: 'Inter', fontSize: 12, fontWeight: '500', color: 'rgba(255,255,255,0.72)', maxWidth: 200 },
+  bellBadge: { position: 'absolute', top: -2, right: -2, minWidth: 16, height: 16, borderRadius: 8, backgroundColor: colors.error, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 3 },
+  bellBadgeText: { fontFamily: 'Inter', fontSize: 10, fontWeight: '800', color: colors.white },
   bellBtn: { width: 38, height: 38, borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.14)', alignItems: 'center', justifyContent: 'center' },
   petSwitch: { marginTop: spacing[4] },
   petItem: { alignItems: 'center', width: 66 },

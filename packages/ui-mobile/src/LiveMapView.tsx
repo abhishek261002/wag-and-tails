@@ -11,9 +11,7 @@ import type { LiveMapViewProps } from './LiveMapView.types';
 // which needs its own API key via the RN Maps config plugin, separate
 // from Ola Maps) with a <UrlTile> raster overlay on top for the actual
 // Ola/OSM tiles, matching mapsConfig's fallback logic. This path hasn't
-// been exercised in this environment (Expo managed workflow, tested via
-// --web only) — it's wired up for whenever a native/dev-client build
-// becomes the target, per the same tradeoff as the old text placeholder.
+// been exercised on a device in this environment.
 function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {
   const R = 6371;
   const toRad = (d: number) => (d * Math.PI) / 180;
@@ -25,30 +23,64 @@ function haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): nu
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-export function LiveMapView({ partner, destination, height = 240 }: LiveMapViewProps) {
-  const mapRef = useRef<MapView>(null);
+export function etaLabel(seconds: number): string {
+  const min = Math.max(1, Math.round(seconds / 60));
+  if (min < 60) return `${min} min`;
+  return `${Math.floor(min / 60)} h ${min % 60} min`;
+}
 
+const MOVE_MS = 900;
+
+export function LiveMapView({ partner, destination, height = 240, route, etaSeconds, follow = false, onUserPan }: LiveMapViewProps) {
+  const mapRef = useRef<MapView>(null);
+  const markerRef = useRef<any>(null);
+  const firstFix = useRef(true);
+
+  // Frame both ends, unless we are following the partner around in navigation mode.
   useEffect(() => {
-    if (!mapRef.current) return;
+    if (!mapRef.current || follow) return;
     const points = [partner, destination].filter(Boolean) as { lat: number; lng: number }[];
     if (points.length === 0) return;
     mapRef.current.fitToCoordinates(
       points.map((p) => ({ latitude: p.lat, longitude: p.lng })),
       { edgePadding: { top: 60, right: 60, bottom: 60, left: 60 }, animated: true }
     );
-  }, [partner?.lat, partner?.lng, destination?.lat, destination?.lng]);
+  }, [follow, partner?.lat, partner?.lng, destination?.lat, destination?.lng]);
+
+  // Navigation mode: centre on the partner and turn with their heading, like a driving app.
+  useEffect(() => {
+    if (!follow || !partner || !mapRef.current) return;
+    mapRef.current.animateCamera(
+      { center: { latitude: partner.lat, longitude: partner.lng }, heading: partner.heading ?? 0, pitch: 45, zoom: 17 },
+      { duration: 800 }
+    );
+  }, [follow, partner?.lat, partner?.lng, partner?.heading]);
+
+  // Glide the marker to each new fix instead of jumping, so it looks like continuous movement.
+  useEffect(() => {
+    if (!partner) return;
+    if (firstFix.current) { firstFix.current = false; return; }
+    try {
+      markerRef.current?.animateMarkerToCoordinate?.({ latitude: partner.lat, longitude: partner.lng }, MOVE_MS);
+    } catch {
+      // Falls back to the declarative coordinate below.
+    }
+  }, [partner?.lat, partner?.lng]);
 
   const distanceKm = partner && destination
     ? haversineKm(partner.lat, partner.lng, destination.lat, destination.lng)
     : null;
 
   const initialCenter = partner ?? destination;
+  const hasRoute = !!route && route.length >= 2;
 
   return (
     <View style={[styles.wrap, { height }]}>
       <MapView
         ref={mapRef}
-        style={StyleSheet.absoluteFillObject}
+        style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0 }}
+        onPanDrag={onUserPan}
+        showsCompass={!follow}
         initialRegion={
           initialCenter
             ? { latitude: initialCenter.lat, longitude: initialCenter.lng, latitudeDelta: 0.05, longitudeDelta: 0.05 }
@@ -56,9 +88,31 @@ export function LiveMapView({ partner, destination, height = 240 }: LiveMapViewP
         }
       >
         <UrlTile urlTemplate={getNativeTileUrlTemplate()} maximumZ={19} flipY={false} />
+        {hasRoute ? (
+          <>
+            <Polyline coordinates={route!.map((p) => ({ latitude: p.lat, longitude: p.lng }))} strokeColor="#FFFFFF" strokeWidth={9} />
+            <Polyline coordinates={route!.map((p) => ({ latitude: p.lat, longitude: p.lng }))} strokeColor="#2563EB" strokeWidth={5} />
+          </>
+        ) : (
+          partner && destination && (
+            <Polyline
+              coordinates={[{ latitude: partner.lat, longitude: partner.lng }, { latitude: destination.lat, longitude: destination.lng }]}
+              strokeColor="#8B5E34"
+              strokeWidth={3}
+              lineDashPattern={[6, 4]}
+            />
+          )
+        )}
         {partner && (
-          <Marker coordinate={{ latitude: partner.lat, longitude: partner.lng }} title={partner.label} rotation={partner.heading ?? 0} anchor={{ x: 0.5, y: 0.5 }}>
-            <Text style={{ fontSize: 28 }}>🐾</Text>
+          <Marker
+            ref={markerRef}
+            coordinate={{ latitude: partner.lat, longitude: partner.lng }}
+            title={partner.label}
+            rotation={follow ? 0 : partner.heading ?? 0}
+            flat
+            anchor={{ x: 0.5, y: 0.5 }}
+          >
+            <Text style={{ fontSize: 28 }}>{follow ? '🔵' : '🐾'}</Text>
           </Marker>
         )}
         {destination && (
@@ -66,18 +120,12 @@ export function LiveMapView({ partner, destination, height = 240 }: LiveMapViewP
             <Text style={{ fontSize: 26 }}>📍</Text>
           </Marker>
         )}
-        {partner && destination && (
-          <Polyline
-            coordinates={[{ latitude: partner.lat, longitude: partner.lng }, { latitude: destination.lat, longitude: destination.lng }]}
-            strokeColor="#8B5E34"
-            strokeWidth={3}
-            lineDashPattern={[6, 4]}
-          />
-        )}
       </MapView>
-      {distanceKm != null && (
+      {(etaSeconds != null || distanceKm != null) && (
         <View style={styles.distancePill}>
-          <Text style={styles.distanceText}>{distanceKm < 1 ? `${Math.round(distanceKm * 1000)} m` : `${distanceKm.toFixed(1)} km`} away</Text>
+          <Text style={styles.distanceText}>
+            {etaSeconds != null ? `Arriving in ${etaLabel(etaSeconds)}` : distanceKm! < 1 ? `${Math.round(distanceKm! * 1000)} m away` : `${distanceKm!.toFixed(1)} km away`}
+          </Text>
         </View>
       )}
     </View>

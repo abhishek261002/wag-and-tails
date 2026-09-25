@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
-import { router, useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Badge, Icon } from '@wag/ui-mobile';
 import { colors, spacing, radii } from '@wag/design-tokens';
 import { wagApi } from '../../../src/lib/api';
 import { format } from 'date-fns';
+import { goBack } from '../../../src/lib/nav';
 
 export default function PartnerOrderDetailScreen() {
   const { id: orderId } = useLocalSearchParams<{ id: string }>();
@@ -37,7 +38,7 @@ export default function PartnerOrderDetailScreen() {
   return (
     <SafeAreaView style={styles.safe}>
       <View style={styles.topBar}>
-        <TouchableOpacity onPress={() => router.back()} accessibilityLabel="Go back">
+        <TouchableOpacity onPress={() => goBack()} accessibilityLabel="Go back">
           <Text style={styles.back}>← Back</Text>
         </TouchableOpacity>
         <Text style={styles.title}>Order Details</Text>

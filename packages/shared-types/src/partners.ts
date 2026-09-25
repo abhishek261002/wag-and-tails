@@ -1,3 +1,4 @@
+import type { DuesStatus, EarningsJob } from './commission.js';
 export type PartnerMode = 'grooming' | 'walking';
 export type PartnerStatus = 'pending' | 'approved' | 'suspended' | 'rejected';
 export type PartnerAvailabilityDay = 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun';
@@ -44,12 +45,19 @@ export interface PartnerDocument {
 }
 
 export interface PartnerEarnings {
-  partnerId: string;
-  totalEarnings: number;
-  pendingPayout: number;
-  lastPayoutAt: string | null;
-  thisMonth: number;
-  thisWeek: number;
+  /** Paid out so far / waiting to be paid out (payouts of online bookings). */
+  total: number;
+  pending: number;
+  payouts: Array<{ id: string; netAmount: number | string; status: string; createdAt: string }>;
+  completedJobs: number;
+  /** What customers paid for completed jobs, and how it splits at each job's own ratio. */
+  totalCollected: number;
+  yourShare: number;
+  companyShare: number;
+  collectedInCash: number;
+  collectedOnline: number;
+  dues: DuesStatus;
+  recent: EarningsJob[];
 }
 
 export interface PayoutRequest {
@@ -65,6 +73,7 @@ export interface PartnerJobCard {
   bookingId: string;
   type: 'grooming' | 'walking';
   petName: string;
+  petSpecies?: 'dog' | 'cat';
   petBreed: string;
   petSize: string;
   petWeightKg: number | null;
@@ -79,4 +88,7 @@ export interface PartnerJobCard {
   durationMinutes?: number;
   partnerPayout: number;
   status: string;
+  /** The customer chose this partner specifically; declining tells the customer to pick someone else. */
+  isDirectRequest?: boolean;
+  requestExpiresAt?: string | null;
 }

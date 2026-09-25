@@ -7,6 +7,7 @@ import { colors, spacing, radii } from '@wag/design-tokens';
 import { wagApi } from '../../src/lib/api';
 import type { SupportTicket } from '@wag/api-client';
 import { formatDistanceToNow } from 'date-fns';
+import { goBack } from '../../src/lib/nav';
 
 const FAQS = [
   { q: 'How do I cancel a booking?', a: 'Open the booking from My Bookings and tap Cancel. Free cancellation is available up to 4 hours before the appointment.' },
@@ -54,7 +55,7 @@ export default function SupportScreen() {
   return (
     <SafeAreaView style={styles.safe}>
       <View style={styles.topBar}>
-        <TouchableOpacity onPress={() => router.back()} accessibilityLabel="Go back">
+        <TouchableOpacity onPress={() => goBack()} accessibilityLabel="Go back">
           <Text style={styles.back}>← Back</Text>
         </TouchableOpacity>
         <Text style={styles.title}>Help & Support</Text>

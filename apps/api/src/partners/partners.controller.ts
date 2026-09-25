@@ -1,5 +1,5 @@
 import {
-  Controller, Get, Post, Patch, Put, Param, Body, Query, UseGuards
+  Controller, Get, Post, Patch, Put, Param, Body, Query, UseGuards, HttpCode
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
@@ -53,6 +53,13 @@ export class PartnersController {
     return this.partnersService.claimJob(bookingId, user.sub);
   }
 
+  @Post('jobs/:bookingId/reject')
+  @Roles('partner')
+  @HttpCode(200)
+  rejectJob(@Param('bookingId') bookingId: string, @CurrentUser() user: { sub: string }) {
+    return this.partnersService.rejectJob(bookingId, user.sub);
+  }
+
   @Get('jobs/mine')
   @Roles('partner')
   getMyJobs(@CurrentUser() user: { sub: string }, @Query('status') status?: string) {
@@ -71,6 +78,16 @@ export class PartnersController {
     return this.partnersService.markArrived(bookingId, user.sub);
   }
 
+  @Post('jobs/:bookingId/before-photos')
+  @Roles('partner')
+  addBeforePhotos(
+    @Param('bookingId') bookingId: string,
+    @CurrentUser() user: { sub: string },
+    @Body() body: { urls: string[] }
+  ) {
+    return this.partnersService.addBeforePhotos(bookingId, user.sub, body?.urls);
+  }
+
   @Patch('jobs/:bookingId/verify-start')
   @Roles('partner')
   verifyStartOtp(
@@ -79,6 +96,17 @@ export class PartnersController {
     @Body() body: { otp: string }
   ) {
     return this.partnersService.verifyStartOtp(bookingId, user.sub, body.otp);
+  }
+
+  @Post('jobs/:bookingId/collect-payment')
+  @Roles('partner')
+  @HttpCode(200)
+  collectPayment(
+    @Param('bookingId') bookingId: string,
+    @CurrentUser() user: { sub: string },
+    @Body() body: { method?: string }
+  ) {
+    return this.partnersService.collectPayment(bookingId, user.sub, body?.method);
   }
 
   @Patch('jobs/:bookingId/complete')

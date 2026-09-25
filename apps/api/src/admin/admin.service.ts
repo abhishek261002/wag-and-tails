@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, BadRequestException, ConflictException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { startOfMonth, subMonths, endOfMonth, subDays, format } from 'date-fns';
 import { UserRole } from '@prisma/client';
@@ -199,19 +199,49 @@ export class AdminService {
     };
   }
 
+  private cleanSku(sku: unknown): string | null | undefined {
+    if (sku === undefined) return undefined;
+    const v = String(sku ?? '').trim();
+    if (!v) return null;
+    if (!/^[A-Za-z0-9][A-Za-z0-9._\-/]{0,63}$/.test(v)) throw new BadRequestException('SKU may only contain letters, digits and . _ - / (max 64 characters)');
+    return v;
+  }
+
+  private async saveProduct<T>(run: () => Promise<T>): Promise<T> {
+    try {
+      return await run();
+    } catch (err) {
+      if ((err as any)?.code === 'P2002') throw new ConflictException('A product with this SKU already exists');
+      throw err;
+    }
+  }
+
   async manageProduct(data: {
-    categoryId: string; name: string; slug?: string; description?: string;
+    categoryId: string; name: string; slug?: string; sku?: string; description?: string;
     mrp: number; retailPrice: number; tradePrice: number;
     tags?: string[]; allergyWarnings?: string[];
   }) {
     const slug = data.slug ?? data.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') + '-' + Date.now();
-    return this.prisma.product.create({ data: { ...data, slug, isActive: true } });
+    const sku = this.cleanSku(data.sku);
+    return this.saveProduct(() => this.prisma.product.create({ data: { ...data, sku: sku ?? null, slug, isActive: true } }));
   }
 
-  async updateProduct(productId: string, data: Partial<{
-    name: string; mrp: number; retailPrice: number; tradePrice: number; isActive: boolean;
-  }>) {
-    return this.prisma.product.update({ where: { id: productId }, data });
+  async updateProduct(productId: string, data: Record<string, unknown>) {
+    // Whitelist: the edit form posts the whole product (including relations), which must not reach the database.
+    const d: Record<string, unknown> = {};
+    for (const k of ['name', 'description', 'categoryId', 'tags', 'allergyWarnings', 'imageUrls', 'isActive']) {
+      if (data[k] !== undefined) d[k] = data[k];
+    }
+    for (const k of ['mrp', 'retailPrice', 'tradePrice']) {
+      if (data[k] !== undefined) {
+        const n = Number(data[k]);
+        if (!Number.isFinite(n) || n < 0 || n > 10_000_000) throw new BadRequestException(`${k} is not a valid amount`);
+        d[k] = n;
+      }
+    }
+    const sku = this.cleanSku(data['sku']);
+    if (sku !== undefined) d['sku'] = sku;
+    return this.saveProduct(() => this.prisma.product.update({ where: { id: productId }, data: d as any }));
   }
 
   async updateWalkPricing(pricingId: string, price: number) {

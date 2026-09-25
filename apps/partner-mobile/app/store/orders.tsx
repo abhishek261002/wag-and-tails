@@ -6,6 +6,7 @@ import { Card, Badge, Icon } from '@wag/ui-mobile';
 import { colors, spacing, radii } from '@wag/design-tokens';
 import { wagApi } from '../../src/lib/api';
 import { format } from 'date-fns';
+import { goBack } from '../../src/lib/nav';
 
 const STATUS_VARIANT: Record<string, 'success' | 'warning' | 'error' | 'info'> = {
   placed: 'info',
@@ -29,7 +30,7 @@ export default function PartnerOrdersScreen() {
   return (
     <SafeAreaView style={styles.safe}>
       <View style={styles.topBar}>
-        <TouchableOpacity onPress={() => router.back()} accessibilityLabel="Go back">
+        <TouchableOpacity onPress={() => goBack()} accessibilityLabel="Go back">
           <Text style={styles.back}>← Back</Text>
         </TouchableOpacity>
         <Text style={styles.title}>My Orders</Text>

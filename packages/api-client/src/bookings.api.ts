@@ -8,6 +8,8 @@ import type {
   CreateGroomingBookingInput,
   CreateWalkingBookingInput,
   BookingStatusHistory,
+  PartnerOption,
+  RouteResponse,
 } from '@wag/shared-types';
 
 export interface PaginatedResponse<T> {
@@ -28,6 +30,22 @@ export interface BookingFilters {
 
 export class BookingsApi {
   constructor(private client: ApiClient) {}
+
+  // Partner cards for checkout: everyone eligible, past partners flagged and listed first.
+  getPartnerOptions(params: { type: 'grooming' | 'walking'; petId: string; addressId: string }): Promise<PartnerOption[]> {
+    return this.client.get('/bookings/partner-options', { params });
+  }
+
+  // After a chosen partner declined or did not answer: pick again (or fall back to "anyone").
+  redispatch(bookingId: string, data: { assignmentMode: 'any' | 'specific'; requestedPartnerId?: string }): Promise<GroomingBooking | WalkingBooking> {
+    return this.client.post(`/bookings/${bookingId}/redispatch`, data);
+  }
+
+  // The road route from the partner to the booking address. Partners get turn steps; customers get the line and ETA.
+  // Partners pass their live position so the route starts exactly where they are.
+  getRoute(bookingId: string, from?: { lat: number; lng: number }): Promise<RouteResponse> {
+    return this.client.get(`/bookings/${bookingId}/route`, { params: from ? { fromLat: from.lat, fromLng: from.lng } : undefined });
+  }
 
   // Catalogue
   getPackages(): Promise<GroomingPackage[]> {

@@ -7,6 +7,7 @@ import { colors, spacing, typography, radii } from '@wag/design-tokens';
 import { wagApi, resolveMediaUrl } from '../../../src/lib/api';
 import { useBookingStore } from '../../../src/store/booking.store';
 import type { Pet } from '@wag/shared-types';
+import { goBack } from '../../../src/lib/nav';
 
 export default function SelectPetScreen() {
   const { petId: preselected } = useLocalSearchParams<{ petId?: string }>();
@@ -26,14 +27,14 @@ export default function SelectPetScreen() {
   }, [preselected, pets]);
 
   const selectPet = (pet: Pet) => {
-    updateGroomingDraft({ petId: pet.id, pet });
+    updateGroomingDraft({ petId: pet.id, pet, assignmentMode: 'any', requestedPartnerId: null, requestedPartnerName: null, requestedPartnerDiscountPct: null });
     router.push('/booking/grooming/select-package');
   };
 
   return (
     <SafeAreaView style={styles.safe}>
       <View style={styles.topBar}>
-        <TouchableOpacity onPress={() => router.back()}>
+        <TouchableOpacity onPress={() => goBack()}>
           <Text style={styles.backText}>← Back</Text>
         </TouchableOpacity>
         <Text style={styles.title}>Select a pet</Text>

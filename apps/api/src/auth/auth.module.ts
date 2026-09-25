@@ -5,6 +5,7 @@ import { AuthService } from './auth.service.js';
 import { AuthController } from './auth.controller.js';
 import { JwtStrategy } from './jwt.strategy.js';
 import { OtpService } from './otp.service.js';
+import { KycService } from '../kyc/kyc.service.js';
 
 @Module({
   imports: [
@@ -16,8 +17,8 @@ import { OtpService } from './otp.service.js';
       }),
     }),
   ],
-  providers: [AuthService, JwtStrategy, OtpService],
+  providers: [AuthService, JwtStrategy, OtpService, KycService],
   controllers: [AuthController],
-  exports: [AuthService, JwtModule],
+  exports: [AuthService, JwtModule, KycService],
 })
 export class AuthModule {}

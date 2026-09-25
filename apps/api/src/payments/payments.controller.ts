@@ -13,26 +13,28 @@ export class PaymentsController {
   constructor(private paymentsService: PaymentsService) {}
 
   @Post('orders')
-  @Roles('customer', 'partner')
+  @Roles('customer')
   createPaymentOrder(
     @CurrentUser() user: { sub: string },
-    @Body() body: { bookingId?: string; orderId?: string; amount: number }
+    @Body() body: { bookingId?: string; orderId?: string }
   ) {
-    return this.paymentsService.createPaymentOrder(
-      body.bookingId ?? null,
-      body.orderId ?? null,
-      user.sub,
-      body.amount
-    );
+    return this.paymentsService.createPaymentOrder(body.bookingId ?? null, body.orderId ?? null, user.sub);
   }
 
   @Patch(':id/confirm')
-  @Roles('customer', 'partner', 'staff', 'admin')
+  @Roles('customer')
   confirm(
     @Param('id') id: string,
-    @Body() body: { method: string; providerPaymentId?: string }
+    @CurrentUser() user: { sub: string; role: string },
+    @Body() body: { method: string; providerPaymentId?: string; signature?: string }
   ) {
-    return this.paymentsService.confirmPayment(id, body.method, body.providerPaymentId);
+    return this.paymentsService.confirmPayment(user, id, body.method, body.providerPaymentId, body.signature);
+  }
+
+  @Post('bookings/:bookingId/pay-after-service')
+  @Roles('customer')
+  payAfterService(@Param('bookingId') bookingId: string, @CurrentUser() user: { sub: string }) {
+    return this.paymentsService.confirmPayAfterService(user.sub, bookingId);
   }
 
   @Post(':id/refund')

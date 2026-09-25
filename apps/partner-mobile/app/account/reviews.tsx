@@ -1,11 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity } from 'react-native';
-import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, spacing, radii } from '@wag/design-tokens';
 import { Icon } from '@wag/ui-mobile';
 import { wagApi } from '../../src/lib/api';
 import { format } from 'date-fns';
+import { goBack } from '../../src/lib/nav';
 
 export default function ReviewsScreen() {
   const [reviews, setReviews] = useState<any[]>([]);
@@ -21,7 +21,7 @@ export default function ReviewsScreen() {
   return (
     <SafeAreaView style={styles.safe}>
       <View style={styles.topBar}>
-        <TouchableOpacity onPress={() => router.back()} accessibilityLabel="Go back"><Text style={styles.back}>← Back</Text></TouchableOpacity>
+        <TouchableOpacity onPress={() => goBack()} accessibilityLabel="Go back"><Text style={styles.back}>← Back</Text></TouchableOpacity>
         <Text style={styles.title}>Reviews</Text>
         <View style={{ width: 50 }} />
       </View>

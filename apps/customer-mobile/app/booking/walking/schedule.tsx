@@ -8,6 +8,8 @@ import { useBookingStore } from '../../../src/store/booking.store';
 import { useActiveSearchStore } from '../../../src/store/activeSearch.store';
 import { wagApi } from '../../../src/lib/api';
 import { addDays, format, setHours, setMinutes, startOfDay } from 'date-fns';
+import { PartnerChoice } from '../../../src/components/PartnerChoice';
+import { goBack } from '../../../src/lib/nav';
 
 export default function WalkScheduleScreen() {
   const { walkDraft, updateWalkDraft } = useBookingStore();
@@ -65,6 +67,8 @@ export default function WalkScheduleScreen() {
         scheduledAt: scheduledAt ?? undefined,
         addressId: selectedAddressId,
         paymentMethod: walkDraft.paymentMethod,
+        assignmentMode: walkDraft.assignmentMode,
+        requestedPartnerId: walkDraft.requestedPartnerId ?? undefined,
       });
 
       if (scheduleNow) {
@@ -90,7 +94,13 @@ export default function WalkScheduleScreen() {
         router.replace({ pathname: '/booking/confirmed', params: { id: booking.id } } as any);
       }
     } catch (err: any) {
-      Alert.alert('Booking failed', err?.message ?? 'Please try again');
+      const data = err?.response?.data;
+      if (data?.code === 'PARTNER_NOT_AVAILABLE') {
+        updateWalkDraft({ assignmentMode: 'any', requestedPartnerId: null, requestedPartnerName: null, requestedPartnerDiscountPct: null });
+        Alert.alert('Walker unavailable', `${data.message}. Please choose another walker or let anyone accept.`);
+      } else {
+        Alert.alert('Booking failed', data?.message ?? err?.message ?? 'Please try again');
+      }
     } finally {
       setLoading(false);
     }
@@ -99,7 +109,7 @@ export default function WalkScheduleScreen() {
   return (
     <SafeAreaView style={styles.safe}>
       <View style={styles.topBar}>
-        <TouchableOpacity onPress={() => router.back()} accessibilityLabel="Go back">
+        <TouchableOpacity onPress={() => goBack()} accessibilityLabel="Go back">
           <Text style={styles.back}>← Back</Text>
         </TouchableOpacity>
         <Text style={styles.title}>Schedule Walk</Text>
@@ -182,6 +192,21 @@ export default function WalkScheduleScreen() {
             </TouchableOpacity>
           );
         })}
+
+        {/* Who walks */}
+        <Text style={[styles.sectionLabel, { marginTop: spacing[4] }]}>WHO SHOULD WALK?</Text>
+        <PartnerChoice
+          type="walking"
+          petId={walkDraft.petId}
+          addressId={selectedAddressId}
+          value={{
+            assignmentMode: walkDraft.assignmentMode,
+            requestedPartnerId: walkDraft.requestedPartnerId,
+            requestedPartnerName: walkDraft.requestedPartnerName,
+            requestedPartnerDiscountPct: walkDraft.requestedPartnerDiscountPct,
+          }}
+          onChange={(v) => updateWalkDraft(v)}
+        />
       </ScrollView>
 
       <View style={styles.footer}>

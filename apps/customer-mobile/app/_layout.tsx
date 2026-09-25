@@ -8,12 +8,14 @@ import { useFonts, Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_7
 import { PlusJakartaSans_700Bold, PlusJakartaSans_800ExtraBold } from '@expo-google-fonts/plus-jakarta-sans';
 import { useAuthStore } from '../src/store/auth.store';
 import { SearchBanner } from '../src/components/SearchBanner';
+import { usePushSetup } from '../src/lib/push';
 import { colors } from '@wag/design-tokens';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
 export default function RootLayout() {
   const { loadFromStorage } = useAuthStore();
+  usePushSetup();
   const [fontsLoaded] = useFonts({
     Inter: Inter_400Regular,
     'Inter-Medium': Inter_500Medium,
@@ -40,14 +42,6 @@ export default function RootLayout() {
         <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.canvas } }}>
           <Stack.Screen name="(auth)" options={{ headerShown: false }} />
           <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-          <Stack.Screen name="booking" options={{ headerShown: false }} />
-          <Stack.Screen name="pet" options={{ headerShown: false }} />
-          <Stack.Screen name="chat" options={{ headerShown: false }} />
-          <Stack.Screen name="store" options={{ headerShown: false }} />
-          <Stack.Screen name="account" options={{ headerShown: false }} />
-          <Stack.Screen name="messaging" options={{ headerShown: false }} />
-          <Stack.Screen name="legal" options={{ headerShown: false }} />
-          <Stack.Screen name="support" options={{ headerShown: false }} />
         </Stack>
         <SearchBanner />
       </SafeAreaProvider>

@@ -1,10 +1,12 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, NotFoundException, UnprocessableEntityException, BadRequestException } from '@nestjs/common';
+import { CommissionService } from '../commission/commission.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { BookingType, BookingChannel, BookingStatus, PaymentMethod } from '@prisma/client';
+import { speciesSupportsService } from '../common/species.js';
 
 @Injectable()
 export class StaffService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService, private commission: CommissionService) {}
 
   async getDashboardKpis() {
     const today = new Date();
@@ -52,6 +54,13 @@ export class StaffService {
   }) {
     // Staff creates a booking on behalf of customer (off-app channels)
     const pet = await this.prisma.pet.findFirst({ where: { id: data.petId, customerId: data.customerId } });
+    if (!pet) throw new NotFoundException('Pet not found for this customer');
+    if (data.type === 'walking' && !speciesSupportsService(pet.species, 'walking')) {
+      throw new UnprocessableEntityException({
+        code: 'SPECIES_NOT_SUPPORTED',
+        message: 'Walks are only available for dogs. This pet can be booked for grooming.',
+      });
+    }
 
     const careNote = await this.prisma.petCareNote.findFirst({
       where: { petId: data.petId },
@@ -66,6 +75,12 @@ export class StaffService {
 
     if (data.type === 'grooming' && data.packageId) {
       const pkg = await this.prisma.groomingPackage.findUniqueOrThrow({ where: { id: data.packageId } });
+      if (!pkg.applicableSpecies.includes(pet.species)) {
+        throw new UnprocessableEntityException({
+          code: 'SPECIES_NOT_SUPPORTED',
+          message: `This package is not available for ${pet.species}s`,
+        });
+      }
       subtotal = Number(pkg.price);
       packageName = pkg.name;
       packagePrice = Number(pkg.price);
@@ -87,9 +102,10 @@ export class StaffService {
         status: (data.partnerId ? 'assigned' : 'needs_partner') as BookingStatus,
         customerId: data.customerId,
         petId: data.petId,
-        petName: pet?.name ?? '',
-        petBreed: pet?.breed ?? '',
-        petSize: (pet?.size ?? 'medium') as import('@prisma/client').PetSize,
+        petName: pet.name,
+        petSpecies: pet.species,
+        petBreed: pet.breed,
+        petSize: pet.size,
         petCareNotes: careNote?.note ?? null,
         partnerId: data.partnerId ?? null,
         packageId: data.packageId ?? null,
@@ -118,26 +134,56 @@ export class StaffService {
   }
 
   async assignPartner(bookingId: string, partnerId: string, staffId: string) {
-    return this.prisma.booking.update({
-      where: { id: bookingId },
+    const [booking, partner] = await Promise.all([
+      this.prisma.booking.findUnique({ where: { id: bookingId } }),
+      this.prisma.partnerProfile.findUnique({ where: { userId: partnerId } }),
+    ]);
+    if (!booking) throw new NotFoundException('Booking not found');
+    if (!partner || partner.status !== 'approved') throw new UnprocessableEntityException('Choose an approved partner');
+    if (!partner.modes.includes(booking.type)) throw new UnprocessableEntityException(`This partner does not offer ${booking.type}`);
+    if (!(partner.petSpecies as string[]).includes(booking.petSpecies)) throw new UnprocessableEntityException(`This partner does not take ${booking.petSpecies}s`);
+    // Same conditional-update guard as a partner claiming, so staff and a partner cannot both win.
+    const claimed = await this.prisma.booking.updateMany({
+      where: { id: bookingId, partnerId: null, status: { in: ['needs_partner', 'confirmed', 'searching_partner'] } },
       data: {
         partnerId,
-        status: 'assigned' as BookingStatus,
-        statusHistory: {
-          create: { status: 'assigned', changedBy: staffId, note: `Partner assigned by staff` },
-        },
+        status: (booking.type === 'walking' ? 'accepted' : 'assigned') as BookingStatus,
+        // Without a start code the partner could never begin the session.
+        startOtp: String(Math.floor(1000 + Math.random() * 9000)),
+        assignmentMode: 'any',
+        requestedPartnerId: null,
+        requestOutcome: null,
       },
     });
+    if (claimed.count === 0) throw new BadRequestException('This booking already has a partner or cannot be assigned right now');
+    const status = booking.type === 'walking' ? 'accepted' : 'assigned';
+    await this.prisma.bookingStatusHistory.create({ data: { bookingId, status: status as BookingStatus, changedBy: staffId, note: 'Partner assigned by staff' } });
+    await this.commission.applyClaimPricing(bookingId, partnerId);
+    return this.prisma.booking.findUniqueOrThrow({ where: { id: bookingId } });
   }
 
   async unassignPartner(bookingId: string, staffId: string) {
+    const booking = await this.prisma.booking.findUnique({ where: { id: bookingId } });
+    if (!booking) throw new NotFoundException('Booking not found');
+    if (!['assigned', 'accepted', 'partner_on_the_way'].includes(booking.status)) {
+      throw new BadRequestException('A partner can only be removed before the session starts');
+    }
     return this.prisma.booking.update({
       where: { id: bookingId },
       data: {
         partnerId: null,
-        status: 'needs_partner' as BookingStatus,
+        startOtp: null,
+        status: (booking.type === 'walking' ? 'searching_partner' : 'needs_partner') as BookingStatus,
+        // The next partner prices the job afresh; until then an unpaid booking shows the undiscounted price.
+        partnerDiscountPct: null,
+        partnerDiscountAmount: 0,
+        discountSource: booking.discount.gt(0) ? 'coupon' : null,
+        commissionPct: null,
+        commissionAmount: null,
+        partnerShareAmount: null,
+        ...(booking.paymentStatus === 'paid' ? {} : { total: booking.subtotal.minus(booking.discount) }),
         statusHistory: {
-          create: { status: 'needs_partner', changedBy: staffId, note: 'Partner unassigned by staff' },
+          create: { status: booking.type === 'walking' ? 'searching_partner' : 'needs_partner', changedBy: staffId, note: 'Partner unassigned by staff' },
         },
       },
     });

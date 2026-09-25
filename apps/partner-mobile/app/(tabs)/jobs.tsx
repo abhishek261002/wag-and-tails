@@ -8,6 +8,7 @@ import { PetAvatar, Button, Icon, type IconName } from '@wag/ui-mobile';
 import { colors, spacing, radii } from '@wag/design-tokens';
 import { wagApi } from '../../src/lib/api';
 import { useModeStore } from '../../src/store/mode.store';
+import { DuesBanner } from '../../src/components/DuesBanner';
 import { configurePartnerNotifications, notifyIncomingJob } from '../../src/lib/notifications';
 
 type PartnerJobCard = {
@@ -15,6 +16,7 @@ type PartnerJobCard = {
   type: string;
   petName: string;
   petBreed: string;
+  petSpecies?: 'dog' | 'cat';
   petSize: string;
   petWeightKg: number | null;
   petCareNotes: string | null;
@@ -28,6 +30,8 @@ type PartnerJobCard = {
   durationMinutes?: number;
   partnerPayout: number;
   status: string;
+  isDirectRequest?: boolean;
+  requestExpiresAt?: string | null;
 };
 
 type IncomingJob = {
@@ -35,8 +39,11 @@ type IncomingJob = {
   type: string;
   petName: string;
   petBreed: string;
+  petSpecies?: 'dog' | 'cat';
   addressLine: string;
   partnerPayout: number;
+  /** The customer chose this partner specifically. */
+  direct?: boolean;
 };
 
 const INCOMING_JOB_TIMEOUT_MS = 20000;
@@ -122,6 +129,7 @@ export default function JobsScreen() {
         petBreed: payload.petBreed,
         addressLine: payload.pickupAddress,
         partnerPayout: payload.partnerPayout,
+        direct: !!payload.direct,
       };
       setIncomingJob(job);
       load();
@@ -140,6 +148,19 @@ export default function JobsScreen() {
     return () => clearTimeout(t);
   }, [incomingJob]);
 
+  // Dismissing an open job just hides it; declining a job a customer reserved for you tells them so
+  // they can choose someone else straight away.
+  const handleDismissIncoming = async () => {
+    const job = incomingJob;
+    setIncomingJob(null);
+    if (job?.direct) {
+      try {
+        await wagApi.partner.rejectJob(job.bookingId);
+      } catch {}
+      await load();
+    }
+  };
+
   const handleAcceptIncoming = async () => {
     if (!incomingJob) return;
     const bookingId = incomingJob.bookingId;
@@ -153,7 +174,7 @@ export default function JobsScreen() {
       await load();
       router.push({ pathname: '/job/[id]', params: { id: bookingId } });
     } catch (err: any) {
-      Alert.alert('Could not accept', err?.message ?? 'This job may have just been taken.');
+      Alert.alert('Could not accept', err?.response?.data?.message ?? err?.message ?? 'This job may have just been taken.');
     }
   };
 
@@ -171,13 +192,22 @@ export default function JobsScreen() {
     }
   };
 
+  const handleDecline = async (bookingId: string) => {
+    try {
+      await wagApi.partner.rejectJob(bookingId);
+    } catch (err: any) {
+      Alert.alert('Could not decline', err?.response?.data?.message ?? err?.message ?? 'Please try again.');
+    }
+    await load();
+  };
+
   const handleClaim = async (bookingId: string) => {
     setClaimingId(bookingId);
     try {
       await wagApi.partner.claimJob(bookingId);
       await load();
     } catch (err: any) {
-      Alert.alert('Could not claim', err?.message ?? 'Job may have been taken.');
+      Alert.alert('Could not claim', err?.response?.data?.message ?? err?.message ?? 'Job may have been taken.');
     } finally {
       setClaimingId(null);
     }
@@ -204,6 +234,7 @@ export default function JobsScreen() {
 
             {/* role switch — mirrors the prototype's .rolebar */}
             <View style={styles.pad}>
+              <DuesBanner variant="banner" onChanged={load} />
               <View style={styles.rolebar}>
                 {(['grooming', 'walking'] as const).map((m) => (
                   <TouchableOpacity
@@ -270,6 +301,7 @@ export default function JobsScreen() {
                     job={job}
                     claiming={claimingId === job.bookingId}
                     onClaim={() => handleClaim(job.bookingId)}
+                    onDecline={() => handleDecline(job.bookingId)}
                   />
                 ))
               )}
@@ -290,7 +322,7 @@ export default function JobsScreen() {
             <View style={styles.incomingLabelRow}>
               <Icon name={incomingJob.type === 'grooming' ? 'scissors' : 'route'} size={15} color={colors.marigoldDark} />
               <Text style={styles.incomingLabel}>
-                {incomingJob.type === 'grooming' ? 'New grooming job' : 'New walk request'}
+                {incomingJob.direct ? 'A customer chose you' : incomingJob.type === 'grooming' ? 'New grooming job' : 'New walk request'}
               </Text>
             </View>
             <Text style={styles.incomingPet}>{incomingJob.petName} · {incomingJob.petBreed}</Text>
@@ -300,8 +332,8 @@ export default function JobsScreen() {
             </View>
             <Text style={styles.incomingPayout}>₹{incomingJob.partnerPayout}</Text>
             <View style={styles.incomingActions}>
-              <Button variant="outline" size="sm" onPress={() => setIncomingJob(null)} style={{ flex: 1 }}>
-                Dismiss
+              <Button variant="outline" size="sm" onPress={handleDismissIncoming} style={{ flex: 1 }}>
+                {incomingJob.direct ? 'Decline' : 'Dismiss'}
               </Button>
               <Button size="sm" onPress={handleAcceptIncoming} style={{ flex: 1 }}>
                 Accept
@@ -342,7 +374,7 @@ function Empty({ icon, title, sub }: { icon: IconName; title: string; sub: strin
   );
 }
 
-function OpenJobCard({ job, claiming, onClaim }: { job: PartnerJobCard; claiming: boolean; onClaim: () => void }) {
+function OpenJobCard({ job, claiming, onClaim, onDecline }: { job: PartnerJobCard; claiming: boolean; onClaim: () => void; onDecline: () => void }) {
   return (
     <View style={styles.jobcard}>
       <View style={styles.jobcardTop}>
@@ -352,11 +384,12 @@ function OpenJobCard({ job, claiming, onClaim }: { job: PartnerJobCard; claiming
             <Text style={styles.jobcardName} numberOfLines={1}>{job.packageName ?? job.petBreed}</Text>
             <Text style={styles.jobcardPayout}>₹{job.partnerPayout}</Text>
           </View>
-          <Text style={styles.jobcardMeta} numberOfLines={1}>{job.petName} · {job.petBreed} · {job.petSize}{job.petWeightKg ? `, ${job.petWeightKg}kg` : ''}</Text>
+          <Text style={styles.jobcardMeta} numberOfLines={1}>{job.petName} · {job.petSpecies === 'cat' ? 'Cat' : 'Dog'} · {job.petBreed} · {job.petSize}{job.petWeightKg ? `, ${job.petWeightKg}kg` : ''}</Text>
           <View style={styles.pillRow}>
             {job.scheduledAt && <Pill label={new Date(job.scheduledAt).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' })} />}
             <Pill label={`${job.distanceKm.toFixed(1)} km`} />
             {job.durationMinutes ? <Pill label={`${job.durationMinutes} min`} /> : null}
+            {job.isDirectRequest && <Pill label="Requested for you" accent />}
             {job.addOns && job.addOns.length > 0 && <Pill label={`+${job.addOns.length} add-on`} accent />}
           </View>
         </View>
@@ -367,8 +400,13 @@ function OpenJobCard({ job, claiming, onClaim }: { job: PartnerJobCard; claiming
           <Button size="xs" variant="outline" onPress={() => router.push({ pathname: '/job/[id]', params: { id: job.bookingId } })}>
             Details
           </Button>
+          {job.isDirectRequest && (
+            <Button size="xs" variant="outline" onPress={onDecline}>
+              Decline
+            </Button>
+          )}
           <Button size="xs" variant="primary" loading={claiming} onPress={onClaim}>
-            Claim job
+            {job.isDirectRequest ? 'Accept' : 'Claim job'}
           </Button>
         </View>
       </View>
@@ -389,7 +427,7 @@ function AssignedJobCard({ job }: { job: PartnerJobCard }) {
             <Text style={styles.jobcardName} numberOfLines={1}>{job.packageName ?? `${job.durationMinutes ?? ''} min walk`}</Text>
             <Text style={styles.jobcardPayout}>₹{job.partnerPayout}</Text>
           </View>
-          <Text style={styles.jobcardMeta} numberOfLines={1}>{job.petName} · {job.petBreed} · {job.customerName}</Text>
+          <Text style={styles.jobcardMeta} numberOfLines={1}>{job.petName} · {job.petSpecies === 'cat' ? 'Cat' : 'Dog'} · {job.petBreed} · {job.customerName}</Text>
         </View>
       </View>
     </TouchableOpacity>

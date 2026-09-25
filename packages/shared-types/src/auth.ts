@@ -56,9 +56,37 @@ export interface RegisterPartnerRequest {
   lastName: string;
   age: number;
   address: string;
-  aadhaarNumber: string;
   city: string;
+  /** What the partner wants to do: groomer, walker, or both. */
+  modes: ('grooming' | 'walking')[];
+  /** Groomers only: also take cat grooming jobs (default true). */
+  groomsCats?: boolean;
+  /** Proof of a completed DigiLocker verification, from getDigilockerStatus(). */
+  kycToken: string;
 }
+
+export interface DigilockerStartRequest {
+  /** Explicit consent to fetch Aadhaar details for KYC. Must be true. */
+  consent: boolean;
+  /** Deep link the DigiLocker browser session returns to. */
+  appRedirect?: string;
+  /** Development mock provider only. */
+  name?: string;
+  age?: number;
+}
+
+export interface DigilockerStartResponse {
+  requestId: string;
+  authorizeUrl: string;
+  expiresInSeconds: number;
+}
+
+export type DigilockerFailureCode = 'DENIED' | 'UNDERAGE' | 'DUPLICATE' | 'PROVIDER' | 'EXPIRED' | 'INCOMPLETE';
+
+export type DigilockerStatus =
+  | { status: 'pending' }
+  | { status: 'verified'; kycToken: string; expiresInSeconds: number; name: string | null; aadhaarLast4: string | null }
+  | { status: 'cancelled' | 'failed'; code: DigilockerFailureCode; message: string };
 
 export interface AuthResponse {
   user: User;

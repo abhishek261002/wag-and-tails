@@ -16,8 +16,8 @@
     "seed": "node prisma/seed.js"
   },
   "dependencies": {
-    "@fastify/static": "^7.0.4",
     "@fastify/multipart": "^8.3.0",
+    "@fastify/static": "^7.0.4",
     "@nestjs/bull": "^10.1.1",
     "@nestjs/common": "^10.3.10",
     "@nestjs/config": "^3.2.3",
@@ -26,6 +26,7 @@
     "@nestjs/passport": "^10.0.3",
     "@nestjs/platform-fastify": "^10.3.10",
     "@nestjs/platform-socket.io": "^10.3.10",
+    "@nestjs/schedule": "^4.1.2",
     "@nestjs/swagger": "^7.4.0",
     "@nestjs/throttler": "^5.2.0",
     "@nestjs/websockets": "^10.3.10",
@@ -37,7 +38,9 @@
     "bull": "^4.16.0",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.4",
+    "csv-parse": "^7.0.2",
     "date-fns": "^3.6.0",
+    "exceljs": "^4.4.0",
     "ioredis": "^5.4.1",
     "multer": "^1.4.5-lts.1",
     "passport": "^0.7.0",

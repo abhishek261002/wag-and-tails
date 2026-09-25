@@ -98,7 +98,7 @@ export default function BookingsPage() {
                 { key: 'pet', header: 'Pet', render: (b: any) => (
                   <div>
                     <TableStrong>{b.petName}</TableStrong>
-                    <div className="text-xs text-[#9A8878]">{b.petBreed}</div>
+                    <div className="text-xs text-[#9A8878]">{b.petSpecies === 'cat' ? 'Cat' : 'Dog'} · {b.petBreed}</div>
                   </div>
                 ) },
                 { key: 'type', header: 'Service', render: (b: any) => (b.type === 'grooming' ? b.packageName ?? 'Grooming' : `${b.durationMinutes}min walk`) },

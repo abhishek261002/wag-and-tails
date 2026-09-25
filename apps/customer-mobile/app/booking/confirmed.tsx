@@ -4,6 +4,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button, LiveMapView, Icon } from '@wag/ui-mobile';
 import { colors, spacing, typography, radii } from '@wag/design-tokens';
+import { useLiveRoute } from '../../src/hooks/useLiveRoute';
 import { wagApi } from '../../src/lib/api';
 import { format } from 'date-fns';
 
@@ -13,7 +14,8 @@ const TRACKING_STATUSES = new Set(['assigned', 'accepted', 'partner_on_the_way',
 export default function BookingConfirmedScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const [booking, setBooking] = useState<any>(null);
-  const [partnerLoc, setPartnerLoc] = useState<{ lat: number; lng: number; timestamp: string } | null>(null);
+  const [partnerLoc, setPartnerLoc] = useState<{ lat: number; lng: number; heading?: number; timestamp: string } | null>(null);
+  const [socketEta, setSocketEta] = useState<number | null>(null);
   const pulseAnim = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
@@ -46,7 +48,8 @@ export default function BookingConfirmedScreen() {
     });
     const offLocation = wagApi.realtime.on('partner:location_updated', (payload: any) => {
       if (payload.bookingId !== id) return;
-      setPartnerLoc({ lat: payload.lat, lng: payload.lng, timestamp: payload.timestamp });
+      setPartnerLoc({ lat: payload.lat, lng: payload.lng, heading: payload.heading ?? undefined, timestamp: payload.timestamp });
+      setSocketEta(typeof payload.etaSeconds === 'number' ? payload.etaSeconds : null);
     });
     return () => {
       offStatus();
@@ -72,6 +75,9 @@ export default function BookingConfirmedScreen() {
 
   const isWaiting = booking && WAITING_STATUSES.has(booking.status);
   const isTracking = booking && TRACKING_STATUSES.has(booking.status);
+  // The partner is still driving to the door: draw the road and show the ETA. After arrival neither applies.
+  const heading = !!booking && ['assigned', 'accepted', 'partner_on_the_way'].includes(booking.status);
+  const liveRoute = useLiveRoute(id, heading, partnerLoc ? { lat: partnerLoc.lat, lng: partnerLoc.lng } : null, heading ? socketEta : null);
 
   if (isWaiting) {
     return (
@@ -134,7 +140,9 @@ export default function BookingConfirmedScreen() {
           partnerLoc || booking?.address ? (
             <View style={{ width: '100%', marginBottom: spacing[4] }}>
               <LiveMapView
-                partner={partnerLoc ? { lat: partnerLoc.lat, lng: partnerLoc.lng, label: 'Groomer' } : null}
+                partner={partnerLoc ? { lat: partnerLoc.lat, lng: partnerLoc.lng, heading: partnerLoc.heading, label: 'Groomer' } : null}
+                route={liveRoute.route}
+                etaSeconds={heading ? liveRoute.etaSeconds : null}
                 destination={booking?.address ? { lat: booking.address.lat, lng: booking.address.lng, label: 'You' } : null}
               />
             </View>

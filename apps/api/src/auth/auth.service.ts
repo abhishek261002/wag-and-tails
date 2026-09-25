@@ -3,10 +3,13 @@ import {
   UnauthorizedException,
   ConflictException,
   Logger,
+  BadRequestException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { OtpService } from './otp.service.js';
+import { KycService } from '../kyc/kyc.service.js';
+import { ageFromDob, namesMatch } from '../kyc/aadhaar.util.js';
 import * as bcrypt from 'bcryptjs';
 import { v4 as uuidv4 } from 'uuid';
 import { addDays } from 'date-fns';
@@ -18,7 +21,8 @@ export class AuthService {
   constructor(
     private prisma: PrismaService,
     private jwtService: JwtService,
-    private otpService: OtpService
+    private otpService: OtpService,
+    private kycService: KycService
   ) {}
 
   async requestOtp(phone: string) {
@@ -87,11 +91,11 @@ export class AuthService {
     return this.issueTokens(user.id, user.role);
   }
 
-  // Partners sign up with email+password directly (no OTP step) — unlike
-  // registerCustomer, which is phone-first. The account is created
-  // immediately so the partner can log in and see their pending-approval
-  // status, but PartnerProfile.status stays 'pending' until a staff member
-  // reviews the KYC details below and calls PartnersService.approve.
+  // Partners sign up with email+password directly (no login OTP) — unlike registerCustomer, which
+  // is phone-first — but an account can only be created after the Aadhaar OTP has been verified
+  // (see KycService): the kycToken proves that. The account is then created so the partner can log
+  // in and see their pending-approval status, and PartnerProfile.status stays 'pending' until a
+  // staff member reviews the details and calls PartnersService.approve.
   async registerPartner(data: {
     email: string;
     password: string;
@@ -100,40 +104,85 @@ export class AuthService {
     lastName: string;
     age: number;
     address: string;
-    aadhaarNumber: string;
     city: string;
+    modes: string[];
+    groomsCats?: boolean;
+    kycToken: string;
   }) {
+    const kyc = await this.kycService.resolveVerifiedToken(data.kycToken);
+
+    const email = data.email.trim().toLowerCase();
     const existing = await this.prisma.user.findFirst({
-      where: { OR: [{ phone: data.phone }, { email: data.email }] },
+      where: { OR: [{ phone: data.phone }, { email }] },
     });
     if (existing) throw new ConflictException('Account already exists with this phone or email');
 
     const passwordHash = await bcrypt.hash(data.password, 12);
+    const enteredName = `${data.firstName} ${data.lastName}`;
+    const modes = Array.from(new Set(data.modes));
+    // Walking is dogs only; a groomer may opt out of cats.
+    const petSpecies = modes.includes('grooming') && data.groomsCats === false ? ['dog'] : ['dog', 'cat'];
 
-    const user = await this.prisma.user.create({
-      data: {
-        phone: data.phone,
-        email: data.email,
-        passwordHash,
-        role: 'partner',
-        isActive: true,
-        profile: {
-          create: { firstName: data.firstName, lastName: data.lastName },
-        },
-        partnerProfile: {
-          create: {
-            status: 'pending',
-            age: data.age,
-            address: data.address,
-            aadhaarNumber: data.aadhaarNumber,
-            city: data.city,
+    try {
+      const user = await this.prisma.$transaction(async (tx) => {
+        // Consuming the request is what makes the token single-use, even under concurrent submits.
+        const consumed = await tx.kycRequest.updateMany({
+          where: { id: kyc.requestId, status: 'verified', consumedAt: null },
+          data: {
+            status: 'consumed',
+            consumedAt: new Date(),
+            identityName: null,
+            identityDob: null,
+            identityGender: null,
+            identityAddress: null,
           },
-        },
-      },
-      include: { profile: true },
-    });
+        });
+        if (consumed.count !== 1) throw new ConflictException('This Aadhaar verification has already been used');
 
-    return this.issueTokens(user.id, user.role);
+        return tx.user.create({
+          data: {
+            phone: data.phone,
+            email,
+            passwordHash,
+            role: 'partner',
+            isActive: true,
+            profile: { create: { firstName: data.firstName, lastName: data.lastName } },
+            partnerProfile: {
+              create: {
+                status: 'pending',
+                modes,
+                petSpecies,
+                // The age on the KYC record is the source of truth, not the typed one.
+                age: ageFromDob(kyc.dob),
+                address: data.address,
+                city: data.city,
+                aadhaarLast4: kyc.aadhaarLast4,
+                aadhaarRefHash: kyc.aadhaarRefHash,
+                kycStatus: 'verified',
+                kycProvider: kyc.provider,
+                kycVerifiedAt: kyc.verifiedAt,
+                kycName: kyc.name,
+                kycDob: kyc.dob,
+                kycGender: kyc.gender,
+                kycAddress: kyc.address,
+                kycConsentAt: kyc.consentAt,
+                kycNameMatch: namesMatch(enteredName, kyc.name),
+              },
+            },
+          },
+          include: { profile: true },
+        });
+      });
+
+      return this.issueTokens(user.id, user.role);
+    } catch (err: any) {
+      if (err?.code === 'P2002') {
+        const target = String(err?.meta?.target ?? '');
+        if (target.includes('aadhaar_ref_hash')) throw new ConflictException('A partner account already exists for this Aadhaar number');
+        throw new ConflictException('Account already exists with this phone or email');
+      }
+      throw err;
+    }
   }
 
   async loginWithEmail(email: string, password: string) {
@@ -185,11 +234,18 @@ export class AuthService {
   }
 
   async registerPushToken(userId: string, token: string, platform: string) {
+    if (!/^Expo(nent)?PushToken\[[^\]\s]+\]$/.test(token)) throw new BadRequestException('Invalid push token');
+    if (!['ios', 'android', 'web'].includes(platform)) throw new BadRequestException('Invalid platform');
+    // A device that signs in as someone else moves its token, so the previous account stops getting its pushes.
     await this.prisma.pushToken.upsert({
       where: { token },
       update: { userId, platform, updatedAt: new Date() },
       create: { userId, token, platform },
     });
+  }
+
+  async removePushToken(userId: string, token: string) {
+    await this.prisma.pushToken.deleteMany({ where: { userId, token } });
   }
 
   private async issueTokens(userId: string, role: string) {

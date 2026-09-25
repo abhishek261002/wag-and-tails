@@ -1,17 +1,25 @@
-import * as Notifications from 'expo-notifications';
+import { getNotifications } from './notifications-module';
 
 // Foreground jobs are surfaced by jobs.tsx's own in-app popup modal, not
 // the OS notification tray — this handler only governs notifications
 // fired while backgrounded (see notifyIncomingJob below), so there's
 // nothing further to suppress/show here.
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowBanner: true,
-    shouldShowList: true,
-    shouldPlaySound: true,
-    shouldSetBadge: false,
-  }),
-});
+let handlerSet = false;
+function notifications() {
+  const n = getNotifications();
+  if (n && !handlerSet) {
+    handlerSet = true;
+    n.setNotificationHandler({
+      handleNotification: async () => ({
+        shouldShowBanner: true,
+        shouldShowList: true,
+        shouldPlaySound: true,
+        shouldSetBadge: false,
+      }),
+    });
+  }
+  return n;
+}
 
 // Wrapped defensively throughout: expo-notifications' web support is
 // partial (no native permission prompt, limited local-notification
@@ -20,6 +28,8 @@ Notifications.setNotificationHandler({
 // must never crash the Jobs screen.
 export async function configurePartnerNotifications(): Promise<void> {
   try {
+    const Notifications = notifications();
+    if (!Notifications) return;
     const settings = await Notifications.getPermissionsAsync();
     if (settings.status !== 'granted') {
       await Notifications.requestPermissionsAsync();
@@ -37,6 +47,8 @@ export async function notifyIncomingJob(params: {
   partnerPayout: number;
 }): Promise<void> {
   try {
+    const Notifications = notifications();
+    if (!Notifications) return;
     await Notifications.scheduleNotificationAsync({
       content: {
         title: params.title,

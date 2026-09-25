@@ -58,7 +58,7 @@ export default function PartnersPage() {
                   </span>
                   <span className="flex-1 min-w-0">
                     <span className="block font-bold text-[15px] truncate">{p.user?.profile ? `${p.user.profile.firstName} ${p.user.profile.lastName}` : '—'}</span>
-                    <span className="block text-xs text-[#9A8878] mt-0.5">{(p.modes ?? []).join(', ')} &middot; {p.city ?? '—'} &middot; {p.aadhaarNumber ? 'documents submitted' : 'documents incomplete'}</span>
+                    <span className="block text-xs text-[#9A8878] mt-0.5">{(p.modes ?? []).join(', ')} &middot; {p.city ?? '—'} &middot; {p.kycStatus === 'verified' ? 'Aadhaar verified (DigiLocker)' : 'Aadhaar not verified'}</span>
                   </span>
                   <Button compact variant="ghost" onClick={() => navigate(`/partners/${p.userId}`)}>Review</Button>
                   <Button compact onClick={() => handleApprove(p.userId)}>Approve</Button>

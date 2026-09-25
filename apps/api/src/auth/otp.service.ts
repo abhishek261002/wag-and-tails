@@ -1,14 +1,13 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { addMinutes } from 'date-fns';
+import { randomInt } from 'crypto';
 
 const OTP_LENGTH = 6;
 const OTP_EXPIRY_MINUTES = 10;
 
 function generateOtp(): string {
-  // Cryptographically adequate for dev; use crypto.randomInt in production
-  const digits = Array.from({ length: OTP_LENGTH }, () => Math.floor(Math.random() * 10));
-  return digits.join('');
+  return Array.from({ length: OTP_LENGTH }, () => randomInt(0, 10)).join('');
 }
 
 @Injectable()

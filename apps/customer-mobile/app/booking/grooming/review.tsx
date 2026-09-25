@@ -9,12 +9,13 @@ import { colors, spacing, typography, radii } from '@wag/design-tokens';
 import { wagApi } from '../../../src/lib/api';
 import { useBookingStore } from '../../../src/store/booking.store';
 import { format } from 'date-fns';
+import { PartnerChoice } from '../../../src/components/PartnerChoice';
+import { payWithProvider } from '../../../src/lib/razorpay';
+import { goBack } from '../../../src/lib/nav';
 
-const PAYMENT_OPTIONS: { label: string; value: 'upi' | 'card' | 'wallet' | 'cash_after_service'; icon: IconName }[] = [
-  { label: 'UPI', value: 'upi', icon: 'phone' },
-  { label: 'Card', value: 'card', icon: 'card' },
-  { label: 'Wallet', value: 'wallet', icon: 'wallet' },
-  { label: 'Cash after service', value: 'cash_after_service', icon: 'bag' },
+const PAYMENT_OPTIONS: { label: string; hint: string; value: 'upi' | 'cash_after_service'; icon: IconName }[] = [
+  { label: 'Pay after service', hint: 'Pay your partner directly once the service is done', value: 'cash_after_service', icon: 'bag' },
+  { label: 'Pay online', hint: 'Pay now by UPI, card or wallet', value: 'upi', icon: 'card' },
 ];
 
 export default function ReviewGroomingBookingScreen() {
@@ -28,7 +29,12 @@ export default function ReviewGroomingBookingScreen() {
   const addOns = groomingDraft.addOns;
   const subtotal = (Number(pkg?.price ?? 0)) + addOns.reduce((s, a) => s + Number(a.price), 0);
   const discount = groomingDraft.discount;
-  const total = subtotal - discount;
+  // What the customer will pay. A chosen partner's discount is known now; with "Find anyone" it depends on
+  // who accepts. The server always recomputes at claim and never stacks it with a coupon (the bigger wins).
+  const partnerPct = groomingDraft.assignmentMode === 'specific' ? groomingDraft.requestedPartnerDiscountPct : null;
+  const partnerDiscount = partnerPct ? Math.round((subtotal * partnerPct) / 100) : 0;
+  const effectiveDiscount = Math.max(discount, partnerDiscount);
+  const total = subtotal - effectiveDiscount;
 
   const applyCoupon = async () => {
     if (!couponCode.trim()) return;
@@ -62,6 +68,8 @@ export default function ReviewGroomingBookingScreen() {
         couponCode: groomingDraft.couponCode || undefined,
         paymentMethod: groomingDraft.paymentMethod,
         channel: 'app',
+        assignmentMode: groomingDraft.assignmentMode,
+        requestedPartnerId: groomingDraft.requestedPartnerId ?? undefined,
       });
       // Confirming payment is what moves the booking to needs_partner and
       // triggers the nearby-partner dispatch — without this it would sit at
@@ -69,12 +77,30 @@ export default function ReviewGroomingBookingScreen() {
       // payment provider always succeeds, including for "cash after
       // service", since a partner still needs to be dispatched regardless
       // of when money actually changes hands.
-      const order = await wagApi.payments.createOrder(booking.id, Number(booking.total));
-      await wagApi.payments.confirm(order.payment.id, groomingDraft.paymentMethod);
+      if (groomingDraft.paymentMethod === 'cash_after_service') {
+        // Nothing is charged now; the customer pays the partner directly after the service.
+        await wagApi.payments.payAfterService(booking.id);
+      } else {
+        const order = await wagApi.payments.createOrder(booking.id);
+        const paid = await payWithProvider({
+          keyId: order.keyId,
+          providerOrderId: order.providerOrderId,
+          amountInr: Number(order.payment.amount),
+          description: `${pkg?.name ?? 'Grooming'} for ${groomingDraft.pet?.name ?? 'your pet'}`,
+        });
+        await wagApi.payments.confirm(order.payment.id, { method: 'upi', providerPaymentId: paid.providerPaymentId, signature: paid.signature });
+      }
       resetGroomingDraft();
       router.replace({ pathname: '/booking/confirmed', params: { id: booking.id } });
     } catch (err: any) {
-      Alert.alert('Booking Failed', err?.message ?? 'Please try again');
+      const data = err?.response?.data;
+      if (data?.code === 'PARTNER_NOT_AVAILABLE') {
+        // The chosen partner can no longer take it; fall back so the customer can pick again.
+        updateGroomingDraft({ assignmentMode: 'any', requestedPartnerId: null, requestedPartnerName: null, requestedPartnerDiscountPct: null });
+        Alert.alert('Partner unavailable', `${data.message}. Please choose another partner or let anyone accept.`);
+      } else {
+        Alert.alert('Booking Failed', data?.message ?? err?.message ?? 'Please try again');
+      }
     } finally {
       setLoading(false);
     }
@@ -83,7 +109,7 @@ export default function ReviewGroomingBookingScreen() {
   return (
     <SafeAreaView style={styles.safe}>
       <View style={styles.topBar}>
-        <TouchableOpacity onPress={() => router.back()}>
+        <TouchableOpacity onPress={() => goBack()}>
           <Text style={styles.backText}>← Back</Text>
         </TouchableOpacity>
         <Text style={styles.title}>Review Booking</Text>
@@ -101,6 +127,23 @@ export default function ReviewGroomingBookingScreen() {
           )}
           <Row label="Address" value={groomingDraft.addressLine ?? '—'} />
           {groomingDraft.notes ? <Row label="Note" value={groomingDraft.notes} /> : null}
+        </Section>
+
+        {/* Who does it */}
+        <Section title="Who should groom?">
+          <PartnerChoice
+            type="grooming"
+            petId={groomingDraft.petId}
+            addressId={groomingDraft.addressId}
+            value={{
+              assignmentMode: groomingDraft.assignmentMode,
+              requestedPartnerId: groomingDraft.requestedPartnerId,
+              requestedPartnerName: groomingDraft.requestedPartnerName,
+              requestedPartnerDiscountPct: groomingDraft.requestedPartnerDiscountPct,
+            }}
+            anyHint="If the partner who accepts offers a discount, it is applied automatically."
+            onChange={(v) => updateGroomingDraft(v)}
+          />
         </Section>
 
         {/* Coupon */}
@@ -146,9 +189,12 @@ export default function ReviewGroomingBookingScreen() {
                   size={16}
                   color={groomingDraft.paymentMethod === opt.value ? colors.brandBrown : colors.textMuted}
                 />
-                <Text style={[styles.payOptText, groomingDraft.paymentMethod === opt.value && styles.payOptTextActive]}>
-                  {opt.label}
-                </Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.payOptText, groomingDraft.paymentMethod === opt.value && styles.payOptTextActive]}>
+                    {opt.label}
+                  </Text>
+                  <Text style={{ fontFamily: 'Inter', fontSize: 11, color: colors.textMuted, marginTop: 2 }}>{opt.hint}</Text>
+                </View>
               </TouchableOpacity>
             ))}
           </View>
@@ -157,8 +203,21 @@ export default function ReviewGroomingBookingScreen() {
         {/* Price breakdown */}
         <Section title="Price">
           <Row label="Subtotal" value={`₹${subtotal}`} />
-          {discount > 0 && <Row label="Discount" value={`-₹${discount}`} valueStyle={{ color: colors.success }} />}
-          <Row label="Total" value={`₹${total}`} bold />
+          {discount > 0 && partnerDiscount <= discount && <Row label="Coupon discount" value={`-₹${discount}`} valueStyle={{ color: colors.success }} />}
+          {partnerDiscount > discount && (
+            <Row label={`${groomingDraft.requestedPartnerName ?? 'Partner'} offers ${partnerPct}% off`} value={`-₹${partnerDiscount}`} valueStyle={{ color: colors.success }} />
+          )}
+          <Row label={groomingDraft.paymentMethod === 'cash_after_service' ? 'You pay the partner' : 'Total'} value={`₹${total}`} bold />
+          {groomingDraft.paymentMethod !== 'cash_after_service' && partnerDiscount > discount && (
+            <Text style={{ fontFamily: 'Inter', fontSize: 12, color: colors.textMuted, marginTop: spacing[2] }}>
+              You are charged ₹{subtotal - discount} now; ₹{partnerDiscount - discount} is refunded automatically when {groomingDraft.requestedPartnerName ?? 'the partner'} accepts.
+            </Text>
+          )}
+          {groomingDraft.assignmentMode === 'any' && (
+            <Text style={{ fontFamily: 'Inter', fontSize: 12, color: colors.textMuted, marginTop: spacing[2] }}>
+              The final amount is confirmed when a partner accepts and may be lower if they offer a discount.
+            </Text>
+          )}
         </Section>
 
         <Button onPress={handleConfirm} fullWidth loading={loading} style={styles.cta}>

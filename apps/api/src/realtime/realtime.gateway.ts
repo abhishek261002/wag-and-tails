@@ -10,6 +10,9 @@ import {
 import { Server, Socket } from 'socket.io';
 import { JwtService } from '@nestjs/jwt';
 import { Logger } from '@nestjs/common';
+import { PrismaService } from '../prisma/prisma.service.js';
+
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 interface AuthenticatedSocket extends Socket {
   userId?: string;
@@ -37,7 +40,7 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
   private readonly logger = new Logger(RealtimeGateway.name);
   private userSocketMap = new Map<string, Set<string>>(); // userId → socket IDs
 
-  constructor(private jwtService: JwtService) {}
+  constructor(private jwtService: JwtService, private prisma: PrismaService) {}
 
   async handleConnection(client: AuthenticatedSocket) {
     try {
@@ -81,20 +84,39 @@ export class RealtimeGateway implements OnGatewayConnection, OnGatewayDisconnect
     this.logger.log(`Client disconnected: ${client.id}`);
   }
 
+  // A booking room carries the partner's live position, status changes (including the end code) and chat, so
+  // only the customer and partner on that booking, and staff, may join it.
   @SubscribeMessage('join:booking')
-  handleJoinBooking(
+  async handleJoinBooking(
     @ConnectedSocket() client: AuthenticatedSocket,
     @MessageBody() data: { bookingId: string }
   ) {
-    client.join(`booking:${data.bookingId}`);
+    const id = String(data?.bookingId ?? '');
+    if (!client.userId || !UUID_RE.test(id)) return { ok: false };
+    if (!['staff', 'admin'].includes(client.userRole ?? '')) {
+      const b = await this.prisma.booking.findUnique({ where: { id }, select: { customerId: true, partnerId: true } });
+      if (!b || (b.customerId !== client.userId && b.partnerId !== client.userId)) {
+        this.logger.warn(`denied join:booking ${id} for ${client.userId}`);
+        return { ok: false };
+      }
+    }
+    await client.join(`booking:${id}`);
+    return { ok: true };
   }
 
   @SubscribeMessage('join:support')
-  handleJoinSupportTicket(
+  async handleJoinSupportTicket(
     @ConnectedSocket() client: AuthenticatedSocket,
     @MessageBody() data: { ticketId: string }
   ) {
-    client.join(`support:${data.ticketId}`);
+    const id = String(data?.ticketId ?? '');
+    if (!client.userId || !UUID_RE.test(id)) return { ok: false };
+    if (!['staff', 'admin'].includes(client.userRole ?? '')) {
+      const t = await this.prisma.supportTicket.findUnique({ where: { id }, select: { userId: true } });
+      if (!t || t.userId !== client.userId) return { ok: false };
+    }
+    await client.join(`support:${id}`);
+    return { ok: true };
   }
 
   // Emit helpers called by services

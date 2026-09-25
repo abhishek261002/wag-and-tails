@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { MapsLocationService } from '../maps-location/maps-location.service.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
@@ -6,6 +6,8 @@ import { RealtimeGateway } from '../realtime/realtime.gateway.js';
 import { MessagingService } from '../messaging/messaging.service.js';
 import { isLocationFilteringEnabled } from '../common/feature-flags.js';
 import { BUSINESS_CONFIG } from '@wag/config';
+import { DispatchService, claimableBy } from '../bookings/dispatch.service.js';
+import { CommissionService } from '../commission/commission.service.js';
 import { addSeconds } from 'date-fns';
 
 function generateOtp(): string {
@@ -19,7 +21,9 @@ export class WalkingService {
     private mapsService: MapsLocationService,
     private notificationsService: NotificationsService,
     private realtime: RealtimeGateway,
-    private messagingService: MessagingService
+    private messagingService: MessagingService,
+    private dispatch: DispatchService,
+    private commission: CommissionService
   ) {}
 
   async getPricing() {
@@ -33,6 +37,13 @@ export class WalkingService {
     });
 
     if (!booking.address) throw new NotFoundException('Booking address not found');
+
+    // A walk reserved for one chosen walker goes to that walker only.
+    if (booking.assignmentMode === 'specific') {
+      const expiresAt = await this.dispatch.openRequestWindow(bookingId);
+      await this.dispatch.notifyRequestedPartner(bookingId);
+      return { partnersNotified: 1, expiresAt };
+    }
 
     const locationFilteringEnabled = isLocationFilteringEnabled();
 
@@ -95,21 +106,28 @@ export class WalkingService {
     const booking = await this.prisma.booking.findUnique({ where: { id: bookingId } });
     if (!booking) throw new NotFoundException('Booking not found');
     if (booking.status !== 'searching_partner') {
-      throw new BadRequestException('Walk request no longer available');
+      throw new ConflictException({ code: 'JOB_TAKEN', message: 'Walk request no longer available' });
     }
+    const me = await this.prisma.partnerProfile.findUnique({ where: { userId: partnerId } });
+    if (!me || me.status !== 'approved') throw new ForbiddenException('Your account must be approved before you can accept walks');
+    if (!me.modes.includes('walking')) throw new ForbiddenException('Your profile is not set up for walking jobs');
+    await this.commission.assertCanTakeJobs(partnerId);
 
+    // Conditional update: of several walkers accepting at once, exactly one row matches. A walk
+    // reserved for someone else never matches.
     const startOtp = generateOtp();
-    const updated = await this.prisma.booking.update({
-      where: { id: bookingId },
-      data: {
-        partnerId,
-        status: 'accepted',
-        startOtp,
-        statusHistory: {
-          create: { status: 'accepted', changedBy: partnerId, note: 'Partner accepted walk request' },
-        },
-      },
+    const claimed = await this.prisma.booking.updateMany({
+      where: { id: bookingId, status: 'searching_partner', partnerId: null, ...claimableBy(partnerId) },
+      data: { partnerId, status: 'accepted', startOtp },
     });
+    if (claimed.count === 0) {
+      throw new ConflictException({ code: 'JOB_TAKEN', message: 'This walk was just taken or is reserved for another walker' });
+    }
+    await this.prisma.bookingStatusHistory.create({
+      data: { bookingId, status: 'accepted', changedBy: partnerId, note: 'Partner accepted walk request' },
+    });
+    await this.commission.applyClaimPricing(bookingId, partnerId);
+    const updated = await this.prisma.booking.findUniqueOrThrow({ where: { id: bookingId } });
 
     // Notify customer
     await this.notificationsService.sendPush(booking.customerId, {

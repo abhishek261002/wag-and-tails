@@ -7,16 +7,18 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button, Card, SlideToComplete, LiveMapView, Icon } from '@wag/ui-mobile';
 import { colors, spacing, typography, radii } from '@wag/design-tokens';
-import { wagApi } from '../../src/lib/api';
+import { wagApi, resolveMediaUrl } from '../../src/lib/api';
+import { CollectPaymentCard } from '../../src/components/CollectPaymentCard';
 import * as ImagePicker from 'expo-image-picker';
 import { useJobLocationBroadcast } from '../../src/hooks/useJobLocationBroadcast';
+import { goBack } from '../../src/lib/nav';
 
 export default function JobDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const [booking, setBooking] = useState<any>(null);
   const [checklist, setChecklist] = useState<string[]>([]);
   const [checked, setChecked] = useState<Set<string>>(new Set());
-  const [beforePhotos, setBeforePhotos] = useState<string[]>([]);
+  const [beforeUploading, setBeforeUploading] = useState(false);
   const [afterPhotos, setAfterPhotos] = useState<string[]>([]);
   const [completing, setCompleting] = useState(false);
   const [transitioning, setTransitioning] = useState(false);
@@ -50,12 +52,40 @@ export default function JobDetailScreen() {
     });
   };
 
-  const pickPhoto = async (type: 'before' | 'after') => {
+  const pickAfterPhoto = async () => {
     const result = await ImagePicker.launchCameraAsync({ quality: 0.7 });
     if (!result.canceled && result.assets[0]) {
       const uri = result.assets[0].uri;
-      if (type === 'before') setBeforePhotos((p) => [...p, uri]);
-      else setAfterPhotos((p) => [...p, uri]);
+      setAfterPhotos((p) => [...p, uri]);
+    }
+  };
+
+  const asUpload = (a: ImagePicker.ImagePickerAsset) => ({
+    uri: a.uri,
+    name: a.fileName ?? `photo-${Date.now()}.jpg`,
+    type: a.mimeType ?? 'image/jpeg',
+  });
+
+  // The before-photo is uploaded straight away and stored on the job; the server refuses the start
+  // code until at least one exists.
+  const takeBeforePhoto = async () => {
+    if (!id) return;
+    const perm = await ImagePicker.requestCameraPermissionsAsync();
+    if (!perm.granted) {
+      Alert.alert('Camera needed', 'Allow camera access to photograph the pet before starting.');
+      return;
+    }
+    const result = await ImagePicker.launchCameraAsync({ quality: 0.7 });
+    if (result.canceled || !result.assets[0]) return;
+    setBeforeUploading(true);
+    try {
+      const url = await wagApi.partner.uploadJobPhoto(id, asUpload(result.assets[0]));
+      await wagApi.partner.addBeforePhotos(id, [url]);
+      await load();
+    } catch (err: any) {
+      Alert.alert('Upload failed', err?.response?.data?.message ?? err?.message ?? 'Please try again.');
+    } finally {
+      setBeforeUploading(false);
     }
   };
 
@@ -65,6 +95,8 @@ export default function JobDetailScreen() {
     try {
       await wagApi.partner.markOnTheWay(id);
       await load();
+      // Straight into directions, like a delivery app.
+      router.push({ pathname: '/navigate/[id]', params: { id } } as any);
     } catch (err: any) {
       Alert.alert('Error', err?.message);
     } finally {
@@ -93,7 +125,13 @@ export default function JobDetailScreen() {
       setOtpInput('');
       await load();
     } catch (err: any) {
-      Alert.alert('Incorrect code', err?.message ?? 'Ask the customer for the code again.');
+      const data = err?.response?.data;
+      if (data?.code === 'BEFORE_PHOTO_REQUIRED') {
+        Alert.alert('Photo needed', data.message);
+        await load();
+      } else {
+        Alert.alert('Incorrect code', data?.message ?? err?.message ?? 'Ask the customer for the code again.');
+      }
     } finally {
       setTransitioning(false);
     }
@@ -112,11 +150,15 @@ export default function JobDetailScreen() {
     if (!id || endOtpInput.length < 4) return;
     setCompleting(true);
     try {
+      // Device-local photo URIs are uploaded first; only stored URLs are sent to the server.
+      const uploaded: string[] = [];
+      for (const uri of afterPhotos) {
+        uploaded.push(await wagApi.partner.uploadJobPhoto(id, { uri, name: `after-${Date.now()}.jpg`, type: 'image/jpeg' }));
+      }
       await wagApi.partner.completeJob(id, {
         otp: endOtpInput,
         checklistItems: [...checked],
-        beforePhotos,
-        afterPhotos,
+        afterPhotos: uploaded,
       });
       Alert.alert('Job Complete!', 'Great work! The customer has been notified.', [
         { text: 'OK', onPress: () => router.replace('/(tabs)/jobs') },
@@ -134,11 +176,9 @@ export default function JobDetailScreen() {
     }
   };
 
+  // Turn-by-turn inside the app (the Google Maps fallback lives on that screen).
   const openNavigation = () => {
-    if (booking?.address) {
-      const { lat, lng } = booking.address;
-      Linking.openURL(`https://maps.google.com/?q=${lat},${lng}`);
-    }
+    if (booking?.address) router.push({ pathname: '/navigate/[id]', params: { id: id! } } as any);
   };
 
   if (!booking) {
@@ -157,7 +197,7 @@ export default function JobDetailScreen() {
   return (
     <SafeAreaView style={styles.safe}>
       <View style={styles.topBar}>
-        <TouchableOpacity onPress={() => router.back()}>
+        <TouchableOpacity onPress={() => goBack()}>
           <Text style={styles.back}>← Back</Text>
         </TouchableOpacity>
         <Text style={styles.pageTitle}>{isGrooming ? 'Grooming Job' : 'Walk Job'}</Text>
@@ -171,7 +211,7 @@ export default function JobDetailScreen() {
             <Icon name="paw" size={15} color={colors.textPrimary} />
             <Text style={styles.sectionTitle}>Pet Details</Text>
           </View>
-          <InfoRow label="Pet" value={`${booking.petName} — ${booking.petBreed}`} />
+          <InfoRow label="Pet" value={`${booking.petName} — ${booking.petSpecies === 'cat' ? 'Cat' : 'Dog'}, ${booking.petBreed}`} />
           <InfoRow label="Size" value={booking.petSize} />
           {booking.pet?.weightKg && <InfoRow label="Weight" value={`${booking.pet.weightKg} kg`} />}
           {booking.pet?.coatType && <InfoRow label="Coat" value={booking.pet.coatType} />}
@@ -287,24 +327,14 @@ export default function JobDetailScreen() {
               <Text style={styles.sectionTitle}>Photos</Text>
             </View>
 
-            <Text style={styles.photoSubtitle}>Before photos {beforePhotos.length > 0 ? `(${beforePhotos.length})` : ''}</Text>
-            <View style={styles.photoRow}>
-              {beforePhotos.map((uri, i) => (
-                <Image key={i} source={{ uri }} style={styles.photoThumb} />
-              ))}
-              <TouchableOpacity style={styles.addPhotoBtn} onPress={() => pickPhoto('before')} accessibilityLabel="Add before photo">
-                <Text style={{ fontSize: 24, color: colors.textMuted }}>+</Text>
-              </TouchableOpacity>
-            </View>
-
-            <Text style={[styles.photoSubtitle, { marginTop: spacing[3] }]}>
+            <Text style={styles.photoSubtitle}>
               After photos {afterPhotos.length > 0 ? `(${afterPhotos.length})` : ''} *
             </Text>
             <View style={styles.photoRow}>
               {afterPhotos.map((uri, i) => (
                 <Image key={i} source={{ uri }} style={styles.photoThumb} />
               ))}
-              <TouchableOpacity style={styles.addPhotoBtn} onPress={() => pickPhoto('after')} accessibilityLabel="Add after photo">
+              <TouchableOpacity style={styles.addPhotoBtn} onPress={pickAfterPhoto} accessibilityLabel="Add after photo">
                 <Text style={{ fontSize: 24, color: colors.textMuted }}>+</Text>
               </TouchableOpacity>
             </View>
@@ -347,14 +377,27 @@ export default function JobDetailScreen() {
           )}
 
           {status === 'partner_on_the_way' && (
-            <Button onPress={handleArrived} loading={transitioning} fullWidth>
-              I've arrived
-            </Button>
+            <View style={{ gap: spacing[2] }}>
+              <Button variant="outline" onPress={openNavigation} fullWidth>Open directions</Button>
+              <Button onPress={handleArrived} loading={transitioning} fullWidth>
+                I've arrived
+              </Button>
+            </View>
           )}
 
           {status === 'arrived' && (
             <View style={styles.otpCard}>
-              <Text style={styles.otpTitle}>Ask the customer for their code</Text>
+              <Text style={styles.otpTitle}>1. Photograph the pet</Text>
+              <Text style={styles.otpSubtitle}>Take a clear before-photo of the pet. It is required before the session can start.</Text>
+              <View style={styles.photoRow}>
+                {((booking.beforePhotos ?? []) as string[]).map((u: string, i: number) => (
+                  <Image key={i} source={{ uri: resolveMediaUrl(u) }} style={styles.photoThumb} />
+                ))}
+                <TouchableOpacity style={styles.addPhotoBtn} onPress={takeBeforePhoto} disabled={beforeUploading} accessibilityLabel="Add before photo">
+                  <Text style={{ fontSize: 24, color: colors.textMuted }}>{beforeUploading ? '…' : '+'}</Text>
+                </TouchableOpacity>
+              </View>
+              <Text style={[styles.otpTitle, { marginTop: spacing[4] }]}>2. Ask the customer for their code</Text>
               <Text style={styles.otpSubtitle}>They see a 4-digit code once you're assigned. Enter it to start.</Text>
               <TextInput
                 style={styles.otpInput}
@@ -365,7 +408,7 @@ export default function JobDetailScreen() {
                 maxLength={4}
                 accessibilityLabel="Start code"
               />
-              <Button onPress={handleVerifyOtp} loading={transitioning} disabled={otpInput.length < 4} fullWidth>
+              <Button onPress={handleVerifyOtp} loading={transitioning} disabled={otpInput.length < 4 || (booking.beforePhotos ?? []).length === 0} fullWidth>
                 Start session
               </Button>
             </View>
@@ -373,7 +416,9 @@ export default function JobDetailScreen() {
 
           {status === 'in_progress' && (
             <>
-              {!canComplete ? (
+              {booking.paymentStatus !== 'paid' ? (
+                <CollectPaymentCard bookingId={id!} amount={Number(booking.total)} onCollected={load} />
+              ) : !canComplete ? (
                 <View style={styles.cannotComplete}>
                   <View style={styles.cannotCompleteRow}>
                     <Icon name="alert" size={14} color={colors.warning} />

@@ -9,6 +9,7 @@ import { colors, spacing, typography, radii } from '@wag/design-tokens';
 import { wagApi, resolveMediaUrl } from '../../src/lib/api';
 import type { PetDetail } from '@wag/shared-types';
 import { format } from 'date-fns';
+import { goBack } from '../../src/lib/nav';
 
 export default function PetDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -53,7 +54,7 @@ export default function PetDetailScreen() {
       >
         {/* Header */}
         <View style={styles.topBar}>
-          <TouchableOpacity onPress={() => router.back()} accessibilityLabel="Go back">
+          <TouchableOpacity onPress={() => goBack()} accessibilityLabel="Go back">
             <Text style={styles.backText}>← Back</Text>
           </TouchableOpacity>
           <TouchableOpacity

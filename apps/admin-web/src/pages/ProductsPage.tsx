@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { PageHeader, Button, Modal, Input, Badge, useToast, Card, Table, TableStrong, FilterChip, Toolbar, RatingChip, Icon } from '@wag/ui-web';
 import { wagApi } from '../lib/api';
+import { ProductImportModal } from '../components/ProductImportModal';
 
 export default function ProductsPage() {
   const { toast } = useToast();
@@ -12,6 +13,7 @@ export default function ProductsPage() {
   const [form, setForm] = useState<any>({});
   const [saving, setSaving] = useState(false);
   const [catFilter, setCatFilter] = useState('');
+  const [importOpen, setImportOpen] = useState(false);
 
   const load = () => {
     setLoading(true);
@@ -42,7 +44,7 @@ export default function ProductsPage() {
       <PageHeader
         title="Products"
         sub={`${products.length} listed · The Indian Pet Company`}
-        actions={<Button compact leftIcon={<Icon name="plus" size={16} />} onClick={() => { setEditing(null); setForm({ categoryId: categories[0]?.id ?? '', name: '', slug: '', mrp: '', retailPrice: '', tradePrice: '', description: '', isActive: true }); setModal(true); }}>Add product</Button>}
+        actions={<><Button compact variant="outline" leftIcon={<Icon name="doc" size={16} />} onClick={() => setImportOpen(true)}>Import / export</Button><Button compact leftIcon={<Icon name="plus" size={16} />} onClick={() => { setEditing(null); setForm({ categoryId: categories[0]?.id ?? '', name: '', slug: '', mrp: '', retailPrice: '', tradePrice: '', description: '', isActive: true }); setModal(true); }}>Add product</Button></>}
       />
       <div className="p-4 md:p-7">
         <Toolbar>
@@ -60,6 +62,7 @@ export default function ProductsPage() {
               emptyMessage="No products found"
               columns={[
                 { key: 'name', header: 'Product', render: (p: any) => <TableStrong>{p.name}</TableStrong> },
+                { key: 'sku', header: 'SKU', render: (p: any) => <span className="text-[12px] text-[#6E5B4B]">{p.sku ?? '—'}</span> },
                 { key: 'category', header: 'Category', render: (p: any) => p.category?.name ?? '—' },
                 { key: 'mrp', header: 'MRP', align: 'right', render: (p: any) => <span className="line-through text-[#9A8878]">₹{p.mrp}</span> },
                 { key: 'retail', header: 'Retail', align: 'right', render: (p: any) => <TableStrong>₹{p.retailPrice}</TableStrong> },
@@ -84,6 +87,7 @@ export default function ProductsPage() {
         <form onSubmit={handleSave} className="space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <Input label="Name *" value={form.name ?? ''} onChange={(e) => up('name', e.target.value)} required />
+            <Input label="SKU" value={form.sku ?? ''} onChange={(e) => up('sku', e.target.value)} hint="Optional. Used to update this product from a bulk upload" />
             <Input label="Slug *" value={form.slug ?? ''} onChange={(e) => up('slug', e.target.value)} required hint="URL-friendly unique key" />
           </div>
           <div>
@@ -109,6 +113,7 @@ export default function ProductsPage() {
           </div>
         </form>
       </Modal>
+      <ProductImportModal open={importOpen} onClose={() => setImportOpen(false)} onDone={load} />
     </div>
   );
 }
