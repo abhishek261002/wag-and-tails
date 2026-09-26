@@ -9,6 +9,10 @@ import { PlusJakartaSans_700Bold, PlusJakartaSans_800ExtraBold } from '@expo-goo
 import { useAuthStore } from '../src/store/auth.store';
 import { usePushSetup } from '../src/lib/push';
 import { colors } from '@wag/design-tokens';
+import { configureMaps } from '@wag/ui-mobile';
+
+// Ola Maps key for map tiles (a public, restricted key); without it maps fall back to OpenStreetMap tiles.
+configureMaps({ apiKey: process.env.EXPO_PUBLIC_OLA_MAPS_API_KEY || null });
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 

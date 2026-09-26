@@ -34,6 +34,7 @@ export function Input({
     <View style={[styles.wrapper, containerStyle]}>
       {label && <Text style={styles.label}>{label}</Text>}
       <View
+        collapsable={false}
         style={[
           styles.inputContainer,
           focused && styles.focused,
@@ -84,13 +85,10 @@ const styles = StyleSheet.create({
     backgroundColor: colors.white,
     paddingHorizontal: spacing[4],
   },
+  // Only the colour changes on focus. Adding a shadow or elevation here changes how React Native builds the
+  // native view tree; on Android that re-attaches the text field, which drops focus and closes the keyboard.
   focused: {
     borderColor: colors.marigold,
-    shadowColor: colors.marigold,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 2,
   },
   error: {
     borderColor: colors.error,

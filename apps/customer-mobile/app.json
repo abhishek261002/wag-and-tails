@@ -18,6 +18,7 @@
     },
     "android": {
       "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#4A1E0B"
       },
       "package": "in.wagandtails.customer",
@@ -25,7 +26,9 @@
         "ACCESS_FINE_LOCATION",
         "ACCESS_COARSE_LOCATION",
         "CAMERA",
-        "READ_EXTERNAL_STORAGE"
+        "READ_EXTERNAL_STORAGE",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION"
       ]
     },
     "plugins": [
@@ -41,13 +44,24 @@
       [
         "expo-splash-screen",
         {
+          "image": "./assets/splash.png",
+          "imageWidth": 200,
+          "resizeMode": "contain",
           "backgroundColor": "#4A1E0B"
         }
-      ]
+      ],
+      "@maplibre/maplibre-react-native"
     ],
     "scheme": "wagandtails",
     "extra": {
-      "apiUrl": "http://localhost:3001/api/v1"
+      "apiUrl": "http://localhost:3001/api/v1",
+      "router": {},
+      "eas": {
+        "projectId": "7230b194-83fe-46f1-9550-9aaf695c08e0"
+      }
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
     }
   }
 }

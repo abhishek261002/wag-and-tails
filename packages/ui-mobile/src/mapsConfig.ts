@@ -41,13 +41,3 @@ export function getMapStyle(): string | object {
   const apiKey = getOlaMapsApiKey();
   return apiKey ? olaStyleUrl(apiKey) : OSM_FALLBACK_STYLE;
 }
-
-// react-native-maps (native) has no concept of a MapLibre style — it
-// overlays raster tiles via <UrlTile>. Same fallback logic: Ola's raster
-// tile endpoint once configured, OSM tiles until then.
-export function getNativeTileUrlTemplate(): string {
-  const apiKey = getOlaMapsApiKey();
-  return apiKey
-    ? `https://api.olamaps.io/tiles/raster/v1/tiles/default-light-standard/{z}/{x}/{y}.png?api_key=${apiKey}`
-    : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
-}
