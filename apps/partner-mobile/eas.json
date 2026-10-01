@@ -17,13 +17,13 @@
         "buildType": "apk"
       },
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://REPLACE-WITH-YOUR-API-HOST/api/v1"
+        "EXPO_PUBLIC_API_URL": "https://109-122-56-39.sslip.io/api/v1"
       }
     },
     "production": {
       "autoIncrement": true,
       "env": {
-        "EXPO_PUBLIC_API_URL": "https://REPLACE-WITH-YOUR-API-HOST/api/v1"
+        "EXPO_PUBLIC_API_URL": "https://109-122-56-39.sslip.io/api/v1"
       }
     }
   },
