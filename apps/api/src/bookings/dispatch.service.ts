@@ -3,7 +3,7 @@ import type { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { RealtimeGateway } from '../realtime/realtime.gateway.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
-import { BUSINESS_CONFIG } from '@wag/config';
+import { BUSINESS_CONFIG } from '../common/config.js';
 
 // How long a chosen partner has to answer a direct request before the customer is asked to choose again.
 export const directRequestTtlMinutes = () => Number(process.env['DIRECT_REQUEST_TTL_MINUTES'] ?? 10);

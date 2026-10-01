@@ -5,7 +5,7 @@ import { NotificationsService } from '../notifications/notifications.service.js'
 import { RealtimeGateway } from '../realtime/realtime.gateway.js';
 import { MessagingService } from '../messaging/messaging.service.js';
 import { isLocationFilteringEnabled } from '../common/feature-flags.js';
-import { BUSINESS_CONFIG } from '@wag/config';
+import { BUSINESS_CONFIG } from '../common/config.js';
 import { DispatchService, claimableBy } from '../bookings/dispatch.service.js';
 import { CommissionService } from '../commission/commission.service.js';
 import { addSeconds } from 'date-fns';

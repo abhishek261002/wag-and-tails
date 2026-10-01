@@ -1,4 +1,4 @@
-import { BUSINESS_CONFIG } from '@wag/config';
+import { BUSINESS_CONFIG } from '../common/config.js';
 
 describe('Payout Calculation', () => {
   function calculatePayout(bookingTotal: number) {

@@ -16,7 +16,7 @@ import { CommissionService } from '../commission/commission.service.js';
 import { TrackingService } from '../routing/tracking.service.js';
 import { isLocationFilteringEnabled } from '../common/feature-flags.js';
 import { normalizeCity } from '../common/city.js';
-import { BUSINESS_CONFIG } from '@wag/config';
+import { BUSINESS_CONFIG } from '../common/config.js';
 import { BookingType, PartnerStatus, PetSpecies, Prisma } from '@prisma/client';
 
 const MAX_JOB_PHOTOS = 10;

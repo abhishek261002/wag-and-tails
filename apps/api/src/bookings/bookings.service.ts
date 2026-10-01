@@ -15,7 +15,7 @@ import { normalizeCity } from '../common/city.js';
 import { isOverLimit, limitFor, loadActiveDiscounts, loadDues, loadSettings } from '../commission/queries.js';
 import { CouponsService } from '../coupons/coupons.service.js';
 import { assertGroomingTransition, assertWalkingTransition } from './booking-state-machine.js';
-import { BUSINESS_CONFIG } from '@wag/config';
+import { BUSINESS_CONFIG } from '../common/config.js';
 import { speciesSupportsService } from '../common/species.js';
 import { isBefore, addHours } from 'date-fns';
 import { scheduleProblem, SCHEDULE_PROBLEM_MESSAGE } from '../common/scheduling.js';

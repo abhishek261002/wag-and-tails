@@ -6,7 +6,7 @@ import {
   ConflictException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
-import { BUSINESS_CONFIG } from '@wag/config';
+import { BUSINESS_CONFIG } from '../common/config.js';
 import { PetSex, PetSize, CoatType, PetSpecies } from '@prisma/client';
 import { sizeFromWeight, VACCINATION_VALIDITY_DAYS } from '../common/species.js';
 import { summarizeVaccinations } from '../common/vaccination.js';
