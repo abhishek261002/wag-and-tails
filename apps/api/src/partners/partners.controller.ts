@@ -1,6 +1,4 @@
-import {
-  Controller, Get, Post, Patch, Put, Param, Body, Query, UseGuards, HttpCode
-} from '@nestjs/common';
+import { Controller, Get, Post, Patch, Put, Param, Body, Query, UseGuards, HttpCode, Delete, HttpStatus } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { PartnersService } from './partners.service.js';
@@ -153,6 +151,25 @@ export class PartnersController {
     @Body() body: { docType: string; fileUrl: string }
   ) {
     return this.partnersService.uploadDocument(user.sub, body.docType, body.fileUrl);
+  }
+
+  @Get('tools')
+  @Roles('partner')
+  listTools(@CurrentUser() user: { sub: string }) {
+    return this.partnersService.listTools(user.sub);
+  }
+
+  @Post('tools')
+  @Roles('partner')
+  addTool(@CurrentUser() user: { sub: string }, @Body() body: { url: string }) {
+    return this.partnersService.addTool(user.sub, body?.url);
+  }
+
+  @Delete('tools/:id')
+  @Roles('partner')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  removeTool(@CurrentUser() user: { sub: string }, @Param('id') id: string) {
+    return this.partnersService.removeTool(user.sub, id);
   }
 
   @Get('reviews')

@@ -308,6 +308,7 @@ model PartnerProfile {
   availability       PartnerAvailability[]
   neighborhoods      PartnerNeighborhood[]
   documents          PartnerDocument[]
+  toolMedia       PartnerToolMedia[]
   payouts            Payout[]
   discounts          PartnerDiscount[]
   ledgerEntries      PartnerLedgerEntry[]
@@ -731,6 +732,24 @@ model PartnerDocument {
   partner PartnerProfile @relation(fields: [partnerId], references: [userId], onDelete: Cascade)
 
   @@map("partner_documents")
+}
+
+// Photos and videos of the tools a groomer will use, reviewed by staff before approval. Each row points at a file the
+// partner uploaded through /files/upload (entity partner_tool); the API checks that before saving the row.
+model PartnerToolMedia {
+  id        String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  partnerId String   @map("partner_id") @db.Uuid
+  url       String
+  kind      String   // image | video
+  mimeType  String   @map("mime_type")
+  sizeBytes Int      @map("size_bytes")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  partner PartnerProfile @relation(fields: [partnerId], references: [userId], onDelete: Cascade)
+
+  @@unique([partnerId, url])
+  @@index([partnerId])
+  @@map("partner_tool_media")
 }
 
 // ─── Service Areas ────────────────────────────────────────────────────────────

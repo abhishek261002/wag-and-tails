@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { PageHeader, Badge, Button, Modal, useToast, FilterChip, Toolbar, Card, Table, TableStrong, RatingChip, Icon, PartnerMoneyPanel } from '@wag/ui-web';
+import { PageHeader, Badge, Button, Modal, useToast, FilterChip, Toolbar, Card, Table, TableStrong, RatingChip, Icon, PartnerMoneyPanel, ToolMediaGallery, type ToolsData } from '@wag/ui-web';
 import { wagApi, resolveMediaUrl } from '../lib/api';
 import { format } from 'date-fns';
 
@@ -22,6 +22,8 @@ export default function PartnersPage() {
   };
 
   useEffect(load, [status]);
+
+  const [tools, setTools] = useState<ToolsData | null>(null);
 
   const handleApprove = async (partner: any) => {
     setApproving(true);
@@ -76,14 +78,14 @@ export default function PartnersPage() {
 
       <Modal
         open={!!selected}
-        onClose={() => setSelected(null)}
+        onClose={() => { setSelected(null); setTools(null); }}
         title="Partner application"
         size="lg"
         footer={
           selected?.status === 'pending' ? (
             <>
               <Button variant="outline" onClick={() => setSelected(null)}>Close</Button>
-              <Button onClick={() => handleApprove(selected)} loading={approving}>Approve partner</Button>
+              <Button onClick={() => handleApprove(selected)} loading={approving} disabled={tools !== null && !tools.complete}>Approve partner</Button>
             </>
           ) : (
             <Button variant="outline" onClick={() => setSelected(null)}>Close</Button>
@@ -143,6 +145,12 @@ export default function PartnersPage() {
             </dl>
           </div>
         )}
+        {selected && (
+          <div className="mt-5">
+            <ToolMediaGallery api={wagApi.client} path={`/staff/partners/${selected.userId}/tools`} resolveUrl={resolveMediaUrl as any} onLoaded={setTools} />
+          </div>
+        )}
+
         {selected && selected.status === 'approved' && (
           <div className="mt-5"><PartnerMoneyPanel api={wagApi.client} partnerId={selected.userId} isAdmin={false} /></div>
         )}

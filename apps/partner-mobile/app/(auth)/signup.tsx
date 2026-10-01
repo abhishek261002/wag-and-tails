@@ -169,7 +169,9 @@ export default function PartnerSignupScreen() {
         }
       }
 
-      router.replace('/(auth)/pending-approval');
+      // Groomers show staff their tools before the application can be approved; walkers go straight to review.
+      if (includesGrooming) router.replace('/account/tools?onboarding=1' as any);
+      else router.replace('/(auth)/pending-approval');
     } catch (err: any) {
       const msg = errMsg(err, 'Could not submit your application. Please try again.');
       // The verification is single-use; if it is no longer valid the partner must verify again.

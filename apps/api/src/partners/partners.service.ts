@@ -1,4 +1,12 @@
-import { Logger, Injectable, NotFoundException, ForbiddenException, BadRequestException, ConflictException } from '@nestjs/common';
+import {
+  Logger,
+  Injectable,
+  NotFoundException,
+  ForbiddenException,
+  BadRequestException,
+  ConflictException,
+  UnprocessableEntityException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { RealtimeGateway } from '../realtime/realtime.gateway.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
@@ -12,6 +20,9 @@ import { BUSINESS_CONFIG } from '@wag/config';
 import { BookingType, PartnerStatus, PetSpecies, Prisma } from '@prisma/client';
 
 const MAX_JOB_PHOTOS = 10;
+// Photos and videos of a groomer's tools, reviewed by staff before approval.
+export const TOOL_MEDIA_RULES = { minPhotos: 3, maxPhotos: 10, maxVideos: 3 } as const;
+
 // Photos come from our own upload endpoint (/files/upload -> /uploads/...); never accept device-local URIs.
 const isStoredPhotoUrl = (u: unknown): u is string =>
   typeof u === 'string' && u.length <= 500 && (/^\/uploads\/[\w.\-]+$/.test(u) || /^https:\/\/[^\s]+$/.test(u));
@@ -670,7 +681,70 @@ export class PartnersService {
     return { data: safeData, total, page, pageSize };
   }
 
+  // ─── Tool photos and videos ───────────────────────────────────────────────────
+
+  private toolCounts(items: { kind: string }[]) {
+    return { photos: items.filter((i) => i.kind === 'image').length, videos: items.filter((i) => i.kind === 'video').length };
+  }
+
+  /** Groomers must show their tools; walkers do not use any. */
+  private async needsTools(partnerId: string): Promise<boolean> {
+    const p = await this.prisma.partnerProfile.findUnique({ where: { userId: partnerId }, select: { modes: true } });
+    if (!p) throw new NotFoundException('Partner not found');
+    return (p.modes as string[]).includes('grooming');
+  }
+
+  async listTools(partnerId: string) {
+    const items = await this.prisma.partnerToolMedia.findMany({ where: { partnerId }, orderBy: { createdAt: 'asc' } });
+    const counts = this.toolCounts(items);
+    const required = await this.needsTools(partnerId);
+    return {
+      items,
+      counts,
+      rules: TOOL_MEDIA_RULES,
+      required,
+      complete: !required || counts.photos >= TOOL_MEDIA_RULES.minPhotos,
+    };
+  }
+
+  /**
+   * Attaches an uploaded file to the partner's tools. The file must be one this partner uploaded through
+   * /files/upload for this purpose (checked against the upload record), so nobody can point at another
+   * user's file or at an arbitrary URL. Image and video counts are capped.
+   */
+  async addTool(partnerId: string, url: unknown) {
+    if (!isStoredPhotoUrl(url)) throw new BadRequestException('Upload the file first, then add it');
+    const file = await this.prisma.uploadedFile.findFirst({ where: { url, uploadedBy: partnerId, entity: 'partner_tool' } });
+    if (!file) throw new BadRequestException('That file was not uploaded from your account for this purpose');
+    const kind = file.mimeType.startsWith('video/') ? 'video' : file.mimeType.startsWith('image/') ? 'image' : null;
+    if (!kind) throw new BadRequestException('Only photos and videos can be added');
+
+    const existing = await this.prisma.partnerToolMedia.findMany({ where: { partnerId }, select: { kind: true, url: true } });
+    if (existing.some((e) => e.url === url)) throw new ConflictException('That file is already added');
+    const counts = this.toolCounts(existing);
+    if (kind === 'image' && counts.photos >= TOOL_MEDIA_RULES.maxPhotos) throw new ConflictException(`You can add up to ${TOOL_MEDIA_RULES.maxPhotos} photos`);
+    if (kind === 'video' && counts.videos >= TOOL_MEDIA_RULES.maxVideos) throw new ConflictException(`You can add up to ${TOOL_MEDIA_RULES.maxVideos} videos`);
+
+    return this.prisma.partnerToolMedia.create({
+      data: { partnerId, url, kind, mimeType: file.mimeType, sizeBytes: file.sizeBytes },
+    });
+  }
+
+  async removeTool(partnerId: string, mediaId: string) {
+    const row = await this.prisma.partnerToolMedia.findFirst({ where: { id: mediaId, partnerId } });
+    if (!row) throw new NotFoundException('Not found');
+    await this.prisma.partnerToolMedia.delete({ where: { id: mediaId } });
+  }
+
   async approve(partnerId: string, adminId: string) {
+    // A groomer is not approved until staff can see photos of their tools.
+    const tools = await this.listTools(partnerId);
+    if (!tools.complete) {
+      throw new UnprocessableEntityException({
+        code: 'TOOLS_REQUIRED',
+        message: `This groomer has not uploaded enough photos of their tools yet (${tools.counts.photos} of ${TOOL_MEDIA_RULES.minPhotos} required).`,
+      });
+    }
     return this.prisma.partnerProfile.update({
       where: { userId: partnerId },
       data: { status: 'approved', approvedBy: adminId, approvedAt: new Date() },

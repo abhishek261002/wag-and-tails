@@ -66,7 +66,35 @@ export class PetsController {
     @Body() body: { note: string },
     @CurrentUser() user: { sub: string; role: string }
   ) {
-    return this.petsService.addCareNote(id, body.note, user.sub, user.role);
+    return this.petsService.addCareNote(id, body?.note, user.sub, user.role);
+  }
+
+  @Patch(':id/care-notes/:noteId')
+  @Roles('customer', 'partner', 'staff', 'admin')
+  updateCareNote(
+    @Param('id') id: string,
+    @Param('noteId') noteId: string,
+    @Body() body: { note: string },
+    @CurrentUser() user: { sub: string; role: string }
+  ) {
+    return this.petsService.updateCareNote(id, noteId, body?.note, user);
+  }
+
+  @Delete(':id/care-notes/:noteId')
+  @Roles('customer', 'partner', 'staff', 'admin')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  deleteCareNote(
+    @Param('id') id: string,
+    @Param('noteId') noteId: string,
+    @CurrentUser() user: { sub: string; role: string }
+  ) {
+    return this.petsService.deleteCareNote(id, noteId, user);
+  }
+
+  @Get(':id/grooming-history')
+  @Roles('customer', 'staff', 'admin')
+  groomingHistory(@Param('id') id: string, @CurrentUser() user: { sub: string; role: string }) {
+    return this.petsService.groomingHistory(id, user);
   }
 
   @Post(':id/vaccinations')

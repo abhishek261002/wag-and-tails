@@ -1,6 +1,25 @@
 import type { ApiClient } from './client.js';
 import type { Partner, PartnerJobCard, PartnerEarnings, PayoutRequest, DuesStatus, DuesPayOrder } from '@wag/shared-types';
 
+export interface ToolMedia {
+  id: string;
+  url: string;
+  kind: 'image' | 'video';
+  mimeType: string;
+  sizeBytes: number;
+  createdAt: string;
+}
+
+export interface ToolsResponse {
+  items: ToolMedia[];
+  counts: { photos: number; videos: number };
+  rules: { minPhotos: number; maxPhotos: number; maxVideos: number };
+  /** Groomers must show their tools; walkers do not. */
+  required: boolean;
+  /** Enough photos to be approved (always true when not required). */
+  complete: boolean;
+}
+
 export class PartnerApi {
   constructor(private client: ApiClient) {}
 
@@ -155,6 +174,28 @@ export class PartnerApi {
   }
 
   // Documents
+  /** Photos and videos of the groomer's tools. */
+  tools(): Promise<ToolsResponse> {
+    return this.client.get('/partner/tools');
+  }
+
+  /** Uploads a photo or video, then attaches it to the partner's tools. Sent as a Blob so it works on native and web. */
+  async addToolFile(file: { uri: string; name: string }): Promise<ToolMedia> {
+    const blob = await (await fetch(file.uri)).blob();
+    const formData = new FormData();
+    formData.append('file', blob, file.name);
+    formData.append('entity', 'partner_tool');
+    formData.append('entityId', 'me');
+    const uploaded = await this.client.post<{ url: string }>('/files/upload', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return this.client.post('/partner/tools', { url: uploaded.url });
+  }
+
+  removeTool(id: string): Promise<void> {
+    return this.client.delete(`/partner/tools/${id}`);
+  }
+
   getDocuments(): Promise<Array<{ id: string; docType: string; fileUrl: string; verifiedAt: string | null }>> {
     return this.client.get('/partner/documents');
   }

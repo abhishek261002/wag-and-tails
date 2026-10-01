@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { PageHeader, KpiCard, Card, CardHeader, CardTitle, Table, Badge, Button, Icon, useToast, RatingChip, PartnerMoneyPanel } from '@wag/ui-web';
+import { PageHeader, KpiCard, Card, CardHeader, CardTitle, Table, Badge, Button, Icon, useToast, RatingChip, PartnerMoneyPanel, ToolMediaGallery } from '@wag/ui-web';
 import { wagApi, resolveMediaUrl } from '../lib/api';
 import { format } from 'date-fns';
 import { useAuthStore } from '../store/auth.store';
@@ -23,7 +23,8 @@ export default function PartnerDetailPage() {
   const handleApprove = async () => {
     if (!id) return;
     try {
-      await wagApi.client.patch(`/admin/partners/${id}/approve`, { adminId: userId });
+      // The server records the signed-in admin as the approver.
+      await wagApi.client.patch(`/admin/partners/${id}/approve`);
       toast({ type: 'success', title: 'Partner approved' });
       load();
     } catch (err: any) { toast({ type: 'error', title: 'Failed', message: err?.message }); }
@@ -128,6 +129,9 @@ export default function PartnerDetailPage() {
         </div>
         <div className="mt-4">
           <PartnerMoneyPanel api={wagApi.client} partnerId={partner.userId} isAdmin />
+          <div className="mt-5">
+            <ToolMediaGallery api={wagApi.client} path={`/admin/partners/${partner.userId}/tools`} resolveUrl={resolveMediaUrl as any} />
+          </div>
         </div>
       </div>
     </div>

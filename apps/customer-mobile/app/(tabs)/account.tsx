@@ -1,10 +1,10 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
-import { router } from 'expo-router';
+import React, { useCallback, useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Image } from 'react-native';
+import { router, useFocusEffect } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, spacing, typography, radii } from '@wag/design-tokens';
 import { Icon, RowItem } from '@wag/ui-mobile';
-import { wagApi } from '../../src/lib/api';
+import { wagApi, resolveMediaUrl } from '../../src/lib/api';
 import { useAuthStore } from '../../src/store/auth.store';
 
 export default function AccountScreen() {
@@ -13,11 +13,12 @@ export default function AccountScreen() {
   const [petCount, setPetCount] = useState(0);
   const { clearTokens } = useAuthStore();
 
-  useEffect(() => {
+  // Reload whenever the tab is shown, so a name or photo changed on the profile screen appears straight away.
+  useFocusEffect(useCallback(() => {
     wagApi.client.get('/users/me').then((d) => setProfile(d)).catch(() => {});
     wagApi.client.get('/users/me/wallet').then((d) => setWallet(d as any)).catch(() => {});
     wagApi.pets.list().then((p) => setPetCount(p.length)).catch(() => {});
-  }, []);
+  }, []));
 
   const handleLogout = () => {
     Alert.alert('Log out', 'Are you sure you want to log out?', [
@@ -44,9 +45,11 @@ export default function AccountScreen() {
         <Text style={styles.title}>Account</Text>
 
         {/* Profile hero — mirrors the prototype's card--brand */}
-        <TouchableOpacity style={styles.heroCard} onPress={() => {}} activeOpacity={0.9}>
+        <TouchableOpacity style={styles.heroCard} onPress={() => router.push('/account/profile' as any)} activeOpacity={0.9} accessibilityRole="button" accessibilityLabel="Edit your personal information">
           <View style={styles.avatar}>
-            <Text style={styles.avatarText}>{name.charAt(0).toUpperCase()}</Text>
+            {profile?.profile?.avatarUrl
+              ? <Image source={{ uri: resolveMediaUrl(profile.profile.avatarUrl) ?? undefined }} style={{ width: '100%', height: '100%' }} />
+              : <Text style={styles.avatarText}>{name.charAt(0).toUpperCase()}</Text>}
           </View>
           <View style={{ flex: 1 }}>
             <Text style={styles.heroName}>{name}</Text>
@@ -66,10 +69,10 @@ export default function AccountScreen() {
         </View>
 
         <Section title="Your details">
-          <RowItem icon="user" title="Personal information" sub="Name, phone, email" onPress={() => {}} />
+          <RowItem icon="user" title="Personal information" sub="Photo, name, email, date of birth" onPress={() => router.push('/account/profile' as any)} />
           <RowItem icon="pin" title="Saved addresses" value={String(addressCount)} onPress={() => router.push('/account/addresses' as any)} />
           <RowItem icon="card" title="Payment methods" onPress={() => {}} />
-          <RowItem icon="paw" title="My pets" value={String(petCount)} onPress={() => router.push('/(tabs)/bookings')} />
+          <RowItem icon="paw" title="My pets" value={String(petCount)} onPress={() => router.push('/(tabs)/pets' as any)} />
         </Section>
 
         <Section title="Preferences">
@@ -126,7 +129,7 @@ const styles = StyleSheet.create({
   title: { fontFamily: 'Inter', fontSize: typography.fontSize['2xl'], fontWeight: '800', color: colors.textPrimary, paddingHorizontal: spacing[5], paddingTop: spacing[5], paddingBottom: spacing[4] },
 
   heroCard: { flexDirection: 'row', alignItems: 'center', gap: spacing[3], backgroundColor: colors.brandBrown, borderRadius: radii.xl, padding: spacing[4], marginHorizontal: spacing[5] },
-  avatar: { width: 54, height: 54, borderRadius: 27, backgroundColor: colors.marigold, alignItems: 'center', justifyContent: 'center' },
+  avatar: { width: 54, height: 54, borderRadius: 27, backgroundColor: colors.marigold, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
   avatarText: { fontSize: 22, fontWeight: '800', color: colors.white },
   heroName: { fontFamily: 'Inter', fontSize: 15.5, fontWeight: '700', color: colors.white },
   heroPhone: { fontFamily: 'Inter', fontSize: 12, color: 'rgba(255,255,255,0.7)', marginTop: 3 },

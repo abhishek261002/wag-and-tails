@@ -1,6 +1,19 @@
 import type { ApiClient } from './client.js';
 import type { Pet, PetDetail, PetCareNote, PetVaccination, CreatePetInput, UpdatePetInput } from '@wag/shared-types';
 
+export interface GroomingHistoryEntry {
+  id: string;
+  packageName: string;
+  /** ISO date of the visit. */
+  date: string | null;
+  partnerName: string | null;
+  /** The customer's rating of that visit, if they left one. */
+  rating: number | null;
+  /** Photos the partner took on arrival and after the session (paths under /uploads). */
+  beforePhotos: string[];
+  afterPhotos: string[];
+}
+
 export class PetsApi {
   constructor(private client: ApiClient) {}
 
@@ -26,6 +39,19 @@ export class PetsApi {
 
   addCareNote(petId: string, note: string): Promise<PetCareNote> {
     return this.client.post(`/pets/${petId}/care-notes`, { note });
+  }
+
+  updateCareNote(petId: string, noteId: string, note: string): Promise<PetCareNote> {
+    return this.client.patch(`/pets/${petId}/care-notes/${noteId}`, { note });
+  }
+
+  deleteCareNote(petId: string, noteId: string): Promise<void> {
+    return this.client.delete(`/pets/${petId}/care-notes/${noteId}`);
+  }
+
+  /** Finished grooming sessions, newest first, with before/after photos. */
+  groomingHistory(petId: string): Promise<GroomingHistoryEntry[]> {
+    return this.client.get(`/pets/${petId}/grooming-history`);
   }
 
   addVaccination(petId: string, data: Omit<PetVaccination, 'id' | 'petId'>): Promise<PetVaccination> {

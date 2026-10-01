@@ -1,15 +1,24 @@
-import React from 'react';
+import React, { useCallback, useState } from 'react';
 import { View, Text, StyleSheet, Linking, Alert } from 'react-native';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button, Icon } from '@wag/ui-mobile';
 import { colors, spacing, typography, radii } from '@wag/design-tokens';
 import { useAuthStore } from '../../src/store/auth.store';
+import { wagApi } from '../../src/lib/api';
 
 const SUPPORT_PHONE = '+911234567890';
 
 export default function PendingApprovalScreen() {
   const { clearTokens } = useAuthStore();
+  const [missingPhotos, setMissingPhotos] = useState(0);
+
+  // A groomer who has not added enough tool photos cannot be approved: remind them here.
+  useFocusEffect(useCallback(() => {
+    wagApi.partner.tools()
+      .then((t) => setMissingPhotos(t.required ? Math.max(0, t.rules.minPhotos - t.counts.photos) : 0))
+      .catch(() => {});
+  }, []));
 
   const handleContactSupport = () => {
     Linking.openURL(`tel:${SUPPORT_PHONE}`).catch(() => {
@@ -35,6 +44,14 @@ export default function PendingApprovalScreen() {
           Thanks for signing up! Our team is reviewing your details. You'll be able to start
           taking jobs as soon as you're approved — this usually takes 1-2 business days.
         </Text>
+
+        {missingPhotos > 0 && (
+          <View style={[styles.card, styles.warnCard]}>
+            <Text style={styles.cardTitle}>One more step: show us your tools</Text>
+            <Text style={styles.cardText}>We cannot approve your application until you add {missingPhotos} more photo{missingPhotos === 1 ? '' : 's'} of the grooming tools you will use.</Text>
+            <Button onPress={() => router.push('/account/tools?onboarding=1' as any)} fullWidth style={{ marginTop: spacing[3] }}>Add tool photos</Button>
+          </View>
+        )}
 
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Need this sped up?</Text>
@@ -65,5 +82,6 @@ const styles = StyleSheet.create({
   card: { width: '100%', backgroundColor: colors.white, borderRadius: radii.xl, padding: spacing[5], borderWidth: 1, borderColor: colors.borderLight, marginBottom: spacing[8] },
   cardTitle: { fontFamily: 'Inter', fontSize: 15, fontWeight: '700', color: colors.textPrimary, marginBottom: spacing[1] },
   cardText: { fontFamily: 'Inter', fontSize: 13, color: colors.textMuted },
+  warnCard: { borderColor: colors.marigold, backgroundColor: colors.marigoldBg },
   logout: { fontFamily: 'Inter', fontSize: 14, color: colors.textMuted, fontWeight: '600', textDecorationLine: 'underline' },
 });

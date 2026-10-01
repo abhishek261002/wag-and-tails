@@ -5,29 +5,25 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button, Icon } from '@wag/ui-mobile';
 import { colors, spacing, typography, radii } from '@wag/design-tokens';
 import { wagApi } from '../../src/lib/api';
-import { addDays, format, setHours, startOfDay } from 'date-fns';
+import { format } from 'date-fns';
+import { SlotPicker } from '../../src/components/SlotPicker';
 import { goBack } from '../../src/lib/nav';
 
 export default function RescheduleScreen() {
   const { id: bookingId } = useLocalSearchParams<{ id: string }>();
-  const today = startOfDay(new Date());
-  const days = Array.from({ length: 14 }, (_, i) => addDays(today, i + 1));
-  const hours = [8, 9, 10, 11, 12, 13, 14, 15, 16, 17];
-
-  const [selectedDay, setSelectedDay] = useState<Date | null>(null);
-  const [selectedHour, setSelectedHour] = useState<number | null>(null);
+  const [when, setWhen] = useState<Date | null>(null);
   const [loading, setLoading] = useState(false);
 
   const handleConfirm = async () => {
-    if (!selectedDay || !selectedHour) {
+    if (!when) {
       Alert.alert('Select date & time', 'Please pick a new date and time');
       return;
     }
-    const newDate = setHours(selectedDay, selectedHour).toISOString();
+    const newDate = when.toISOString();
     setLoading(true);
     try {
       await wagApi.bookings.reschedule(bookingId!, newDate, 'Customer requested reschedule');
-      Alert.alert('Rescheduled!', `Your booking has been moved to ${format(setHours(selectedDay, selectedHour), 'EEE, d MMM · h:mm a')}`, [
+      Alert.alert('Rescheduled!', `Your booking has been moved to ${format(when, 'EEE, d MMM · h:mm a')}`, [
         { text: 'OK', onPress: () => goBack() },
       ]);
     } catch (err: any) {
@@ -48,48 +44,18 @@ export default function RescheduleScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.content}>
-        <Text style={styles.sectionLabel}>CHOOSE NEW DATE</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.dayRow} contentContainerStyle={{ gap: spacing[2] }}>
-          {days.map((day, i) => {
-            const active = selectedDay ? format(day, 'yyyy-MM-dd') === format(selectedDay, 'yyyy-MM-dd') : false;
-            return (
-              <TouchableOpacity key={i} style={[styles.dayChip, active && styles.dayChipActive]} onPress={() => setSelectedDay(day)}>
-                <Text style={[styles.dayWeekday, active && { color: colors.white }]}>{format(day, 'EEE')}</Text>
-                <Text style={[styles.dayNum, active && { color: colors.white }]}>{format(day, 'd')}</Text>
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
+        <SlotPicker onChange={setWhen} dateLabel="CHOOSE NEW DATE" timeLabel="CHOOSE NEW TIME" />
 
-        {selectedDay && (
-          <>
-            <Text style={[styles.sectionLabel, { marginTop: spacing[5] }]}>CHOOSE NEW TIME</Text>
-            <View style={styles.hoursGrid}>
-              {hours.map((h) => {
-                const active = selectedHour === h;
-                const label = h < 12 ? `${h}:00 AM` : h === 12 ? '12:00 PM' : `${h-12}:00 PM`;
-                return (
-                  <TouchableOpacity key={h} style={[styles.hourChip, active && styles.hourChipActive]} onPress={() => setSelectedHour(h)}>
-                    <Text style={[styles.hourText, active && styles.hourTextActive]}>{label}</Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-          </>
-        )}
-
-        {selectedDay && selectedHour && (
+        {when && (
           <View style={[styles.confirmBox, { flexDirection: 'row', alignItems: 'center', gap: spacing[2] }]}>
             <Icon name="cal" size={15} color={colors.brandBrown} />
-            <Text style={styles.confirmText}>
-              New time: {format(setHours(selectedDay, selectedHour), 'EEEE, d MMMM · h:mm a')}
-            </Text>
+            <Text style={styles.confirmText}>New time: {format(when, 'EEEE, d MMMM · h:mm a')}</Text>
           </View>
         )}
       </ScrollView>
 
       <View style={styles.footer}>
-        <Button onPress={handleConfirm} fullWidth loading={loading} disabled={!selectedDay || !selectedHour}>
+        <Button onPress={handleConfirm} fullWidth loading={loading} disabled={!when}>
           Confirm Reschedule
         </Button>
       </View>

@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert } from 'react-native';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button, Icon } from '@wag/ui-mobile';
 import { colors, spacing, typography, radii } from '@wag/design-tokens';
@@ -12,9 +12,10 @@ export default function SelectAddressScreen() {
   const [addresses, setAddresses] = useState<any[]>([]);
   const { groomingDraft, updateGroomingDraft } = useBookingStore();
 
-  useEffect(() => {
+  // Reload on focus so an address added from the next screen shows up when the user returns.
+  useFocusEffect(useCallback(() => {
     wagApi.client.get<any>('/users/me').then((u) => setAddresses(u?.addresses ?? [])).catch(() => {});
-  }, []);
+  }, []));
 
   const selectAddress = (addr: any) => {
     updateGroomingDraft({
@@ -67,7 +68,7 @@ export default function SelectAddressScreen() {
           <View style={styles.empty}>
             <Icon name="pin" size={40} color={colors.textDisabled} />
             <Text style={styles.emptyText}>No saved addresses</Text>
-            <TouchableOpacity onPress={() => router.push('/account/addresses' as any)}>
+            <TouchableOpacity onPress={() => router.push('/account/address-new' as any)}>
               <Text style={styles.addAddr}>+ Add an address</Text>
             </TouchableOpacity>
           </View>
@@ -76,7 +77,7 @@ export default function SelectAddressScreen() {
           addresses.length > 0 ? (
             <TouchableOpacity
               style={styles.addNewBtn}
-              onPress={() => router.push('/account/addresses' as any)}
+              onPress={() => router.push('/account/address-new' as any)}
             >
               <Text style={styles.addNewText}>+ Add a new address</Text>
             </TouchableOpacity>

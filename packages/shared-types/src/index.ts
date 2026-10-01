@@ -13,3 +13,7 @@ export * from './admin.js';
 export * from './realtime.js';
 export * from './commission.js';
 export * from './navigation.js';
+export * from './chat.js';
+export * from './scheduling.js';
+export * from './vaccination.js';
+export * from './pet-age.js';

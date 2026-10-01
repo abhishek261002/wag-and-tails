@@ -7,6 +7,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, spacing, radii } from '@wag/design-tokens';
+import { mergeMessages } from '@wag/shared-types';
 import { Icon } from '@wag/ui-mobile';
 import { wagApi } from '../../src/lib/api';
 import { useAuthStore } from '../../src/store/auth.store';
@@ -24,7 +25,8 @@ export default function PartnerMessagingScreen() {
   const refreshMessages = useCallback(async (convId: string) => {
     try {
       const msgs = await wagApi.messaging.getMessages(convId);
-      setMessages(msgs as any[]);
+      // Oldest first: the API returns newest first.
+      setMessages((prev) => mergeMessages(prev, msgs as any[]));
     } catch {}
   }, []);
 
@@ -41,13 +43,9 @@ export default function PartnerMessagingScreen() {
 
     const offMessage = wagApi.realtime.on('message:sent', (payload: any) => {
       if (payload.bookingId !== bookingId) return;
-      setMessages((prev) => {
-        if (prev.some((m) => m.id === payload.messageId)) return prev;
-        return [
-          { id: payload.messageId, conversationId: payload.conversationId, senderId: payload.senderId, senderName: payload.senderName, senderRole: payload.senderRole, content: payload.content, attachmentUrl: payload.attachmentUrl, attachmentType: payload.attachmentType, sentAt: payload.sentAt },
-          ...prev,
-        ];
-      });
+      setMessages((prev) => mergeMessages(prev, [
+        { id: payload.messageId, conversationId: payload.conversationId, senderId: payload.senderId, senderName: payload.senderName, senderRole: payload.senderRole, content: payload.content, attachmentUrl: payload.attachmentUrl, attachmentType: payload.attachmentType, sentAt: payload.sentAt },
+      ]));
       setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 100);
     });
 

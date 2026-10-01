@@ -5,6 +5,8 @@ import { ValidationPipe, Logger } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import fastifyMultipart from '@fastify/multipart';
 import fastifyStatic from '@fastify/static';
+import { ABSOLUTE_MAX_BYTES } from './files/upload-rules.js';
+import { PrismaExceptionFilter } from './common/prisma-exception.filter.js';
 import * as path from 'path';
 import { AppModule } from './app.module.js';
 
@@ -21,7 +23,12 @@ async function bootstrap() {
   // every upload (pet avatars, documents, etc.) silently "succeeds" with
   // no file ever saved, since the handler just falls through its
   // no-file branch rather than throwing.
-  await app.register(fastifyMultipart as any);
+  // The default per-file limit is the server's 1 MiB body limit, which silently cut off any photo larger than
+  // that. The real limits (per kind) are enforced in FilesController; this one only has to be high enough not
+  // to truncate a valid upload.
+  await app.register(fastifyMultipart as any, {
+    limits: { fileSize: ABSOLUTE_MAX_BYTES, files: 1, fields: 10, parts: 20 },
+  });
 
   // FilesService (local storage provider) writes uploads to disk and hands
   // back a "/uploads/<file>" URL, but nothing was ever registered to
@@ -33,7 +40,12 @@ async function bootstrap() {
   await app.register(fastifyStatic as any, {
     root: path.resolve(process.cwd(), localUploadPath),
     prefix: '/uploads/',
+    // Uploads are user content: never let a browser guess a type for them.
+    setHeaders: (res: any) => { res.setHeader('X-Content-Type-Options', 'nosniff'); },
   });
+
+  // Bad ids and missing records become 400 / 404, not a bare 500.
+  app.useGlobalFilters(new PrismaExceptionFilter());
 
   // Global prefix
   app.setGlobalPrefix('api/v1');

@@ -9,6 +9,7 @@ import { PrismaService } from '../prisma/prisma.service.js';
 import { BUSINESS_CONFIG } from '@wag/config';
 import { PetSex, PetSize, CoatType, PetSpecies } from '@prisma/client';
 import { sizeFromWeight, VACCINATION_VALIDITY_DAYS } from '../common/species.js';
+import { summarizeVaccinations } from '../common/vaccination.js';
 import {
   createPetSchema,
   updatePetSchema,
@@ -23,17 +24,56 @@ export class PetsService {
   constructor(private prisma: PrismaService) {}
 
   async listByCustomer(customerId: string) {
-    return this.prisma.pet.findMany({
+    const pets = await this.prisma.pet.findMany({
       where: { customerId, isActive: true },
       orderBy: { createdAt: 'asc' },
       include: {
         careNotes: { orderBy: { createdAt: 'desc' }, take: 1 },
+        vaccinations: { select: { vaccineName: true, administeredDate: true, expiryDate: true } },
         _count: { select: { bookings: true } },
       },
     });
+    // Completed visits per pet, for the "3 visits" chip.
+    const visits = pets.length
+      ? await this.prisma.booking.groupBy({
+          by: ['petId'],
+          where: { customerId, status: 'completed', petId: { in: pets.map((p) => p.id) } },
+          _count: { _all: true },
+        })
+      : [];
+    const visitCount = new Map(visits.map((v) => [v.petId, v._count._all]));
+    return pets.map((p) => ({
+      ...p,
+      visitCount: visitCount.get(p.id) ?? 0,
+      vaccination: summarizeVaccinations(p.vaccinations, p.vaccinationStatus),
+    }));
+  }
+
+  /**
+   * Who may see or annotate a pet: its owner; a partner who has (or had) a booking for it; staff and admins.
+   * A partner with no booking for the pet must not be able to read its record or add notes to it.
+   */
+  private async assertCanAccess(petId: string, user: { sub: string; role: string }) {
+    const pet = await this.prisma.pet.findUnique({ where: { id: petId } });
+    if (!pet) throw new NotFoundException('Pet not found');
+    if (user.role === 'staff' || user.role === 'admin') return pet;
+    if (user.role === 'customer') {
+      if (pet.customerId !== user.sub) throw new ForbiddenException('Access denied');
+      return pet;
+    }
+    if (user.role === 'partner') {
+      const job = await this.prisma.booking.findFirst({
+        where: { petId, partnerId: user.sub, status: { in: ['assigned', 'accepted', 'partner_on_the_way', 'arrived', 'in_progress', 'completed'] } },
+        select: { id: true },
+      });
+      if (!job) throw new ForbiddenException('Access denied');
+      return pet;
+    }
+    throw new ForbiddenException('Access denied');
   }
 
   async getDetail(petId: string, requesterId: string, requesterRole: string) {
+    await this.assertCanAccess(petId, { sub: requesterId, role: requesterRole });
     const pet = await this.prisma.pet.findUnique({
       where: { id: petId },
       include: {
@@ -41,15 +81,40 @@ export class PetsService {
         vaccinations: { orderBy: { administeredDate: 'desc' } },
       },
     });
-
     if (!pet) throw new NotFoundException('Pet not found');
+    const visitCount = await this.prisma.booking.count({ where: { petId, status: 'completed' } });
+    return { ...pet, visitCount, vaccination: summarizeVaccinations(pet.vaccinations, pet.vaccinationStatus) };
+  }
 
-    // Customers can only view their own pets; staff/admin/partner can view all
-    if (requesterRole === 'customer' && pet.customerId !== requesterId) {
-      throw new ForbiddenException('Access denied');
-    }
-
-    return pet;
+  /**
+   * Finished grooming sessions for a pet, newest first, with the partner, their rating for that visit, and the
+   * before/after photos the partner uploaded (before on arrival, after on completion).
+   */
+  async groomingHistory(petId: string, user: { sub: string; role: string }) {
+    if (user.role === 'partner') throw new ForbiddenException('Access denied');
+    await this.assertCanAccess(petId, user);
+    const rows = await this.prisma.booking.findMany({
+      where: { petId, type: 'grooming', status: 'completed' },
+      orderBy: [{ completedAt: 'desc' }, { scheduledAt: 'desc' }],
+      take: 50,
+      select: {
+        id: true, packageName: true, scheduledAt: true, completedAt: true, beforePhotos: true, afterPhotos: true,
+        partner: { select: { user: { select: { profile: { select: { firstName: true, lastName: true } } } } } },
+        review: { select: { rating: true } },
+      },
+    });
+    return rows.map((r) => {
+      const prof = r.partner?.user?.profile;
+      return {
+        id: r.id,
+        packageName: r.packageName ?? 'Grooming',
+        date: (r.completedAt ?? r.scheduledAt)?.toISOString() ?? null,
+        partnerName: prof ? [prof.firstName, prof.lastName].filter(Boolean).join(' ') : null,
+        rating: r.review?.rating ?? null,
+        beforePhotos: r.beforePhotos,
+        afterPhotos: r.afterPhotos,
+      };
+    });
   }
 
   async create(customerId: string, body: unknown) {
@@ -163,14 +228,37 @@ export class PetsService {
     await this.prisma.pet.update({ where: { id: petId }, data: { isActive: false } });
   }
 
-  async addCareNote(petId: string, note: string, addedBy: string, addedByRole: string) {
-    // Verify pet exists (accessible check depends on requester role — done at controller)
-    const pet = await this.prisma.pet.findUnique({ where: { id: petId } });
-    if (!pet) throw new NotFoundException('Pet not found');
+  private cleanNote(note: unknown): string {
+    const t = typeof note === 'string' ? note.trim() : '';
+    if (t.length < 1) throw new BadRequestException('Please write a note');
+    if (t.length > 1000) throw new BadRequestException('Notes can be up to 1000 characters');
+    return t;
+  }
 
+  async addCareNote(petId: string, note: unknown, addedBy: string, addedByRole: string) {
+    await this.assertCanAccess(petId, { sub: addedBy, role: addedByRole });
     return this.prisma.petCareNote.create({
-      data: { petId, note, addedBy, addedByRole },
+      data: { petId, note: this.cleanNote(note), addedBy, addedByRole },
     });
+  }
+
+  /** A note can only be changed or removed by the person who wrote it (staff and admins may moderate). */
+  private async ownNote(petId: string, noteId: string, user: { sub: string; role: string }) {
+    await this.assertCanAccess(petId, user);
+    const found = await this.prisma.petCareNote.findFirst({ where: { id: noteId, petId } });
+    if (!found) throw new NotFoundException('Note not found');
+    if (found.addedBy !== user.sub && user.role !== 'staff' && user.role !== 'admin') throw new ForbiddenException('You can only change your own notes');
+    return found;
+  }
+
+  async updateCareNote(petId: string, noteId: string, note: unknown, user: { sub: string; role: string }) {
+    await this.ownNote(petId, noteId, user);
+    return this.prisma.petCareNote.update({ where: { id: noteId }, data: { note: this.cleanNote(note) } });
+  }
+
+  async deleteCareNote(petId: string, noteId: string, user: { sub: string; role: string }) {
+    await this.ownNote(petId, noteId, user);
+    await this.prisma.petCareNote.delete({ where: { id: noteId } });
   }
 
   async addVaccination(petId: string, customerId: string, data: {

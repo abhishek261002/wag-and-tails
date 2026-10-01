@@ -23,7 +23,7 @@ export type { TabBarIconProps } from './TabBarIcon';
 export { ICON_PATHS, ICON_NAMES } from './iconPaths';
 export { LiveMapView, etaLabel } from './LiveMapView';
 export type { LiveMapViewProps, LiveMapMarker } from './LiveMapView.types';
-export { configureMaps, getOlaMapsApiKey } from './mapsConfig';
+export { configureMaps, getOlaMapsApiKey, getMapStyle } from './mapsConfig';
 export type { MapsConfig } from './mapsConfig';
 export { DateField, formatDisplayDate } from './DateField';
 export type { DateFieldProps } from './DateField';

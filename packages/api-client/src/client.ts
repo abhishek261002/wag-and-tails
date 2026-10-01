@@ -4,15 +4,27 @@ export interface ApiClientConfig {
   baseURL: string;
   getAccessToken: () => string | null;
   getRefreshToken: () => string | null;
-  onTokenRefreshed: (tokens: { accessToken: string; refreshToken: string }) => void;
+  onTokenRefreshed: (tokens: { accessToken: string; refreshToken: string }) => void | Promise<void>;
   onAuthFailure: () => void;
+}
+
+/**
+ * Reads the token pair from an auth response. The API nests it as `{ user, tokens: { accessToken, refreshToken } }`;
+ * a flat `{ accessToken, refreshToken }` is accepted too. Anything else (missing or non-string values) is rejected
+ * here, so a bad response can never be written into secure storage.
+ */
+export function extractTokens(data: unknown): { accessToken: string; refreshToken: string } | null {
+  const root = data as any;
+  const t = root?.tokens ?? root;
+  const ok = (v: unknown): v is string => typeof v === 'string' && v.length > 0;
+  return ok(t?.accessToken) && ok(t?.refreshToken) ? { accessToken: t.accessToken, refreshToken: t.refreshToken } : null;
 }
 
 export class ApiClient {
   private http: AxiosInstance;
   private config: ApiClientConfig;
-  private isRefreshing = false;
-  private refreshQueue: Array<(token: string) => void> = [];
+  // One refresh at a time: every request that hits a 401 while it runs waits on the same promise.
+  private refreshPromise: Promise<string> | null = null;
 
   constructor(config: ApiClientConfig) {
     this.config = config;
@@ -56,57 +68,49 @@ export class ApiClient {
 
         if (error.response?.status === 401 && !originalRequest._retry) {
           originalRequest._retry = true;
-
-          if (this.isRefreshing) {
-            return new Promise((resolve) => {
-              this.refreshQueue.push((token: string) => {
-                if (originalRequest.headers) {
-                  originalRequest.headers['Authorization'] = `Bearer ${token}`;
-                }
-                resolve(this.http(originalRequest));
-              });
-            });
-          }
-
-          this.isRefreshing = true;
           try {
-            const refreshToken = this.config.getRefreshToken();
-            if (!refreshToken) throw new Error('No refresh token');
-
-            const res = await axios.post<{ accessToken: string; refreshToken: string }>(
-              `${this.config.baseURL}/auth/refresh`,
-              { refreshToken }
-            );
-
-            const { accessToken, refreshToken: newRefresh } = res.data;
-            this.config.onTokenRefreshed({ accessToken, refreshToken: newRefresh });
-
-            this.refreshQueue.forEach((cb) => cb(accessToken));
-            this.refreshQueue = [];
-
+            const accessToken = await this.refreshAccessToken();
             if (originalRequest.headers) {
               originalRequest.headers['Authorization'] = `Bearer ${accessToken}`;
             }
             return this.http(originalRequest);
-          } catch (refreshError) {
-            this.refreshQueue = [];
-            // Only clear the session when the server actually rejected the
-            // refresh token (expired/revoked). A network blip or a
-            // temporarily-down API shouldn't destroy a still-valid session —
-            // the next request will simply retry the refresh.
-            const status = axios.isAxiosError(refreshError) ? refreshError.response?.status : undefined;
-            if (status === 401 || status === 403) {
-              this.config.onAuthFailure();
-            }
-            return Promise.reject(error);
-          } finally {
-            this.isRefreshing = false;
+          } catch {
+            // The session is only cleared (in doRefresh) when the server rejected the refresh token. A network
+            // blip must not destroy a still-valid session; the next request simply tries the refresh again.
+            return Promise.reject(this.normalizeError(error));
           }
         }
 
         return Promise.reject(this.normalizeError(error));
       }
     );
+  }
+
+  private refreshAccessToken(): Promise<string> {
+    if (!this.refreshPromise) {
+      this.refreshPromise = this.doRefresh().finally(() => { this.refreshPromise = null; });
+    }
+    return this.refreshPromise;
+  }
+
+  private async doRefresh(): Promise<string> {
+    const refreshToken = this.config.getRefreshToken();
+    if (!refreshToken) {
+      this.config.onAuthFailure();
+      throw new Error('No refresh token');
+    }
+    let data: unknown;
+    try {
+      data = (await axios.post(`${this.config.baseURL}/auth/refresh`, { refreshToken })).data;
+    } catch (err) {
+      const status = axios.isAxiosError(err) ? err.response?.status : undefined;
+      if (status === 401 || status === 403) this.config.onAuthFailure();
+      throw err;
+    }
+    const tokens = extractTokens(data);
+    if (!tokens) throw new Error('Unexpected refresh response');
+    await this.config.onTokenRefreshed(tokens);
+    return tokens.accessToken;
   }
 
   private normalizeError(error: unknown): ApiError {

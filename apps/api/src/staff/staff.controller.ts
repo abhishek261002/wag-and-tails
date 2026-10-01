@@ -73,6 +73,9 @@ export class StaffController {
     return this.partnersService.listAll(parsePagination(query));
   }
 
+  @Get('partners/:id/tools')
+  listPartnerTools(@Param('id') id: string) { return this.partnersService.listTools(id); }
+
   @Patch('partners/:id/approve')
   approvePartner(@Param('id') id: string, @CurrentUser() user: { sub: string }) {
     return this.partnersService.approve(id, user.sub);

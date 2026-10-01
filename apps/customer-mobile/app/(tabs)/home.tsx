@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  RefreshControl,
+  RefreshControl, Alert,
 } from 'react-native';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -10,13 +10,19 @@ import { colors, spacing, radii } from '@wag/design-tokens';
 import { wagApi, resolveMediaUrl } from '../../src/lib/api';
 import type { Pet, GroomingBooking, WalkingBooking } from '@wag/shared-types';
 import { formatRelativeDate } from '../../src/utils/date';
+import { format } from 'date-fns';
+import { useLiveBookings } from '../../src/hooks/useLiveBookings';
+import { LiveBookingCard } from '../../src/components/LiveBookingCard';
+import { useBookingStore } from '../../src/store/booking.store';
 
 type AnyBooking = GroomingBooking | WalkingBooking;
 
 export default function HomeScreen() {
   const [pets, setPets] = useState<Pet[]>([]);
   const [selectedPetId, setSelectedPetId] = useState<string | null>(null);
-  const [activeBooking, setActiveBooking] = useState<AnyBooking | null>(null);
+  const [nextBooking, setNextBooking] = useState<AnyBooking | null>(null);
+  const live = useLiveBookings();
+  const { updateGroomingDraft, updateWalkDraft } = useBookingStore();
   const [pastBookings, setPastBookings] = useState<AnyBooking[]>([]);
   const [profile, setProfile] = useState<any>(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -27,21 +33,30 @@ export default function HomeScreen() {
 
   const load = useCallback(async () => {
     try {
-      const [petsData, activeData, pastData, me] = await Promise.all([
+      const [petsData, nextData, me] = await Promise.all([
         wagApi.pets.list(),
         wagApi.bookings.list({ page: 1, pageSize: 1, status: 'confirmed' }),
-        wagApi.bookings.list({ page: 1, pageSize: 4, status: 'completed' }),
         wagApi.client.get('/users/me').catch(() => null),
       ]);
       wagApi.client.get<{ count: number }>('/notifications/unread-count').then((r) => setUnreadCount(r.count)).catch(() => {});
       setPets(petsData);
       setProfile(me);
       if (!selectedPetId && petsData.length > 0) setSelectedPetId(petsData[0]!.id);
-      setActiveBooking(activeData.data?.[0] ?? null);
-      setPastBookings(pastData.data ?? []);
+      setNextBooking(nextData.data?.[0] ?? null);
+      live.refresh();
     } catch {
-      // silent — offline state shown by empty data
+      // silent: offline state shown by empty data
     }
+  }, [selectedPetId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Past services for whichever pet is selected ("Book again").
+  useEffect(() => {
+    if (!selectedPetId) { setPastBookings([]); return; }
+    let cancelled = false;
+    wagApi.bookings.list({ page: 1, pageSize: 6, status: 'completed', petId: selectedPetId })
+      .then((r) => { if (!cancelled) setPastBookings(r.data ?? []); })
+      .catch(() => { if (!cancelled) setPastBookings([]); });
+    return () => { cancelled = true; };
   }, [selectedPetId]);
 
   const onRefresh = useCallback(async () => {
@@ -57,6 +72,26 @@ export default function HomeScreen() {
   const defaultAddress = profile?.addresses?.[0] ?? null;
   const startGroom = () => router.push(pets.length === 0 ? '/pet/add' : '/booking/grooming/select-pet');
   const startWalk = () => router.push(pets.length === 0 ? '/pet/add' : '/booking/walking/select-dog');
+
+  // Start a new booking from a past one: same pet, same package (or walk length), then pick a time.
+  const rebook = async (b: any) => {
+    const p = pets.find((x) => x.id === b.petId);
+    if (!p) return;
+    try {
+      if (b.type === 'grooming') {
+        const pkgs = await wagApi.bookings.getPackages();
+        const pkg = pkgs.find((x) => x.id === b.packageId);
+        if (!pkg) { Alert.alert('Package unavailable', 'That package is not offered any more. Please choose another.'); router.push('/booking/grooming/select-package'); return; }
+        updateGroomingDraft({ petId: p.id, pet: p, packageId: pkg.id, package: pkg, addOnIds: [], addOns: [], scheduledAt: null, discount: 0, couponCode: null, assignmentMode: 'any', requestedPartnerId: null, requestedPartnerName: null, requestedPartnerDiscountPct: null });
+        router.push('/booking/grooming/select-date-time');
+      } else {
+        updateWalkDraft({ petId: p.id, pet: p, durationMinutes: ((b.durationMinutes as 30 | 45 | 60) ?? 30), scheduledAt: null, scheduleNow: true, assignmentMode: 'any', requestedPartnerId: null, requestedPartnerName: null, requestedPartnerDiscountPct: null });
+        router.push('/booking/walking/schedule');
+      }
+    } catch {
+      Alert.alert('Could not start the booking', 'Please try again.');
+    }
+  };
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -100,10 +135,8 @@ export default function HomeScreen() {
           {pets.length > 0 && (
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.petSwitch} contentContainerStyle={{ gap: spacing[4] }}>
               {pets.map((p) => {
-                const isActive = activeBooking?.petId === p.id;
-                const ringState = isActive
-                  ? (activeBooking!.type === 'walking' ? 'walking' : 'active')
-                  : 'idle';
+                const liveForPet = live.bookings.find((lb) => lb.petId === p.id);
+                const ringState = liveForPet ? (liveForPet.type === 'walking' ? 'walking' : 'active') : 'idle';
                 return (
                   <TouchableOpacity key={p.id} style={styles.petItem} onPress={() => setSelectedPetId(p.id)}>
                     <PetAvatar name={p.name} imageUrl={resolveMediaUrl(p.avatarUrl)} size={62} ringState={ringState as any} />
@@ -127,21 +160,30 @@ export default function HomeScreen() {
               <Text style={styles.emptyTitle}>Add your first pet</Text>
               <Text style={styles.emptyBody}>Get grooming, walks and more for your furry friend.</Text>
             </Card>
-          ) : activeBooking ? (
-            <Card style={styles.liveCard} onPress={() => router.push({ pathname: '/booking/[id]', params: { id: activeBooking.id } })}>
+          ) : live.bookings.length > 0 ? (
+            <View style={{ gap: spacing[3] }}>
+              {live.bookings.slice(0, 3).map((lb, i) => (
+                <LiveBookingCard
+                  key={lb.id}
+                  booking={lb}
+                  arrivalAt={live.arrivalAt[lb.id]}
+                  petPhoto={pets.find((p) => p.id === lb.petId)?.avatarUrl ?? null}
+                  showEyebrow={i === 0}
+                  onChanged={() => { live.refresh(); load(); }}
+                />
+              ))}
+            </View>
+          ) : nextBooking ? (
+            <Card style={styles.liveCard} onPress={() => router.push({ pathname: '/booking/[id]', params: { id: nextBooking.id } })}>
               <View style={styles.liveTop}>
-                <Text style={styles.eyebrow}>Happening now</Text>
-                <View style={styles.livePill}><View style={styles.liveDot} /><Text style={styles.livePillText}>Live</Text></View>
+                <Text style={styles.eyebrow}>Coming up</Text>
+                <View style={styles.livePill}><Text style={styles.livePillText}>Confirmed</Text></View>
               </View>
               <View style={styles.liveRow}>
-                <PetAvatar name={pets.find((p) => p.id === activeBooking.petId)?.name ?? '?'} size={48} ringState="active" />
+                <PetAvatar name={nextBooking.petName} imageUrl={resolveMediaUrl(pets.find((p) => p.id === nextBooking.petId)?.avatarUrl)} size={48} ringState="idle" />
                 <View style={{ flex: 1, minWidth: 0 }}>
-                  <Text style={styles.liveTitle} numberOfLines={1}>
-                    {activeBooking.type === 'grooming' ? 'Grooming' : 'Dog walk'} · {activeBooking.petName}
-                  </Text>
-                  <Text style={styles.liveSub} numberOfLines={1}>
-                    {activeBooking.scheduledAt ? formatRelativeDate(activeBooking.scheduledAt) : activeBooking.status.replace(/_/g, ' ')}
-                  </Text>
+                  <Text style={styles.liveTitle} numberOfLines={1}>{nextBooking.type === 'grooming' ? 'Grooming' : 'Dog walk'} · {nextBooking.petName}</Text>
+                  <Text style={styles.liveSub} numberOfLines={1}>{nextBooking.scheduledAt ? formatRelativeDate(nextBooking.scheduledAt) : 'Scheduled'}</Text>
                 </View>
               </View>
             </Card>
@@ -210,20 +252,39 @@ export default function HomeScreen() {
             </TouchableOpacity>
           )}
 
-          {/* Book again */}
-          {pastBookings.length > 0 && (
+          {/* Book again: this pet's past services */}
+          {pet && pastBookings.length > 0 && (
             <>
-              <SectionHead title="Book again" sub="Past services" />
+              <View style={styles.sectionHeadRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.sectionTitle}>Book again</Text>
+                  <Text style={styles.sectionSub}>Past services for {pet.name}</Text>
+                </View>
+                <TouchableOpacity onPress={() => router.push('/(tabs)/bookings' as any)} accessibilityLabel="See all bookings">
+                  <Text style={styles.seeAll}>See all</Text>
+                </TouchableOpacity>
+              </View>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: spacing[3] }}>
                 {pastBookings.map((b) => (
                   <TouchableOpacity
                     key={b.id}
                     style={styles.rebookCard}
                     onPress={() => router.push({ pathname: '/booking/[id]', params: { id: b.id } })}
+                    activeOpacity={0.85}
                   >
-                    <PetAvatar name={b.petName} size={38} />
-                    <Text style={styles.rebookTitle} numberOfLines={1}>{b.type === 'grooming' ? 'Groom' : 'Walk'} · {b.petName}</Text>
-                    <View style={styles.rebookBadge}><Text style={styles.rebookBadgeText}>Rebook</Text></View>
+                    <View style={styles.rebookTop}>
+                      <PetAvatar name={b.petName} imageUrl={resolveMediaUrl(pet.avatarUrl)} size={44} />
+                      <View style={{ flex: 1, minWidth: 0 }}>
+                        <Text style={styles.rebookTitle} numberOfLines={1}>{b.type === 'grooming' ? (b as any).packageName ?? 'Grooming' : `${(b as any).durationMinutes ?? 30} min walk`}</Text>
+                        <Text style={styles.rebookSub} numberOfLines={1}>{b.petName} · {format(new Date((b as any).scheduledAt ?? (b as any).createdAt), 'dd MMM')}</Text>
+                      </View>
+                    </View>
+                    <View style={styles.rebookBottom}>
+                      <Text style={styles.rebookPrice}>₹{Number((b as any).total ?? 0)}</Text>
+                      <TouchableOpacity style={styles.rebookBadge} onPress={() => rebook(b)} accessibilityLabel="Rebook">
+                        <Text style={styles.rebookBadgeText}>Rebook</Text>
+                      </TouchableOpacity>
+                    </View>
                   </TouchableOpacity>
                 ))}
               </ScrollView>
@@ -343,10 +404,16 @@ const styles = StyleSheet.create({
   askSub: { fontFamily: 'Inter', fontSize: 11.5, color: colors.textMuted, marginTop: 2 },
   chev: { fontSize: 20, color: colors.textDisabled },
 
-  rebookCard: { width: 170, backgroundColor: colors.white, borderWidth: 1, borderColor: colors.borderLight, borderRadius: radii.lg, padding: spacing[3], gap: spacing[2] },
+  sectionHeadRow: { flexDirection: 'row', alignItems: 'flex-end', marginTop: spacing[5], marginBottom: spacing[3] },
+  seeAll: { fontFamily: 'Inter', fontSize: 14, fontWeight: '800', color: colors.marigoldDark },
+  rebookCard: { width: 236, backgroundColor: colors.white, borderWidth: 1, borderColor: colors.borderLight, borderRadius: radii.xl, padding: spacing[4], gap: spacing[3] },
+  rebookTop: { flexDirection: 'row', alignItems: 'center', gap: spacing[3] },
+  rebookSub: { fontFamily: 'Inter', fontSize: 12, color: colors.textMuted, marginTop: 2 },
+  rebookBottom: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  rebookPrice: { fontFamily: 'Inter', fontSize: 18, fontWeight: '800', color: colors.textPrimary },
   rebookTitle: { fontFamily: 'Inter', fontSize: 13, fontWeight: '700', color: colors.textPrimary },
-  rebookBadge: { alignSelf: 'flex-start', backgroundColor: colors.biscuitLighter, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 3 },
-  rebookBadgeText: { fontFamily: 'Inter', fontSize: 10.5, fontWeight: '700', color: colors.brandBrown },
+  rebookBadge: { backgroundColor: colors.biscuitLight, borderRadius: 999, paddingHorizontal: 16, paddingVertical: 8 },
+  rebookBadgeText: { fontFamily: 'Inter', fontSize: 13, fontWeight: '800', color: colors.brandBrown },
 
   trustCard: { backgroundColor: colors.surfaceAlt, borderColor: 'transparent', marginTop: spacing[6], padding: spacing[4] },
   trustRow: { flexDirection: 'row', gap: spacing[3], marginBottom: spacing[3] },

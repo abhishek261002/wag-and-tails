@@ -22,6 +22,9 @@ export interface PaginatedResponse<T> {
 export interface BookingFilters {
   type?: 'grooming' | 'walking';
   status?: string;
+  /** live: a partner is being found or is on the job; upcoming: not finished; past: finished. */
+  scope?: 'live' | 'upcoming' | 'past';
+  petId?: string;
   from?: string;
   to?: string;
   page?: number;

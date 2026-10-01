@@ -25,3 +25,5 @@ export { PageHeader, FilterChip, Toolbar, Banner, Kv, Tile, RatingChip, Divider 
 export { BarChart, Donut } from './Charts.js';
 export { MoneySettingsCard, PartnerMoneyPanel } from './Money.js';
 export type { MoneyApi } from './Money.js';
+export { ToolMediaGallery } from './ToolMedia.js';
+export type { ToolsData } from './ToolMedia.js';

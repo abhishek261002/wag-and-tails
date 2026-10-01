@@ -1,7 +1,5 @@
 import React, { useState } from 'react';
-import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert,
-} from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button, Input, Icon, type IconName } from '@wag/ui-mobile';
@@ -56,6 +54,9 @@ export default function ReviewGroomingBookingScreen() {
       return;
     }
 
+    // "Find Instantly" has no partner to wait on: show a short loader, then return home while the search continues.
+    const findInstantly = groomingDraft.assignmentMode !== 'specific';
+    const startedAt = Date.now();
     setLoading(true);
     try {
       const booking = await wagApi.bookings.createGroomingBooking({
@@ -90,8 +91,13 @@ export default function ReviewGroomingBookingScreen() {
         });
         await wagApi.payments.confirm(order.payment.id, { method: 'upi', providerPaymentId: paid.providerPaymentId, signature: paid.signature });
       }
+      if (findInstantly) {
+        const remaining = 1600 - (Date.now() - startedAt);
+        if (remaining > 0) await new Promise((r) => setTimeout(r, remaining));
+      }
       resetGroomingDraft();
-      router.replace({ pathname: '/booking/confirmed', params: { id: booking.id } });
+      if (findInstantly) router.replace('/(tabs)/home' as any);
+      else router.replace({ pathname: '/booking/confirmed', params: { id: booking.id } });
     } catch (err: any) {
       const data = err?.response?.data;
       if (data?.code === 'PARTNER_NOT_AVAILABLE') {
@@ -175,28 +181,31 @@ export default function ReviewGroomingBookingScreen() {
 
         {/* Payment Method */}
         <Section title="Payment Method">
-          <View style={styles.paymentGrid}>
-            {PAYMENT_OPTIONS.map((opt) => (
-              <TouchableOpacity
-                key={opt.value}
-                style={[styles.payOpt, groomingDraft.paymentMethod === opt.value && styles.payOptActive]}
-                onPress={() => updateGroomingDraft({ paymentMethod: opt.value })}
-                accessibilityRole="radio"
-                accessibilityState={{ selected: groomingDraft.paymentMethod === opt.value }}
-              >
-                <Icon
-                  name={opt.icon}
-                  size={16}
-                  color={groomingDraft.paymentMethod === opt.value ? colors.brandBrown : colors.textMuted}
-                />
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.payOptText, groomingDraft.paymentMethod === opt.value && styles.payOptTextActive]}>
-                    {opt.label}
-                  </Text>
-                  <Text style={{ fontFamily: 'Inter', fontSize: 11, color: colors.textMuted, marginTop: 2 }}>{opt.hint}</Text>
-                </View>
-              </TouchableOpacity>
-            ))}
+          <View style={styles.paymentList}>
+            {PAYMENT_OPTIONS.map((opt) => {
+              const active = groomingDraft.paymentMethod === opt.value;
+              return (
+                <TouchableOpacity
+                  key={opt.value}
+                  style={[styles.payOpt, active && styles.payOptActive]}
+                  onPress={() => updateGroomingDraft({ paymentMethod: opt.value })}
+                  accessibilityRole="radio"
+                  accessibilityState={{ selected: active }}
+                  activeOpacity={0.8}
+                >
+                  <View style={[styles.payIcon, active && styles.payIconActive]}>
+                    <Icon name={opt.icon} size={18} color={active ? colors.white : colors.brandBrown} />
+                  </View>
+                  <View style={styles.payText}>
+                    <Text style={styles.payOptText}>{opt.label}</Text>
+                    <Text style={styles.payHint}>{opt.hint}</Text>
+                  </View>
+                  <View style={[styles.radio, active && styles.radioActive]}>
+                    {active && <View style={styles.radioDot} />}
+                  </View>
+                </TouchableOpacity>
+              );
+            })}
           </View>
         </Section>
 
@@ -224,6 +233,13 @@ export default function ReviewGroomingBookingScreen() {
           Confirm Booking · ₹{total}
         </Button>
       </ScrollView>
+
+      {loading && groomingDraft.assignmentMode !== 'specific' && (
+        <View style={styles.overlay} pointerEvents="auto">
+          <ActivityIndicator size="large" color={colors.brandBrown} />
+          <Text style={styles.overlayText}>Finding a partner for you…</Text>
+        </View>
+      )}
     </SafeAreaView>
   );
 }
@@ -247,6 +263,8 @@ function Row({ label, value, bold, valueStyle }: { label: string; value: string;
 }
 
 const styles = StyleSheet.create({
+  overlay: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(250,246,241,0.94)', alignItems: 'center', justifyContent: 'center', gap: spacing[4] },
+  overlayText: { fontFamily: 'Inter', fontSize: 16, fontWeight: '700', color: colors.brandBrown },
   safe: { flex: 1, backgroundColor: colors.canvas },
   topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: spacing[5], paddingTop: spacing[5], paddingBottom: spacing[3] },
   backText: { fontFamily: 'Inter', fontSize: typography.fontSize.base, color: colors.brandBrown, fontWeight: '600' },
@@ -264,10 +282,16 @@ const styles = StyleSheet.create({
   applyBtnText: { fontFamily: 'Inter', fontSize: typography.fontSize.sm, fontWeight: '700', color: colors.white },
   couponSuccessRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: spacing[2] },
   couponSuccess: { fontFamily: 'Inter', fontSize: typography.fontSize.sm, color: colors.success, fontWeight: '600' },
-  paymentGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing[2] },
-  payOpt: { flexDirection: 'row', alignItems: 'center', gap: spacing[2], paddingHorizontal: spacing[4], paddingVertical: spacing[3], borderRadius: radii.lg, borderWidth: 1.5, borderColor: colors.borderLight },
-  payOptActive: { borderColor: colors.brandBrown, backgroundColor: colors.brandBrown },
-  payOptText: { fontFamily: 'Inter', fontSize: typography.fontSize.sm, fontWeight: '600', color: colors.textSecondary },
-  payOptTextActive: { color: colors.white },
+  paymentList: { gap: spacing[3] },
+  payOpt: { flexDirection: 'row', alignItems: 'center', gap: spacing[3], padding: spacing[4], borderRadius: radii.lg, borderWidth: 1.5, borderColor: colors.borderLight, backgroundColor: colors.white },
+  payOptActive: { borderColor: colors.brandBrown, backgroundColor: colors.biscuitLighter },
+  payIcon: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.biscuitLight },
+  payIconActive: { backgroundColor: colors.brandBrown },
+  payText: { flex: 1, minWidth: 0 },
+  payOptText: { fontFamily: 'Inter', fontSize: typography.fontSize.base, fontWeight: '700', color: colors.textPrimary },
+  payHint: { fontFamily: 'Inter', fontSize: 12, color: colors.textMuted, marginTop: 2 },
+  radio: { width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: colors.borderMedium, alignItems: 'center', justifyContent: 'center' },
+  radioActive: { borderColor: colors.brandBrown },
+  radioDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: colors.brandBrown },
   cta: { marginTop: spacing[4] },
 });

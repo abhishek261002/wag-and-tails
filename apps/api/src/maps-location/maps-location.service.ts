@@ -1,7 +1,9 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { isLocationFilteringEnabled } from '../common/feature-flags.js';
 import { normalizeCity } from '../common/city.js';
+import { createPlacesProvider, type PlacesProvider } from './places.provider.js';
+import type { PlaceDetails, PlaceSuggestion } from './places.js';
 
 export interface NearbyPartner {
   id: string;
@@ -17,7 +19,30 @@ export interface NearbyPartner {
 export class MapsLocationService {
   private readonly logger = new Logger(MapsLocationService.name);
 
-  constructor(private prisma: PrismaService) {}
+  private readonly places: PlacesProvider | null;
+
+  constructor(private prisma: PrismaService) {
+    this.places = createPlacesProvider(this.logger);
+  }
+
+  private provider(): PlacesProvider {
+    if (!this.places) throw new ServiceUnavailableException('Address search is not configured on this server.');
+    return this.places;
+  }
+
+  /** Address suggestions for what the user has typed, biased toward `bias` when given. */
+  autocomplete(query: string, bias?: { lat: number; lng: number }): Promise<PlaceSuggestion[]> {
+    return this.provider().autocomplete(query, bias);
+  }
+
+  /** What is at this point: address parts, and which operating city (if any) it is in. */
+  reverseGeocode(lat: number, lng: number): Promise<PlaceDetails | null> {
+    return this.provider().reverse(lat, lng);
+  }
+
+  geocode(address: string): Promise<PlaceDetails | null> {
+    return this.provider().geocode(address);
+  }
 
   async findNearbyPartners(
     lat: number,
@@ -104,30 +129,6 @@ export class MapsLocationService {
         lat: p.currentLat ?? 0,
         lng: p.currentLng ?? 0,
       }));
-  }
-
-  async geocode(address: string): Promise<{ lat: number; lng: number } | null> {
-    const provider = process.env['MAPS_PROVIDER'] ?? 'mock';
-    if (provider === 'mock') {
-      // Return a deterministic mock location in Bengaluru based on address hash
-      // This makes tests reproducible
-      let hash = 0;
-      for (let i = 0; i < address.length; i++) {
-        hash = (hash * 31 + address.charCodeAt(i)) >>> 0;
-      }
-      const latOffset = ((hash % 100) / 1000); // 0.000–0.099
-      const lngOffset = (((hash >> 7) % 100) / 1000);
-      return { lat: 12.9716 + latOffset, lng: 77.5946 + lngOffset };
-    }
-    // TODO: Google Maps / Mapbox geocoding
-    return null;
-  }
-
-  async getEta(originLat: number, originLng: number, destLat: number, destLng: number) {
-    const distanceKm = this.haversineKm(originLat, originLng, destLat, destLng);
-    // Mock: assume 20 km/h average in city
-    const etaMinutes = Math.ceil((distanceKm / 20) * 60);
-    return { distanceKm, etaMinutes };
   }
 
   private haversineKm(lat1: number, lng1: number, lat2: number, lng2: number): number {

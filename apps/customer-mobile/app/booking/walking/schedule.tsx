@@ -1,13 +1,14 @@
-import React, { useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert } from 'react-native';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button, Icon } from '@wag/ui-mobile';
 import { colors, spacing, typography, radii } from '@wag/design-tokens';
 import { useBookingStore } from '../../../src/store/booking.store';
 import { useActiveSearchStore } from '../../../src/store/activeSearch.store';
 import { wagApi } from '../../../src/lib/api';
-import { addDays, format, setHours, setMinutes, startOfDay } from 'date-fns';
+import { WALKING_SLOT_HOURS } from '@wag/shared-types';
+import { SlotPicker } from '../../../src/components/SlotPicker';
 import { PartnerChoice } from '../../../src/components/PartnerChoice';
 import { goBack } from '../../../src/lib/nav';
 
@@ -18,23 +19,19 @@ export default function WalkScheduleScreen() {
   const [loadedAddresses, setLoadedAddresses] = useState(false);
   const [selectedAddressId, setSelectedAddressId] = useState<string | null>(null);
   const [scheduleNow, setScheduleNow] = useState(true);
-  const [selectedDay, setSelectedDay] = useState<Date | null>(null);
-  const [selectedHour, setSelectedHour] = useState<number | null>(null);
+  const [when, setWhen] = useState<Date | null>(null);
   const [loading, setLoading] = useState(false);
 
-  React.useEffect(() => {
+  // Reload on focus so an address added from the next screen appears when the user returns.
+  useFocusEffect(useCallback(() => {
     wagApi.client.get<any>('/users/me').then((u) => {
       const data = u?.addresses ?? [];
       setAddresses(data);
       const def = data.find((a: any) => a.isDefault) ?? data[0];
-      if (def) setSelectedAddressId(def.id);
+      setSelectedAddressId((cur) => (cur && data.some((a: any) => a.id === cur) ? cur : def?.id ?? null));
       setLoadedAddresses(true);
     }).catch(() => { setLoadedAddresses(true); });
-  }, []);
-
-  const today = startOfDay(new Date());
-  const days = Array.from({ length: 7 }, (_, i) => addDays(today, i + 1));
-  const hours = [6,7,8,9,10,16,17,18,19,20];
+  }, []));
 
   const handleConfirm = async () => {
     if (!selectedAddressId) {
@@ -44,11 +41,11 @@ export default function WalkScheduleScreen() {
     const addr = addresses.find((a) => a.id === selectedAddressId);
     let scheduledAt: string | null = null;
     if (!scheduleNow) {
-      if (!selectedDay || !selectedHour) {
+      if (!when) {
         Alert.alert('Pick a time', 'Please select a date and time for your walk.');
         return;
       }
-      scheduledAt = setHours(selectedDay, selectedHour).toISOString();
+      scheduledAt = when.toISOString();
     }
 
     updateWalkDraft({
@@ -149,29 +146,8 @@ export default function WalkScheduleScreen() {
         {/* Date/time if scheduling later */}
         {!scheduleNow && (
           <>
-            <Text style={[styles.sectionLabel, { marginTop: spacing[4] }]}>DATE</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.dayRow}>
-              {days.map((d, i) => {
-                const active = selectedDay ? format(d, 'yyyy-MM-dd') === format(selectedDay, 'yyyy-MM-dd') : false;
-                return (
-                  <TouchableOpacity key={i} style={[styles.dayChip, active && styles.dayChipActive]} onPress={() => setSelectedDay(d)}>
-                    <Text style={[styles.dayText, active && { color: colors.white }]}>{format(d, 'EEE')}</Text>
-                    <Text style={[styles.dayNum, active && { color: colors.white }]}>{format(d, 'd')}</Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </ScrollView>
-            <Text style={[styles.sectionLabel, { marginTop: spacing[4] }]}>TIME</Text>
-            <View style={styles.hourGrid}>
-              {hours.map((h) => {
-                const active = selectedHour === h;
-                const label = h < 12 ? `${h}:00 AM` : h === 12 ? '12:00 PM' : `${h-12}:00 PM`;
-                return (
-                  <TouchableOpacity key={h} style={[styles.hourChip, active && styles.hourChipActive]} onPress={() => setSelectedHour(h)}>
-                    <Text style={[styles.hourText, active && styles.hourTextActive]}>{label}</Text>
-                  </TouchableOpacity>
-                );
-              })}
+            <View style={{ marginTop: spacing[4] }}>
+              <SlotPicker hours={WALKING_SLOT_HOURS} onChange={setWhen} dateLabel="DATE" timeLabel="TIME" />
             </View>
           </>
         )}
@@ -192,6 +168,9 @@ export default function WalkScheduleScreen() {
             </TouchableOpacity>
           );
         })}
+        <TouchableOpacity onPress={() => router.push('/account/address-new' as any)} style={{ paddingVertical: spacing[3] }}>
+          <Text style={{ fontFamily: 'Inter', fontSize: 14, fontWeight: '800', color: colors.marigoldDark }}>+ Add a new address</Text>
+        </TouchableOpacity>
 
         {/* Who walks */}
         <Text style={[styles.sectionLabel, { marginTop: spacing[4] }]}>WHO SHOULD WALK?</Text>

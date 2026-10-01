@@ -18,6 +18,7 @@ import { assertGroomingTransition, assertWalkingTransition } from './booking-sta
 import { BUSINESS_CONFIG } from '@wag/config';
 import { speciesSupportsService } from '../common/species.js';
 import { isBefore, addHours } from 'date-fns';
+import { scheduleProblem, SCHEDULE_PROBLEM_MESSAGE } from '../common/scheduling.js';
 import { BookingType, BookingStatus, BookingChannel, PaymentMethod, Prisma } from '@prisma/client';
 
 // `include: { customer: ..., partner: { include: { user: ... } } }` pulls
@@ -36,6 +37,48 @@ function stripBookingPasswordHashes<T extends { customer?: any; partner?: { user
   }
   return result;
 }
+
+// What a customer may see of the partner on their booking. The partner profile row also holds KYC data (Aadhaar
+// hash, date of birth, address), bank details and commission terms, none of which a customer should receive.
+// The phone number is shared only while the job is active (for the Call button), and the partner's position only
+// while they are on the way.
+const PARTNER_PHONE_VISIBLE: string[] = ['assigned', 'accepted', 'partner_on_the_way', 'arrived', 'in_progress'];
+function customerSafePartner<T extends { status: string; partner?: any }>(booking: T): T {
+  const p = booking.partner;
+  if (!p) return booking;
+  const showPhone = PARTNER_PHONE_VISIBLE.includes(booking.status);
+  const showLocation = booking.status === 'partner_on_the_way';
+  const prof = p.user?.profile;
+  return {
+    ...booking,
+    partner: {
+      userId: p.userId,
+      photoUrl: p.photoUrl ?? null,
+      bio: p.bio ?? null,
+      rating: p.rating,
+      reviewCount: p.reviewCount,
+      completedJobs: p.completedJobs,
+      city: p.city ?? null,
+      currentLat: showLocation ? p.currentLat ?? null : null,
+      currentLng: showLocation ? p.currentLng ?? null : null,
+      user: p.user
+        ? {
+            id: p.user.id,
+            ...(showPhone ? { phone: p.user.phone } : {}),
+            profile: prof ? { firstName: prof.firstName, lastName: prof.lastName, avatarUrl: prof.avatarUrl ?? null } : null,
+          }
+        : undefined,
+    },
+  } as T;
+}
+
+// Booking lists by meaning, for the apps' Home and Bookings screens:
+//  live     = a partner is being found or is on the job (Home "Happening now")
+//  upcoming = not finished yet (Bookings > Upcoming)
+//  past     = finished one way or another (Bookings > Past)
+const LIVE_STATUSES: BookingStatus[] = ['needs_partner', 'searching_partner', 'assigned', 'accepted', 'partner_on_the_way', 'arrived', 'in_progress'];
+const UPCOMING_STATUSES: BookingStatus[] = ['confirmed', ...LIVE_STATUSES];
+const PAST_STATUSES: BookingStatus[] = ['completed', 'cancelled', 'refunded', 'expired'];
 
 @Injectable()
 export class BookingsService {
@@ -218,23 +261,38 @@ export class BookingsService {
   }
 
   async listByCustomer(customerId: string, filters: {
-    type?: string; status?: string; page?: number; pageSize?: number;
+    type?: string; status?: string; scope?: string; petId?: string; page?: number; pageSize?: number;
   } = {}) {
-    const { type, status, page = 1, pageSize = 20 } = filters;
+    const { type, status, scope, petId } = filters;
+    const page = Math.max(1, Number(filters.page) || 1);
+    const pageSize = Math.min(50, Math.max(1, Number(filters.pageSize) || 20));
     const skip = (page - 1) * pageSize;
+
+    if (type && !['grooming', 'walking'].includes(type)) throw new BadRequestException('type must be grooming or walking');
+    if (petId && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(petId)) throw new BadRequestException('petId is not valid');
+    if (status && !(status in BookingStatus)) throw new BadRequestException('Unknown status');
+    if (scope && !['live', 'upcoming', 'past'].includes(scope)) throw new BadRequestException('scope must be live, upcoming or past');
+
+    const scopeStatuses = scope === 'live' ? LIVE_STATUSES
+      : scope === 'upcoming' ? UPCOMING_STATUSES
+      : scope === 'past' ? PAST_STATUSES
+      : undefined;
 
     const where: Prisma.BookingWhereInput = {
       customerId,
       ...(type ? { type: type as BookingType } : {}),
-      ...(status ? { status: status as BookingStatus } : {}),
+      ...(petId ? { petId } : {}),
+      ...(status ? { status: status as BookingStatus } : scopeStatuses ? { status: { in: scopeStatuses } } : {}),
     };
+    // Upcoming reads soonest first; everything else newest first.
+    const orderBy: Prisma.BookingOrderByWithRelationInput = scope === 'upcoming' ? { scheduledAt: 'asc' } : scope === 'past' ? { scheduledAt: 'desc' } : { createdAt: 'desc' };
 
     const [data, total] = await Promise.all([
       this.prisma.booking.findMany({
         where,
         skip,
         take: pageSize,
-        orderBy: { createdAt: 'desc' },
+        orderBy,
         include: {
           pet: true,
           partner: { include: { user: { include: { profile: true } } } },
@@ -244,7 +302,7 @@ export class BookingsService {
       this.prisma.booking.count({ where }),
     ]);
 
-    return { data: data.map(stripBookingPasswordHashes), total, page, pageSize };
+    return { data: data.map((b) => customerSafePartner(stripBookingPasswordHashes(b))), total, page, pageSize };
   }
 
   async listAll(filters: {
@@ -310,7 +368,8 @@ export class BookingsService {
       throw new ForbiddenException('Access denied');
     }
 
-    return { ...stripBookingPasswordHashes(booking), dispatch: await this.dispatchInfo(booking) };
+    const safe = stripBookingPasswordHashes(booking);
+    return { ...(requesterRole === 'customer' ? customerSafePartner(safe) : safe), dispatch: await this.dispatchInfo(booking) };
   }
 
   private async dispatchInfo(b: { assignmentMode: 'any' | 'specific'; requestedPartnerId: string | null; requestExpiresAt: Date | null; requestOutcome: string | null }) {
@@ -329,12 +388,24 @@ export class BookingsService {
     };
   }
 
+  /** Refuses a booking time that is in the past, too soon to staff, or too far ahead (same rule the apps use to offer slots). */
+  private assertSchedulable(scheduledAt: unknown): Date {
+    const at = new Date(scheduledAt as string);
+    const problem = scheduleProblem(at);
+    if (problem) {
+      throw new BadRequestException({ code: 'SLOT_UNAVAILABLE', reason: problem, message: SCHEDULE_PROBLEM_MESSAGE[problem] });
+    }
+    return at;
+  }
+
   async createGroomingBooking(customerId: string, data: {
     petId: string; packageId: string; addOnIds?: string[];
     scheduledAt: string; addressId: string; notes?: string;
     couponCode?: string; paymentMethod: string; channel?: string;
     assignmentMode?: string; requestedPartnerId?: string;
   }) {
+    const scheduledAt = this.assertSchedulable(data.scheduledAt);
+
     // Validate pet ownership
     const pet = await this.prisma.pet.findFirst({ where: { id: data.petId, customerId } });
     if (!pet) throw new NotFoundException('Pet not found or not owned by customer');
@@ -392,7 +463,7 @@ export class BookingsService {
         packageId: data.packageId,
         packageName: pkg.name,
         packagePrice: pkg.price,
-        scheduledAt: new Date(data.scheduledAt),
+        scheduledAt,
         addressId: data.addressId,
         addressLine: `${address.line1}, ${address.city}`,
         channel: (data.channel ?? 'app') as BookingChannel,
@@ -421,6 +492,8 @@ export class BookingsService {
     scheduledAt?: string; addressId: string; couponCode?: string; paymentMethod: string;
     assignmentMode?: string; requestedPartnerId?: string;
   }) {
+    // An on-demand walk starts now; a scheduled one must be a real future slot.
+    const walkAt = data.scheduleNow ? new Date() : this.assertSchedulable(data.scheduledAt);
     const pet = await this.prisma.pet.findFirst({ where: { id: data.petId, customerId } });
     if (!pet) throw new NotFoundException('Pet not found');
     if (!speciesSupportsService(pet.species, 'walking')) {
@@ -464,7 +537,7 @@ export class BookingsService {
         petSize: pet.size,
         petCareNotes: careNote?.note ?? null,
         durationMinutes: data.durationMinutes,
-        scheduledAt: data.scheduledAt ? new Date(data.scheduledAt) : new Date(),
+        scheduledAt: walkAt,
         addressId: data.addressId,
         addressLine: `${address.line1}, ${address.city}`,
         channel: 'app' as BookingChannel,
@@ -515,6 +588,7 @@ export class BookingsService {
   }
 
   async reschedule(bookingId: string, customerId: string, scheduledAt: string, reason?: string) {
+    const newTime = this.assertSchedulable(scheduledAt);
     const booking = await this.prisma.booking.findFirst({
       where: { id: bookingId, customerId },
     });
@@ -526,7 +600,7 @@ export class BookingsService {
     return this.prisma.booking.update({
       where: { id: bookingId },
       data: {
-        scheduledAt: new Date(scheduledAt),
+        scheduledAt: newTime,
         statusHistory: {
           create: { status: booking.status, changedBy: customerId, note: `Rescheduled: ${reason ?? 'no reason'}` },
         },

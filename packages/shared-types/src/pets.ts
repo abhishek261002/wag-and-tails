@@ -2,6 +2,8 @@ import type { PetSpecies, PetSize, CoatType, VaccinationStatus } from './species
 
 export type PetSex = 'male' | 'female';
 
+import type { VaccinationSummary } from './vaccination.js';
+
 export interface Pet {
   id: string;
   customerId: string;
@@ -18,6 +20,10 @@ export interface Pet {
   allergies: string | null;
   vaccinationStatus: VaccinationStatus;
   avatarUrl: string | null;
+  /** Completed visits; only on the pets list. */
+  visitCount?: number;
+  /** "Vaccinated" / "Booster due" at a glance; only on the pets list and detail. */
+  vaccination?: VaccinationSummary;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;

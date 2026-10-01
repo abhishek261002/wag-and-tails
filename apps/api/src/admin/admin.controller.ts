@@ -3,6 +3,7 @@ import { AuthGuard } from '@nestjs/passport';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { AdminService } from './admin.service.js';
 import { PartnersService } from '../partners/partners.service.js';
+import { CurrentUser } from '../common/decorators.js';
 import { PayoutsService } from '../payouts/payouts.service.js';
 import { CouponsService } from '../coupons/coupons.service.js';
 import { Roles } from '../common/decorators.js';
@@ -41,9 +42,13 @@ export class AdminController {
   @Get('partners/:id')
   getPartner(@Param('id') id: string) { return this.partnersService.getProfile(id); }
 
+  @Get('partners/:id/tools')
+  listPartnerTools(@Param('id') id: string) { return this.partnersService.listTools(id); }
+
+  // The approver is the signed-in admin, never an id supplied in the request body.
   @Patch('partners/:id/approve')
-  approvePartner(@Param('id') id: string, @Body() body: { adminId: string }) {
-    return this.partnersService.approve(id, body.adminId);
+  approvePartner(@Param('id') id: string, @CurrentUser() user: { sub: string }) {
+    return this.partnersService.approve(id, user.sub);
   }
 
   @Patch('partners/:id/suspend')

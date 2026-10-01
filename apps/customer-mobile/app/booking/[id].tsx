@@ -10,6 +10,7 @@ import { wagApi } from '../../src/lib/api';
 import { format } from 'date-fns';
 import { PartnerChoice, type PartnerChoiceValue } from '../../src/components/PartnerChoice';
 import { goBack } from '../../src/lib/nav';
+import { LiveTrackingTile } from '../../src/components/LiveTrackingTile';
 
 const STATUS_LABELS: Record<string, string> = {
   draft: 'Draft',
@@ -200,6 +201,9 @@ export default function BookingDetailScreen() {
             </View>
           </Card>
         )}
+
+        {/* Live location: only while the partner is on the way */}
+        {booking.status === 'partner_on_the_way' && booking.partnerId && <LiveTrackingTile booking={booking} />}
 
         {/* Pet & Service */}
         <Section title="Pet & Service">

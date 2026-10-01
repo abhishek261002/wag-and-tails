@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, TextInput,
-  KeyboardAvoidingView, Platform, Alert,
+  KeyboardAvoidingView, Platform, Alert, ActivityIndicator,
 } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -10,17 +10,32 @@ import { colors, spacing, typography, radii } from '@wag/design-tokens';
 import { wagApi } from '../../src/lib/api';
 import { goBack } from '../../src/lib/nav';
 
+// Adds a care note, or edits/deletes one of your own when opened with a noteId.
 export default function AddPetNoteScreen() {
-  const { id: petId } = useLocalSearchParams<{ id: string }>();
+  const { id: petId, noteId } = useLocalSearchParams<{ id: string; noteId?: string }>();
+  const editing = !!noteId;
   const [note, setNote] = useState('');
+  const [loading, setLoading] = useState(editing);
   const [saving, setSaving] = useState(false);
 
+  // Editing: start from the note's current text.
+  useEffect(() => {
+    if (!editing || !petId) return;
+    let cancelled = false;
+    wagApi.pets.get(petId)
+      .then((p) => { if (!cancelled) setNote(p.careNotes.find((n) => n.id === noteId)?.note ?? ''); })
+      .catch(() => { if (!cancelled) Alert.alert('Could not load the note', 'Please go back and try again.'); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [editing, petId, noteId]);
+
   const save = async () => {
-    if (!note.trim()) return;
+    if (!note.trim() || !petId) return;
     setSaving(true);
     try {
-      await wagApi.pets.addCareNote(petId!, note.trim());
-      Alert.alert('Note saved!', 'This note will be visible to your groomer and walker.', [
+      if (editing) await wagApi.pets.updateCareNote(petId, noteId!, note.trim());
+      else await wagApi.pets.addCareNote(petId, note.trim());
+      Alert.alert(editing ? 'Note updated' : 'Note saved!', 'Your groomer and walker will see this before every visit.', [
         { text: 'OK', onPress: () => goBack() },
       ]);
     } catch (err: any) {
@@ -30,6 +45,19 @@ export default function AddPetNoteScreen() {
     }
   };
 
+  const remove = () => {
+    Alert.alert('Delete this note?', 'It will no longer be shown to your groomer or walker.', [
+      { text: 'Keep', style: 'cancel' },
+      {
+        text: 'Delete', style: 'destructive',
+        onPress: async () => {
+          try { await wagApi.pets.deleteCareNote(petId!, noteId!); goBack(); }
+          catch (err: any) { Alert.alert('Could not delete', err?.message ?? 'Please try again.'); }
+        },
+      },
+    ]);
+  };
+
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <SafeAreaView style={styles.safe}>
@@ -37,7 +65,7 @@ export default function AddPetNoteScreen() {
           <TouchableOpacity onPress={() => goBack()} accessibilityLabel="Go back">
             <Text style={styles.back}>← Back</Text>
           </TouchableOpacity>
-          <Text style={styles.title}>Add Care Note</Text>
+          <Text style={styles.title}>{editing ? 'Edit Care Note' : 'Add Care Note'}</Text>
           <View style={{ width: 50 }} />
         </View>
 
@@ -50,6 +78,7 @@ export default function AddPetNoteScreen() {
           </View>
 
           <Text style={styles.label}>Note</Text>
+          {loading && <ActivityIndicator color={colors.brandBrown} style={{ marginBottom: spacing[2] }} />}
           <TextInput
             style={styles.textArea}
             value={note}
@@ -67,9 +96,14 @@ export default function AddPetNoteScreen() {
         </View>
 
         <View style={styles.footer}>
-          <Button onPress={save} fullWidth loading={saving} disabled={!note.trim()}>
-            Save Care Note
+          <Button onPress={save} fullWidth loading={saving} disabled={!note.trim() || loading}>
+            {editing ? 'Save changes' : 'Save Care Note'}
           </Button>
+          {editing && (
+            <TouchableOpacity onPress={remove} style={{ alignItems: 'center', marginTop: spacing[3] }} accessibilityRole="button">
+              <Text style={{ fontFamily: 'Inter', fontSize: 14, fontWeight: '800', color: colors.error }}>Delete note</Text>
+            </TouchableOpacity>
+          )}
         </View>
       </SafeAreaView>
     </KeyboardAvoidingView>
