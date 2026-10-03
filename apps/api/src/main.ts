@@ -7,6 +7,7 @@ import fastifyMultipart from '@fastify/multipart';
 import fastifyStatic from '@fastify/static';
 import { ABSOLUTE_MAX_BYTES } from './files/upload-rules.js';
 import { PrismaExceptionFilter } from './common/prisma-exception.filter.js';
+import { isAllowedOrigin, parseAllowedOrigins } from './common/cors.js';
 import * as path from 'path';
 import { AppModule } from './app.module.js';
 
@@ -62,9 +63,7 @@ async function bootstrap() {
   
   // Clean up trailing slashes from environment origins
   const rawOrigins = process.env['CORS_ORIGINS'] ?? 'http://localhost:8081,http://localhost:8082,http://localhost:3002,http://localhost:3003,http://localhost:3004';
-  const allowedOrigins = rawOrigins
-    .split(',')
-    .map((origin) => origin.trim().replace(/\/$/, ''));
+  const allowedOrigins = parseAllowedOrigins(rawOrigins);
 
   // Enable CORS with full method support & wildcard origin resolution for dev
   // Enable CORS with full method support
@@ -74,10 +73,11 @@ async function bootstrap() {
       if (!origin || isDev) {
         return cb(null, true);
       }
-      if (allowedOrigins.some((o) => origin.startsWith(o))) {
+      if (isAllowedOrigin(origin, allowedOrigins)) {
         return cb(null, true);
       }
-      cb(new Error('Not allowed by CORS'), false);
+      // No CORS headers: the browser blocks the response. (An Error here would turn into a 500.)
+      cb(null, false);
     },
     methods: ['GET', 'HEAD', 'PUT', 'PATCH', 'POST', 'DELETE', 'OPTIONS'],
     allowedHeaders: [
