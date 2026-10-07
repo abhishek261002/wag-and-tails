@@ -82,7 +82,7 @@ export class DispatchService {
       title: `Request for ${b.petName} 🐾`,
       body: 'A customer chose you for this booking. Accept before the request expires.',
       data: { type: 'job:direct_request', bookingId: b.id, expiresAt: payload.expiresAt ?? '' },
-    });
+    }, { type: 'booking.direct_request', sound: 'job' });
   }
 
   /** Tells the customer their chosen partner declined. */

@@ -1,17 +1,18 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { PageHeader, KpiCard, Card, CardHeader, CardTitle, Table, Badge, Button, Icon, useToast, RatingChip, PartnerMoneyPanel, ToolMediaGallery } from '@wag/ui-web';
+import { PageHeader, KpiCard, Card, CardHeader, CardTitle, Table, Badge, Button, Icon, useToast, RatingChip, PartnerMoneyPanel, ToolMediaGallery, ApprovePartnerModal, PartnerTypePicker, type PartnerEmploymentType } from '@wag/ui-web';
 import { wagApi, resolveMediaUrl } from '../lib/api';
 import { format } from 'date-fns';
-import { useAuthStore } from '../store/auth.store';
 
 export default function PartnerDetailPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { userId } = useAuthStore();
   const [partner, setPartner] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [approveOpen, setApproveOpen] = useState(false);
+  const [approving, setApproving] = useState(false);
+  const [savingType, setSavingType] = useState(false);
 
   const load = useCallback(() => {
     if (!id) return;
@@ -20,14 +21,26 @@ export default function PartnerDetailPage() {
 
   useEffect(() => { load(); }, [load]);
 
-  const handleApprove = async () => {
+  const handleApprove = async (employmentType: PartnerEmploymentType) => {
     if (!id) return;
+    setApproving(true);
     try {
       // The server records the signed-in admin as the approver.
-      await wagApi.client.patch(`/admin/partners/${id}/approve`);
+      await wagApi.client.patch(`/admin/partners/${id}/approve`, { employmentType });
       toast({ type: 'success', title: 'Partner approved' });
+      setApproveOpen(false);
       load();
-    } catch (err: any) { toast({ type: 'error', title: 'Failed', message: err?.message }); }
+    } catch (err: any) { toast({ type: 'error', title: 'Failed', message: err?.message }); } finally { setApproving(false); }
+  };
+
+  const changeType = async (employmentType: PartnerEmploymentType) => {
+    if (!id || employmentType === partner?.employmentType) return;
+    setSavingType(true);
+    try {
+      await wagApi.client.patch(`/admin/partners/${id}/employment-type`, { employmentType });
+      toast({ type: 'success', title: employmentType === 'team' ? 'Moved to My team' : 'Marked as freelancer' });
+      load();
+    } catch (err: any) { toast({ type: 'error', title: 'Could not change the partner type', message: err?.message }); } finally { setSavingType(false); }
   };
 
   const handleSuspend = async () => {
@@ -68,12 +81,18 @@ export default function PartnerDetailPage() {
         sub={`${(partner.modes ?? []).join(', ')} · ${partner.city ?? '—'}`}
         actions={
           <>
-            {partner.status === 'pending' && <Button compact onClick={handleApprove}>Approve partner</Button>}
+            {partner.status === 'pending' && <Button compact onClick={() => setApproveOpen(true)}>Approve partner</Button>}
             <Button compact variant="ghost" onClick={() => navigate('/partners')}>Back</Button>
           </>
         }
       />
       <div className="p-4 md:p-7 space-y-4">
+        {partner.status === 'approved' && (
+          <Card>
+            <CardHeader><CardTitle>Partner type</CardTitle></CardHeader>
+            <div className="max-w-md"><PartnerTypePicker value={partner.employmentType ?? null} onChange={changeType} disabled={savingType} /></div>
+          </Card>
+        )}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <KpiCard title="Jobs completed" value={partner.completedJobs ?? 0} />
           <KpiCard title="Rating" value={partner.rating ? Number(partner.rating).toFixed(1) : '—'} />
@@ -120,7 +139,7 @@ export default function PartnerDetailPage() {
                 </Button>
               )}
               {partner.status === 'suspended' && (
-                <Button compact className="!justify-start" leftIcon={<Icon name="check" size={15} />} onClick={handleApprove}>
+                <Button compact className="!justify-start" leftIcon={<Icon name="check" size={15} />} onClick={() => (partner.employmentType ? handleApprove(partner.employmentType) : setApproveOpen(true))}>
                   Reinstate partner
                 </Button>
               )}
@@ -134,6 +153,7 @@ export default function PartnerDetailPage() {
           </div>
         </div>
       </div>
+      <ApprovePartnerModal open={approveOpen} name={name} loading={approving} onClose={() => setApproveOpen(false)} onConfirm={handleApprove} />
     </div>
   );
 }

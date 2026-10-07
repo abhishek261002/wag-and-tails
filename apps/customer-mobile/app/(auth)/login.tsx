@@ -5,21 +5,24 @@ import {
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button, Input, Logo } from '@wag/ui-mobile';
+import { cleanPhone } from '../../src/lib/phone';
 import { colors, spacing, typography, radii } from '@wag/design-tokens';
 
+type Mode = 'signup' | 'login';
+
 export default function LoginScreen() {
+  const [mode, setMode] = useState<Mode>('login');
   const [phone, setPhone] = useState('');
   const [error, setError] = useState('');
 
   const handleContinue = () => {
-    const cleaned = phone.replace(/\D/g, '');
-    if (cleaned.length < 10) {
-      setError('Please enter a valid 10-digit phone number');
+    const result = cleanPhone(phone);
+    if (!result.ok) {
+      setError(result.message);
       return;
     }
     setError('');
-    const formatted = cleaned.startsWith('91') ? `+${cleaned}` : `+91${cleaned}`;
-    router.push({ pathname: '/(auth)/otp', params: { phone: formatted } });
+    router.push({ pathname: '/(auth)/otp', params: { phone: result.e164, mode } });
   };
 
   return (
@@ -38,12 +41,28 @@ export default function LoginScreen() {
               <Logo size={44} ground={colors.marigold} />
             </View>
             <Text style={styles.brandName}>Wag & Tails</Text>
-            <Text style={styles.brandTagline}>Grooming · Walking · Products</Text>
+            <Text style={styles.welcome}>Welcome to Wag & Tails, your pet care service provider.</Text>
           </View>
 
           <View style={styles.card}>
-            <Text style={styles.title}>Welcome back</Text>
-            <Text style={styles.subtitle}>Enter your phone number to continue</Text>
+            <View style={styles.modeRow} accessibilityRole="tablist">
+              {([['signup', 'Sign up'], ['login', 'Log in']] as [Mode, string][]).map(([m, label]) => (
+                <TouchableOpacity
+                  key={m}
+                  style={[styles.modeBtn, mode === m && styles.modeBtnOn]}
+                  onPress={() => { setMode(m); setError(''); }}
+                  accessibilityRole="tab"
+                  accessibilityState={{ selected: mode === m }}
+                >
+                  <Text style={[styles.modeText, mode === m && styles.modeTextOn]}>{label}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <Text style={styles.title}>{mode === 'signup' ? 'Create your account' : 'Welcome back'}</Text>
+            <Text style={styles.subtitle}>
+              {mode === 'signup' ? 'New here? Enter your phone number to get started.' : 'Already a customer? Enter your phone number to log in.'}
+            </Text>
 
             <View style={styles.phoneRow}>
               <View style={styles.countryCode}>
@@ -55,7 +74,7 @@ export default function LoginScreen() {
                   value={phone}
                   onChangeText={(t) => { setPhone(t); setError(''); }}
                   keyboardType="phone-pad"
-                  maxLength={10}
+                  maxLength={13}
                   error={error || undefined}
                   returnKeyType="done"
                   onSubmitEditing={handleContinue}
@@ -70,7 +89,7 @@ export default function LoginScreen() {
               style={styles.ctaButton}
               accessibilityLabel="Continue to OTP verification"
             >
-              Continue
+              {mode === 'signup' ? 'Sign up with phone number' : 'Log in with phone number'}
             </Button>
           </View>
 
@@ -87,7 +106,7 @@ export default function LoginScreen() {
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.canvas },
-  container: { flex: 1, paddingHorizontal: spacing[6], paddingTop: spacing[12] },
+  container: { flexGrow: 1, paddingBottom: spacing[8], paddingHorizontal: spacing[6], paddingTop: spacing[12] },
   brand: { alignItems: 'center', marginBottom: spacing[10] },
   logoCircle: {
     width: 80, height: 80, borderRadius: radii.full,
@@ -99,6 +118,15 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter', fontSize: typography.fontSize['3xl'],
     fontWeight: '800', color: colors.brandBrown,
   },
+  welcome: {
+    fontFamily: 'Inter', fontSize: typography.fontSize.base, color: colors.textSecondary,
+    textAlign: 'center', marginTop: spacing[2], lineHeight: 22, maxWidth: 300,
+  },
+  modeRow: { flexDirection: 'row', backgroundColor: colors.biscuitLight, borderRadius: radii.lg, padding: 4, marginBottom: spacing[5] },
+  modeBtn: { flex: 1, height: 42, borderRadius: radii.md, alignItems: 'center', justifyContent: 'center' },
+  modeBtnOn: { backgroundColor: colors.white },
+  modeText: { fontFamily: 'Inter', fontSize: typography.fontSize.base, fontWeight: '600', color: colors.textMuted },
+  modeTextOn: { color: colors.brandBrown, fontWeight: '800' },
   brandTagline: {
     fontFamily: 'Inter', fontSize: typography.fontSize.sm,
     color: colors.textMuted, marginTop: spacing[1],

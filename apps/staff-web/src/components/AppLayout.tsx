@@ -33,6 +33,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       items: [
         { key: '/customers', label: 'Customers', icon: <Icon name="user" size={17} />, onClick: () => navigate('/customers') },
         { key: '/partners', label: 'Partners', icon: <Icon name="brief" size={17} />, onClick: () => navigate('/partners') },
+        { key: '/insurance', label: 'Pet insurance', icon: <Icon name="shield" size={17} />, onClick: () => navigate('/insurance') },
       ],
     },
   ];

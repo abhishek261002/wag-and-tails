@@ -8,6 +8,9 @@ import { useAuthStore } from '../store/auth.store';
 
 let registeredToken: string | null = null;
 
+// Must match JOB_CHANNEL_ID / JOB_SOUND in the API's notifications.service.ts.
+const JOB_CHANNEL_ID = 'job-requests';
+
 // Foreground notifications are shown as a banner too; the inbox is the record.
 let handlerSet = false;
 function ensureHandler() {
@@ -34,6 +37,17 @@ export async function registerPush(): Promise<string | null> {
         name: 'Wag & Tails',
         importance: Notifications.AndroidImportance.MAX,
         vibrationPattern: [0, 250, 250, 250],
+      });
+      // New job requests ring with a dog bark. Android fixes a channel's sound when the channel is first created,
+      // so the ringtone gets its own channel (the API sends job pushes with channelId 'job-requests').
+      await Notifications.setNotificationChannelAsync(JOB_CHANNEL_ID, {
+        name: 'New job requests',
+        description: 'Rings with a bark when a new grooming or walking request comes in',
+        importance: Notifications.AndroidImportance.MAX,
+        sound: 'woof.wav',
+        vibrationPattern: [0, 400, 200, 400],
+        lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+        bypassDnd: false,
       });
     }
     let { status } = await Notifications.getPermissionsAsync();

@@ -97,6 +97,38 @@ export class PetsController {
     return this.petsService.groomingHistory(id, user);
   }
 
+  @Get(':id/medical-records')
+  @Roles('customer', 'partner', 'staff', 'admin')
+  listMedicalRecords(@Param('id') id: string, @CurrentUser() user: { sub: string; role: string }) {
+    return this.petsService.listMedicalRecords(id, user);
+  }
+
+  @Post(':id/medical-records')
+  @Roles('customer')
+  addMedicalRecord(@Param('id') id: string, @CurrentUser() user: { sub: string }, @Body() body: any) {
+    return this.petsService.addMedicalRecord(id, user.sub, body);
+  }
+
+  @Patch(':id/medical-records/:recordId')
+  @Roles('customer')
+  updateMedicalRecord(@Param('id') id: string, @Param('recordId') recordId: string, @CurrentUser() user: { sub: string }, @Body() body: any) {
+    return this.petsService.updateMedicalRecord(id, recordId, user.sub, body);
+  }
+
+  @Delete(':id/medical-records/:recordId')
+  @Roles('customer')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  deleteMedicalRecord(@Param('id') id: string, @Param('recordId') recordId: string, @CurrentUser() user: { sub: string }) {
+    return this.petsService.deleteMedicalRecord(id, recordId, user.sub);
+  }
+
+  @Delete(':id/vaccinations/:vaccinationId')
+  @Roles('customer')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  deleteVaccination(@Param('id') id: string, @Param('vaccinationId') vaccinationId: string, @CurrentUser() user: { sub: string }) {
+    return this.petsService.deleteVaccination(id, vaccinationId, user.sub);
+  }
+
   @Post(':id/vaccinations')
   @Roles('customer')
   addVaccination(

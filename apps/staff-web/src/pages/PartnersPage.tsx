@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { PageHeader, Badge, Button, Modal, useToast, FilterChip, Toolbar, Card, Table, TableStrong, RatingChip, Icon, PartnerMoneyPanel, ToolMediaGallery, type ToolsData } from '@wag/ui-web';
+import { PageHeader, Badge, Button, Modal, useToast, FilterChip, Toolbar, Card, Table, TableStrong, RatingChip, Icon, PartnerMoneyPanel, ToolMediaGallery, PartnerTypeBadge, PartnerTypePicker, PARTNER_TYPE_FILTERS, type ToolsData, type PartnerEmploymentType, type PartnerTypeFilter } from '@wag/ui-web';
 import { wagApi, resolveMediaUrl } from '../lib/api';
 import { format } from 'date-fns';
 
@@ -9,26 +9,49 @@ export default function PartnersPage() {
   const [partners, setPartners] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [status, setStatus] = useState('pending');
+  const [type, setType] = useState<PartnerTypeFilter>('');
+  // Chosen in the application dialog: approving needs it, and approved partners can be moved between lists.
+  const [pickType, setPickType] = useState<PartnerEmploymentType | null>(null);
+  const [savingType, setSavingType] = useState(false);
   const [selected, setSelected] = useState<any | null>(null);
   const [approving, setApproving] = useState(false);
   const { toast } = useToast();
 
   const load = () => {
     setLoading(true);
-    wagApi.client.get<any>(`/staff/partners?status=${status}&pageSize=50`)
+    wagApi.client.get<any>(`/staff/partners?status=${status}${type ? `&employmentType=${type}` : ''}&pageSize=50`)
       .then((r: any) => setPartners(r.data ?? []))
       .catch(() => {})
       .finally(() => setLoading(false));
   };
 
-  useEffect(load, [status]);
+  useEffect(load, [status, type]);
+  useEffect(() => { setPickType(selected?.employmentType ?? null); }, [selected]);
+
+  const changeType = async (partner: any, next: PartnerEmploymentType) => {
+    setPickType(next);
+    if (partner.status === 'pending') return; // saved together with the approval
+    setSavingType(true);
+    try {
+      await wagApi.client.patch(`/staff/partners/${partner.userId}/employment-type`, { employmentType: next });
+      toast({ type: 'success', title: next === 'team' ? 'Moved to My team' : 'Marked as freelancer' });
+      setSelected((s: any) => (s ? { ...s, employmentType: next } : s));
+      load();
+    } catch (err: any) {
+      setPickType(partner.employmentType ?? null);
+      toast({ type: 'error', title: 'Could not change the partner type', message: err?.message });
+    } finally {
+      setSavingType(false);
+    }
+  };
 
   const [tools, setTools] = useState<ToolsData | null>(null);
 
   const handleApprove = async (partner: any) => {
     setApproving(true);
     try {
-      await wagApi.client.patch(`/staff/partners/${partner.userId}/approve`);
+      if (!pickType) { toast({ type: 'error', title: 'Choose My team or Freelancer first' }); return; }
+      await wagApi.client.patch(`/staff/partners/${partner.userId}/approve`, { employmentType: pickType });
       toast({ type: 'success', title: `${partner.user?.profile?.firstName ?? 'Partner'} approved` });
       setSelected(null);
       load();
@@ -47,6 +70,14 @@ export default function PartnersPage() {
           {[{ v: 'pending', l: 'Pending' }, { v: 'approved', l: 'Approved' }, { v: 'suspended', l: 'Suspended' }].map((o) => (
             <FilterChip key={o.v} active={status === o.v} onClick={() => setStatus(o.v)}>{o.l}</FilterChip>
           ))}
+          {status !== 'pending' && (
+            <>
+              <span className="w-px h-6 bg-[#EDE4D9] mx-1" aria-hidden />
+              {PARTNER_TYPE_FILTERS.map((o) => (
+                <FilterChip key={o.v || 'all'} active={type === o.v} onClick={() => setType(o.v)}>{o.l}</FilterChip>
+              ))}
+            </>
+          )}
         </Toolbar>
 
         <Card padding="none">
@@ -60,6 +91,7 @@ export default function PartnersPage() {
                 { key: 'phone', header: 'Phone', render: (p: any) => p.user?.phone },
                 { key: 'city', header: 'City', render: (p: any) => p.city ?? '—' },
                 { key: 'mode', header: 'Mode', render: (p: any) => (p.modes as string[]).join(', ') },
+                { key: 'type', header: 'Type', render: (p: any) => (p.status === 'pending' ? '—' : <PartnerTypeBadge type={p.employmentType} />) },
                 { key: 'rating', header: 'Rating', render: (p: any) => <RatingChip value={Number(p.rating).toFixed(1)} /> },
                 { key: 'jobs', header: 'Jobs', align: 'center', render: (p: any) => p.completedJobs },
                 { key: 'status', header: 'Status', render: (p: any) => <Badge variant={STATUS_TONE[p.status] ?? 'muted'}>{p.status}</Badge> },
@@ -85,7 +117,7 @@ export default function PartnersPage() {
           selected?.status === 'pending' ? (
             <>
               <Button variant="outline" onClick={() => setSelected(null)}>Close</Button>
-              <Button onClick={() => handleApprove(selected)} loading={approving} disabled={tools !== null && !tools.complete}>Approve partner</Button>
+              <Button onClick={() => handleApprove(selected)} loading={approving} disabled={!pickType || (tools !== null && !tools.complete)}>Approve partner</Button>
             </>
           ) : (
             <Button variant="outline" onClick={() => setSelected(null)}>Close</Button>
@@ -143,6 +175,14 @@ export default function PartnersPage() {
                 </div>
               )}
             </dl>
+          </div>
+        )}
+        {selected && (selected.status === 'pending' || selected.status === 'approved') && (
+          <div className="mt-5">
+            <div className="text-xs font-semibold text-[#9A8878] uppercase tracking-wide mb-2">
+              {selected.status === 'pending' ? 'Approve as' : 'Partner type'}
+            </div>
+            <PartnerTypePicker value={pickType} onChange={(v) => changeType(selected, v)} disabled={savingType} />
           </div>
         )}
         {selected && (

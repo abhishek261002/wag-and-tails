@@ -30,6 +30,7 @@ import { StaffModule } from './staff/staff.module.js';
 import { AdminModule } from './admin/admin.module.js';
 import { AuditLogModule } from './audit-log/audit-log.module.js';
 import { RealtimeModule } from './realtime/realtime.module.js';
+import { InsuranceModule } from './insurance/insurance.module.js';
 
 @Module({
   imports: [
@@ -65,6 +66,7 @@ import { RealtimeModule } from './realtime/realtime.module.js';
     FilesModule,
     StaffModule,
     AdminModule,
+    InsuranceModule,
     AuditLogModule,
     RealtimeModule,
   ],

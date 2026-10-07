@@ -8,6 +8,7 @@ import { Throttle } from '@nestjs/throttler';
 import { FilesService } from './files.service.js';
 import { CurrentUser } from '../common/decorators.js';
 import { ABSOLUTE_MAX_BYTES, checkUpload, type UploadRefusal } from './upload-rules.js';
+import { compressImage, UnreadableImageError } from './image-compress.js';
 import type { FastifyRequest } from 'fastify';
 
 @ApiTags('files')
@@ -61,6 +62,16 @@ export class FilesController {
       throw new BadRequestException(refusal.message);
     }
 
-    return this.filesService.upload(buffer, data.filename ?? 'upload', (verdict as Extract<UploadRefusal, { ok: true }>).type, user.sub, entity, entityId);
+    // Every photo is compressed before it is stored (resized, re-encoded, metadata removed).
+    let stored: { buffer: Buffer; type: Extract<UploadRefusal, { ok: true }>['type'] };
+    try {
+      const c = await compressImage(buffer, (verdict as Extract<UploadRefusal, { ok: true }>).type);
+      stored = { buffer: c.buffer, type: c.type };
+    } catch (err) {
+      if (err instanceof UnreadableImageError) throw new UnsupportedMediaTypeException(err.message);
+      throw err;
+    }
+
+    return this.filesService.upload(stored.buffer, data.filename ?? 'upload', stored.type, user.sub, entity, entityId);
   }
 }

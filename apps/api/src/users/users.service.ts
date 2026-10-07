@@ -37,11 +37,12 @@ export class UsersService {
    * database): first and last name, email, date of birth and photo. An empty email or date of birth clears it.
    */
   async updateProfile(userId: string, data: {
-    firstName?: unknown; lastName?: unknown; email?: unknown; dateOfBirth?: unknown; avatarUrl?: unknown;
+    firstName?: unknown; lastName?: unknown; email?: unknown; dateOfBirth?: unknown; avatarUrl?: unknown; city?: unknown;
   }) {
     const bad = (msg: string) => { throw new BadRequestException(msg); };
     const profileData: Record<string, unknown> = {};
     const userData: Record<string, unknown> = {};
+    let city: string | undefined;
 
     const name = (v: unknown, label: string) => {
       const t = typeof v === 'string' ? v.trim().replace(/\s+/g, ' ') : '';
@@ -84,7 +85,13 @@ export class UsersService {
       else bad('Photo must be uploaded through the app first');
     }
 
-    if (Object.keys(profileData).length === 0 && Object.keys(userData).length === 0) bad('Nothing to update');
+    if (data.city !== undefined) {
+      const c = typeof data.city === 'string' ? data.city.trim().replace(/\s+/g, ' ') : '';
+      if (c.length < 2 || c.length > 60 || !/^[\p{L}][\p{L}\p{M} .'\-]*$/u.test(c)) bad('Please enter a valid city name');
+      city = c;
+    }
+
+    if (Object.keys(profileData).length === 0 && Object.keys(userData).length === 0 && city === undefined) bad('Nothing to update');
 
     const existing = await this.prisma.userProfile.findUnique({ where: { userId } });
     if (!existing) throw new NotFoundException('Profile not found');
@@ -93,9 +100,12 @@ export class UsersService {
       await this.prisma.$transaction([
         ...(Object.keys(userData).length ? [this.prisma.user.update({ where: { id: userId }, data: userData })] : []),
         ...(Object.keys(profileData).length ? [this.prisma.userProfile.update({ where: { userId }, data: profileData })] : []),
+        // Only customers have a city on file.
+        ...(city !== undefined ? [this.prisma.customerProfile.update({ where: { userId }, data: { city } })] : []),
       ]);
     } catch (err: any) {
       if (err?.code === 'P2002') throw new ConflictException('That email is already used by another account');
+      if (err?.code === 'P2025') throw new BadRequestException('City can only be set on a customer account');
       throw err;
     }
     return this.getProfile(userId);

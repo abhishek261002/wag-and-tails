@@ -1,41 +1,44 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { PageHeader, Button, Badge, useToast, Card, CardHeader, CardTitle, Table, TableStrong, RatingChip, Icon, FilterChip, Toolbar } from '@wag/ui-web';
+import { PageHeader, Button, Badge, useToast, Card, CardHeader, CardTitle, Table, TableStrong, RatingChip, Icon, FilterChip, Toolbar, PartnerTypeBadge, ApprovePartnerModal, PARTNER_TYPE_FILTERS, type PartnerEmploymentType, type PartnerTypeFilter } from '@wag/ui-web';
 import { wagApi } from '../lib/api';
 import { format } from 'date-fns';
-import { useAuthStore } from '../store/auth.store';
 
 const STATUS_TONE: Record<string, any> = { approved: 'ok', pending: 'warn', suspended: 'danger', rejected: 'danger' };
 
 export default function PartnersPage() {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { userId } = useAuthStore();
   const [partners, setPartners] = useState<any[]>([]);
   const [pending, setPending] = useState<any[]>([]);
   const [status, setStatus] = useState('');
+  const [type, setType] = useState<PartnerTypeFilter>('');
+  const [approveFor, setApproveFor] = useState<any | null>(null);
+  const [approving, setApproving] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
       const [all, p] = await Promise.all([
-        wagApi.client.get<any>(`/admin/partners?status=${status}&pageSize=50`),
+        wagApi.client.get<any>(`/admin/partners?status=${status}${type ? `&employmentType=${type}` : ''}&pageSize=50`),
         status ? Promise.resolve(null) : wagApi.client.get<any>('/admin/partners?status=pending&pageSize=10'),
       ]);
       setPartners((all as any).data ?? []);
       if (p) setPending((p as any).data ?? []);
     } catch {} finally { setLoading(false); }
-  }, [status]);
+  }, [status, type]);
 
   useEffect(() => { load(); }, [load]);
 
-  const handleApprove = async (partnerId: string) => {
+  const handleApprove = async (partnerId: string, employmentType: PartnerEmploymentType) => {
+    setApproving(true);
     try {
-      await wagApi.client.patch(`/admin/partners/${partnerId}/approve`, { adminId: userId });
+      await wagApi.client.patch(`/admin/partners/${partnerId}/approve`, { employmentType });
       toast({ type: 'success', title: 'Partner approved' });
+      setApproveFor(null);
       load();
-    } catch (err: any) { toast({ type: 'error', title: 'Failed', message: err?.message }); }
+    } catch (err: any) { toast({ type: 'error', title: 'Failed', message: err?.message }); } finally { setApproving(false); }
   };
 
   return (
@@ -61,7 +64,7 @@ export default function PartnersPage() {
                     <span className="block text-xs text-[#9A8878] mt-0.5">{(p.modes ?? []).join(', ')} &middot; {p.city ?? '—'} &middot; {p.kycStatus === 'verified' ? 'Aadhaar verified (DigiLocker)' : 'Aadhaar not verified'}</span>
                   </span>
                   <Button compact variant="ghost" onClick={() => navigate(`/partners/${p.userId}`)}>Review</Button>
-                  <Button compact onClick={() => handleApprove(p.userId)}>Approve</Button>
+                  <Button compact onClick={() => setApproveFor(p)}>Approve</Button>
                 </div>
               ))}
             </div>
@@ -72,6 +75,14 @@ export default function PartnersPage() {
           {[{ v: '', l: 'All' }, { v: 'pending', l: 'Pending' }, { v: 'approved', l: 'Approved' }, { v: 'suspended', l: 'Suspended' }].map((o) => (
             <FilterChip key={o.v} active={status === o.v} onClick={() => setStatus(o.v)}>{o.l}</FilterChip>
           ))}
+          {status !== 'pending' && (
+            <>
+              <span className="w-px h-6 bg-[#EDE4D9] mx-1" aria-hidden />
+              {PARTNER_TYPE_FILTERS.map((o) => (
+                <FilterChip key={o.v || 'all'} active={type === o.v} onClick={() => setType(o.v)}>{o.l}</FilterChip>
+              ))}
+            </>
+          )}
         </Toolbar>
 
         <Card padding="none">
@@ -85,6 +96,7 @@ export default function PartnersPage() {
                 { key: 'phone', header: 'Phone', render: (p: any) => p.user?.phone },
                 { key: 'city', header: 'City', render: (p: any) => p.city ?? '—' },
                 { key: 'mode', header: 'Mode', render: (p: any) => (p.modes as string[]).join(', ') },
+                { key: 'type', header: 'Type', render: (p: any) => (p.status === 'pending' ? '—' : <PartnerTypeBadge type={p.employmentType} />) },
                 { key: 'rating', header: 'Rating', render: (p: any) => <RatingChip value={Number(p.rating).toFixed(1)} /> },
                 { key: 'jobs', header: 'Jobs', align: 'center', render: (p: any) => p.completedJobs },
                 { key: 'status', header: 'Status', render: (p: any) => <Badge variant={STATUS_TONE[p.status] ?? 'muted'}>{p.status}</Badge> },
@@ -97,6 +109,14 @@ export default function PartnersPage() {
           </div>
         </Card>
       </div>
+
+      <ApprovePartnerModal
+        open={!!approveFor}
+        name={approveFor?.user?.profile ? `${approveFor.user.profile.firstName} ${approveFor.user.profile.lastName}` : 'partner'}
+        loading={approving}
+        onClose={() => setApproveFor(null)}
+        onConfirm={(t) => approveFor && handleApprove(approveFor.userId, t)}
+      />
     </div>
   );
 }

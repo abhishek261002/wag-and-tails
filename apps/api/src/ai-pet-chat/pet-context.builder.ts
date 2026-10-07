@@ -40,6 +40,7 @@ export async function buildPetContext(prisma: PrismaService, customerId: string,
     include: {
       careNotes: { orderBy: { createdAt: 'desc' }, take: 25 },
       vaccinations: { orderBy: { administeredDate: 'desc' }, take: 25 },
+      medicalRecords: { orderBy: { recordDate: 'desc' }, take: 25 },
     },
   });
   if (!pet) return null;
@@ -88,6 +89,10 @@ export async function buildPetContext(prisma: PrismaService, customerId: string,
     return `- ${clean(v.vaccineName, 80)}: given ${fmtDate(v.administeredDate)}${v.expiryDate ? `, expires ${fmtDate(v.expiryDate)}` : ''} (${status})${v.vetName ? `, by ${clean(v.vetName, 60)}` : ''}`;
   });
 
+  const medicalLines = pet.medicalRecords.map(
+    (m) => `- ${fmtDate(m.recordDate)} [${clean(m.type, 20)}] ${clean(m.title, 120)}${m.notes ? `: ${clean(m.notes, 300)}` : ''}${m.vetName ? ` (vet: ${clean(m.vetName, 60)})` : ''}${m.followUpDate ? `, follow-up due ${fmtDate(m.followUpDate)}` : ''}`,
+  );
+
   const careNoteLines = pet.careNotes.map(
     (n) => `- [${fmtDate(n.createdAt)}, added by ${clean(n.addedByRole, 20)}] ${clean(n.note, 400)}`,
   );
@@ -128,6 +133,7 @@ export async function buildPetContext(prisma: PrismaService, customerId: string,
   const text = [
     `PROFILE`,
     `Name: ${clean(pet.name, 60)}`,
+    `Species: ${pet.species}`,
     `Breed: ${clean(pet.breed, 80)}`,
     `Sex: ${pet.sex}`,
     `Age: ${ageString(pet.dateOfBirth)}${pet.dateOfBirth ? ` (born ${fmtDate(pet.dateOfBirth)})` : ''}`,
@@ -142,6 +148,9 @@ export async function buildPetContext(prisma: PrismaService, customerId: string,
     ``,
     `CARE NOTES FROM THE OWNER AND SERVICE PARTNERS (${pet.careNotes.length})`,
     careNoteLines.join('\n') || 'None.',
+    ``,
+    `MEDICAL HISTORY (${pet.medicalRecords.length})`,
+    medicalLines.join('\n') || 'None on record.',
     ``,
     `VACCINATIONS (${pet.vaccinations.length})`,
     vaccineLines.join('\n') || 'None on record.',

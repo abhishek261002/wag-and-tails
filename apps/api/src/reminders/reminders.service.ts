@@ -72,14 +72,15 @@ export class RemindersService {
 
   async runDaily(now = new Date()) {
     const today = isoDateIst(now);
-    const [vaccination, unvaccinated, grooming, tips, cleaned] = [
+    const [vaccination, unvaccinated, checkups, grooming, tips, cleaned] = [
       await this.vaccinationReminders(today),
       await this.unvaccinatedNudges(today),
+      await this.checkupReminders(today),
       await this.groomingReminders(now, today),
       await this.careTips(now, today),
       await this.housekeeping(now),
     ];
-    return { vaccination, unvaccinated, grooming, tips, cleaned };
+    return { vaccination, unvaccinated, checkups, grooming, tips, cleaned };
   }
 
   private async vaccinationReminders(today: string): Promise<number> {
@@ -139,6 +140,43 @@ export class RemindersService {
     // Overdue: a monthly nudge for a few months, then leave it alone.
     if (daysLeft < -30 * OVERDUE_REMIND_MONTHS_MAX) return null;
     return { kind: 'overdue', key: `vax:${id}:overdue:${month(today)}` };
+  }
+
+  /**
+   * Follow-up dates on a pet's medical records ("next check-up on 12 Nov"): a reminder a week before, one on the day
+   * and one when it is a few days overdue. The date is part of the dedupe key, so moving a follow-up re-arms it.
+   */
+  private async checkupReminders(today: string): Promise<number> {
+    const records = await this.prisma.petMedicalRecord.findMany({
+      where: {
+        followUpDate: { gte: new Date(Date.parse(today) - 14 * DAY), lte: new Date(Date.parse(today) + 7 * DAY) },
+        pet: { isActive: true },
+      },
+      select: { id: true, title: true, type: true, followUpDate: true, pet: { select: { id: true, name: true, customerId: true } } },
+      take: 5000,
+    });
+    let sent = 0;
+    for (const r of records) {
+      if (!r.followUpDate) continue;
+      const due = r.followUpDate.toISOString().slice(0, 10);
+      const daysLeft = daysBetween(today, due);
+      const stage = daysLeft >= 1 && daysLeft <= 7 ? '7d' : daysLeft <= 0 && daysLeft >= -2 ? 'due' : daysLeft <= -3 && daysLeft >= -14 ? 'overdue' : null;
+      if (!stage) continue;
+      if (!(await this.claim(`checkup:${r.id}:${due}:${stage}`, 'checkup', r.pet.customerId))) continue;
+      const on = r.followUpDate.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', timeZone: 'UTC' });
+      const what = r.type === 'checkup' ? 'check-up' : `follow-up for "${r.title}"`;
+      const body =
+        stage === '7d' ? `${r.pet.name}'s ${what} is on ${on} (${daysLeft} day${daysLeft === 1 ? '' : 's'}). A good time to book the vet.`
+        : stage === 'due' ? `${r.pet.name}'s ${what} is due ${daysLeft === 0 ? 'today' : `since ${on}`}.`
+        : `${r.pet.name}'s ${what} was due on ${on}. If it is done, update the record in ${r.pet.name}'s health records.`;
+      const n = await this.notifications.sendPush(
+        r.pet.customerId,
+        { title: stage === 'overdue' ? `Check-up overdue for ${r.pet.name}` : `Check-up reminder for ${r.pet.name}`, body, data: { type: 'reminder.checkup', petId: r.pet.id, recordId: r.id } },
+        { type: 'reminder.checkup', optional: 'reminders' }
+      );
+      if (n) sent++;
+    }
+    return sent;
   }
 
   private async unvaccinatedNudges(today: string): Promise<number> {

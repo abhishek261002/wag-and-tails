@@ -1,11 +1,6 @@
-import {
-  Injectable,
-  UnauthorizedException,
-  ConflictException,
-  Logger,
-  BadRequestException,
-} from '@nestjs/common';
+import { Injectable, UnauthorizedException, ConflictException, Logger, BadRequestException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
+import { prepareSignup } from './customer-signup.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { OtpService } from './otp.service.js';
 import { KycService } from '../kyc/kyc.service.js';
@@ -54,41 +49,62 @@ export class AuthService {
     return { isNewUser: true, sessionToken };
   }
 
-  async registerCustomer(data: {
-    phone: string;
-    otp: string;
-    email: string;
-    firstName: string;
-    lastName: string;
-    dateOfBirth: string;
-  }) {
-    const valid = await this.otpService.verifyOtp(data.phone, data.otp);
+  /**
+   * Creates a customer account after the phone OTP: name, city and at least one pet, all in one transaction, so a
+   * customer can never end up registered without a pet. The OTP is consumed here (the verify step only checked it).
+   */
+  async registerCustomer(body: { phone?: unknown; otp?: unknown }) {
+    const phone = typeof body.phone === 'string' ? body.phone.trim() : '';
+    const otp = typeof body.otp === 'string' ? body.otp.trim() : '';
+    if (!phone || !otp) throw new BadRequestException('Phone number and code are required');
+    // Validate everything before spending the one-time code, so a typo in the form does not force a new OTP.
+    const data = prepareSignup(body);
+
+    const already = await this.prisma.user.findFirst({
+      where: { OR: [{ phone }, ...(data.email ? [{ email: data.email }] : [])] },
+      select: { phone: true },
+    });
+    if (already) {
+      throw new ConflictException(already.phone === phone ? 'An account with this phone number already exists. Please log in.' : 'That email is already used by another account');
+    }
+
+    const valid = await this.otpService.verifyOtp(phone, otp);
     if (!valid) throw new UnauthorizedException('Invalid or expired OTP');
 
-    const existing = await this.prisma.user.findFirst({
-      where: { OR: [{ phone: data.phone }, { email: data.email }] },
-    });
-    if (existing) throw new ConflictException('Account already exists with this phone or email');
-
-    const user = await this.prisma.user.create({
-      data: {
-        phone: data.phone,
-        email: data.email,
-        role: 'customer',
-        isActive: true,
-        profile: {
-          create: {
-            firstName: data.firstName,
-            lastName: data.lastName,
-            dateOfBirth: new Date(data.dateOfBirth),
+    let userId: string;
+    try {
+      // One nested create: Prisma runs it as a single atomic write, so there is no half-made account and no
+      // multi-step transaction to time out on a slow connection.
+      const user = await this.prisma.user.create({
+        data: {
+          phone,
+          email: data.email,
+          role: 'customer',
+          isActive: true,
+          profile: { create: { firstName: data.firstName, lastName: data.lastName } },
+          customerProfile: { create: { city: data.city } },
+          pets: {
+            create: data.pets.map((p) => ({
+              name: p.name,
+              species: p.species,
+              breed: p.breed,
+              sex: p.sex,
+              dateOfBirth: new Date(`${p.dateOfBirth}T00:00:00Z`),
+              // Vaccinations are recorded later from the pet's health records.
+              vaccinationStatus: 'unknown' as const,
+            })),
           },
         },
-        customerProfile: { create: {} },
-      },
-      include: { profile: true },
-    });
+        select: { id: true },
+      });
+      userId = user.id;
+    } catch (err: any) {
+      // Two sign-ups for the same number at once: the second one loses the unique-key race.
+      if (err?.code === 'P2002') throw new ConflictException('An account with this phone number or email already exists. Please log in.');
+      throw err;
+    }
 
-    return this.issueTokens(user.id, user.role);
+    return this.issueTokens(userId, 'customer');
   }
 
   // Partners sign up with email+password directly (no login OTP) — unlike registerCustomer, which

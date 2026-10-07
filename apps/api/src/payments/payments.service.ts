@@ -5,6 +5,7 @@ import { MapsLocationService } from '../maps-location/maps-location.service.js';
 import { RealtimeGateway } from '../realtime/realtime.gateway.js';
 import { isLocationFilteringEnabled } from '../common/feature-flags.js';
 import { DispatchService } from '../bookings/dispatch.service.js';
+import { NotificationsService } from '../notifications/notifications.service.js';
 
 export type { PaymentProvider };
 
@@ -17,7 +18,8 @@ export class PaymentsService {
     private prisma: PrismaService,
     private mapsService: MapsLocationService,
     private realtime: RealtimeGateway,
-    private dispatch: DispatchService
+    private dispatch: DispatchService,
+    private notifications: NotificationsService
   ) {
     this.provider = createPaymentProvider();
   }
@@ -168,6 +170,18 @@ export class PaymentsService {
       // ENABLE_LOCATION_FILTERING=true (or leave it unset) for real
       // geofenced, per-partner targeting in production.
       this.realtime.emitToRole('partner', 'job:available', payload);
+      // Push too, so phones ring even when the app is in the background: every online, approved groomer in the
+      // booking's city (or with no city set, matching this no-filtering mode). Offline partners are not rung.
+      const groomers = await this.prisma.partnerProfile.findMany({
+        where: {
+          status: 'approved',
+          isOnline: true,
+          modes: { has: 'grooming' },
+          ...(booking.address.city ? { OR: [{ city: { equals: booking.address.city, mode: 'insensitive' } }, { city: null }] } : {}),
+        },
+        select: { userId: true },
+      });
+      await this.pushGroomingJob(groomers.map((g) => g.userId), payload);
       return;
     }
 
@@ -179,6 +193,18 @@ export class PaymentsService {
 
     for (const partner of eligible) {
       this.realtime.emitToUser(partner.id, 'job:available', payload);
+    }
+    await this.pushGroomingJob(eligible.map((p) => p.id), payload);
+  }
+
+  /** Job ringtone push to each partner; one failure never stops the rest (sendPush itself never throws on delivery). */
+  private async pushGroomingJob(partnerIds: string[], payload: { bookingId: string; petName: string; petBreed: string; scheduledAt: string | null; addressLine: string; partnerPayout: number }) {
+    for (const id of new Set(partnerIds)) {
+      try {
+        await this.notifications.sendGroomingRequest(id, payload);
+      } catch (err) {
+        this.logger.warn(`grooming job push to ${id} failed: ${(err as Error).message}`);
+      }
     }
   }
 

@@ -1,6 +1,6 @@
 import React, { useCallback, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, ActivityIndicator, RefreshControl } from 'react-native';
-import { useFocusEffect, useLocalSearchParams } from 'expo-router';
+import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { format } from 'date-fns';
 import { CORE_VACCINES_BY_SPECIES, summarizeVaccinations, type PetDetail } from '@wag/shared-types';
@@ -59,6 +59,19 @@ export default function VaccinesScreen() {
     }
   };
 
+  const removeVaccine = (v: { id: string; vaccineName: string }) => {
+    Alert.alert('Delete this vaccination record?', v.vaccineName, [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Delete', style: 'destructive',
+        onPress: async () => {
+          try { await wagApi.pets.deleteVaccination(pet!.id, v.id); await load(); }
+          catch (err: any) { Alert.alert('Could not delete', err?.message ?? 'Please try again.'); }
+        },
+      },
+    ]);
+  };
+
   const records = pet?.vaccinations ?? [];
   const summary = pet ? summarizeVaccinations(records, pet.vaccinationStatus) : null;
   const options = pet ? [...(CORE_VACCINES_BY_SPECIES[pet.species] ?? []), 'Other'] : [];
@@ -90,6 +103,14 @@ export default function VaccinesScreen() {
             </View>
           )}
 
+          <TouchableOpacity style={styles.medLink} onPress={() => router.push({ pathname: '/pet/medical', params: { id: pet.id, name: pet.name } })} accessibilityRole="button">
+            <View style={{ flex: 1 }}>
+              <Text style={styles.medLinkTitle}>Medical history</Text>
+              <Text style={styles.medLinkSub}>Check-ups, illnesses, surgeries, medication and allergies{pet.medicalRecords?.length ? ` · ${pet.medicalRecords.length} saved` : ''}</Text>
+            </View>
+            <Icon name="chev" size={16} color={colors.textDisabled} />
+          </TouchableOpacity>
+
           {records.length === 0 ? (
             <View style={styles.empty}>
               <Text style={styles.emptyTitle}>No vaccination records yet</Text>
@@ -102,7 +123,7 @@ export default function VaccinesScreen() {
                 const due = v.expiryDate ? new Date(v.expiryDate).getTime() : null;
                 const expired = due !== null && due < now;
                 return (
-                  <View key={v.id} style={[styles.row, i < records.length - 1 && styles.rowBorder]}>
+                  <TouchableOpacity key={v.id} activeOpacity={0.8} onLongPress={() => removeVaccine(v)} style={[styles.row, i < records.length - 1 && styles.rowBorder]} accessibilityHint="Long press to delete">
                     <View style={[styles.rowIcon, expired ? styles.rowWarn : styles.rowOk]}><Icon name="syringe" size={17} color={expired ? colors.marigoldDark : colors.success} /></View>
                     <View style={{ flex: 1 }}>
                       <Text style={styles.rowTitle}>{v.vaccineName}</Text>
@@ -110,7 +131,7 @@ export default function VaccinesScreen() {
                       {!!v.vetName && <Text style={styles.rowSub}>{v.vetName}</Text>}
                     </View>
                     <View style={[styles.chip, expired ? styles.chipWarn : styles.chipOk]}><Text style={[styles.chipText, expired ? styles.chipTextWarn : styles.chipTextOk]}>{expired ? 'Expired' : 'Valid'}</Text></View>
-                  </View>
+                  </TouchableOpacity>
                 );
               })}
             </View>
@@ -167,6 +188,9 @@ const styles = StyleSheet.create({
   bannerTitle: { fontFamily: 'Inter', fontSize: 14, fontWeight: '800', color: colors.marigoldDark },
   bannerBody: { fontFamily: 'Inter', fontSize: 13, color: colors.marigoldDark, marginTop: 2 },
 
+  medLink: { flexDirection: 'row', alignItems: 'center', gap: spacing[3], backgroundColor: colors.white, borderRadius: radii.xl, borderWidth: 1, borderColor: colors.borderLight, padding: spacing[4] },
+  medLinkTitle: { fontFamily: 'Inter', fontSize: 15, fontWeight: '800', color: colors.textPrimary },
+  medLinkSub: { fontFamily: 'Inter', fontSize: 12.5, color: colors.textMuted, marginTop: 2 },
   empty: { alignItems: 'center', gap: spacing[2], marginTop: spacing[8], paddingHorizontal: spacing[4] },
   emptyTitle: { fontFamily: 'Inter', fontSize: 16, fontWeight: '800', color: colors.textPrimary },
   emptyBody: { fontFamily: 'Inter', fontSize: 13, color: colors.textMuted, textAlign: 'center' },

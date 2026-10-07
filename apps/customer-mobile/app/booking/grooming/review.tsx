@@ -9,11 +9,12 @@ import { useBookingStore } from '../../../src/store/booking.store';
 import { format } from 'date-fns';
 import { PartnerChoice } from '../../../src/components/PartnerChoice';
 import { payWithProvider } from '../../../src/lib/razorpay';
+import { AvailableCoupons } from '../../../src/components/AvailableCoupons';
 import { goBack } from '../../../src/lib/nav';
 
 const PAYMENT_OPTIONS: { label: string; hint: string; value: 'upi' | 'cash_after_service'; icon: IconName }[] = [
   { label: 'Pay after service', hint: 'Pay your partner directly once the service is done', value: 'cash_after_service', icon: 'bag' },
-  { label: 'Pay online', hint: 'Pay now by UPI, card or wallet', value: 'upi', icon: 'card' },
+  { label: 'Pay online', hint: 'Pay now by UPI or card', value: 'upi', icon: 'card' },
 ];
 
 export default function ReviewGroomingBookingScreen() {
@@ -34,12 +35,14 @@ export default function ReviewGroomingBookingScreen() {
   const effectiveDiscount = Math.max(discount, partnerDiscount);
   const total = subtotal - effectiveDiscount;
 
-  const applyCoupon = async () => {
-    if (!couponCode.trim()) return;
+  const applyCoupon = async (override?: string) => {
+    const code = (override ?? couponCode).trim();
+    if (!code) return;
+    setCouponCode(code);
     setApplyingCoupon(true);
     try {
-      const res = await wagApi.bookings.applyCoupon(couponCode.trim(), 'grooming', subtotal);
-      updateGroomingDraft({ couponCode: couponCode.trim(), discount: res.discount });
+      const res = await wagApi.bookings.applyCoupon(code, 'grooming', subtotal);
+      updateGroomingDraft({ couponCode: code, discount: res.discount });
       setCouponApplied(true);
     } catch (err: any) {
       Alert.alert('Invalid Coupon', err?.message ?? 'Coupon not valid');
@@ -165,12 +168,13 @@ export default function ReviewGroomingBookingScreen() {
             />
             <TouchableOpacity
               style={styles.applyBtn}
-              onPress={applyCoupon}
+              onPress={() => applyCoupon()}
               disabled={applyingCoupon || !couponCode.trim()}
             >
               <Text style={styles.applyBtnText}>{applyingCoupon ? '...' : 'Apply'}</Text>
             </TouchableOpacity>
           </View>
+          <AvailableCoupons service="grooming" orderValue={subtotal} appliedCode={couponApplied && discount > 0 ? couponCode : undefined} onApply={applyCoupon} />
           {couponApplied && discount > 0 && (
             <View style={styles.couponSuccessRow}>
               <Icon name="check" size={14} color={colors.success} />

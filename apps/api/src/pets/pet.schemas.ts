@@ -98,15 +98,16 @@ export interface VaccinationInput {
   notVaccinatedYet?: boolean;
 }
 
-// Returns null for "not vaccinated yet", otherwise the row to create.
+// Returns the row to create, or null when no date was given ("not vaccinated yet", or the question was skipped:
+// it is optional). Giving both a date and "not vaccinated yet" is a contradiction and is refused.
 export function resolveVaccination(
   species: PetSpecies,
   dateOfBirth: string | null | undefined,
   v: VaccinationInput,
 ): { vaccineName: string; administeredDate: string; expiryDate: string } | null {
   const hasDate = !!v.lastVaccinationDate;
-  if (hasDate === !!v.notVaccinatedYet) {
-    throw new BadRequestException('Tell us when the last vaccination was, or choose "Not vaccinated yet"');
+  if (hasDate && v.notVaccinatedYet) {
+    throw new BadRequestException('Choose either the last vaccination date or "Not vaccinated yet", not both');
   }
   if (!hasDate) return null;
 

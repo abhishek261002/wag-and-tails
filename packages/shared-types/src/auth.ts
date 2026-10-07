@@ -39,14 +39,8 @@ export interface LoginRequest {
   password: string;
 }
 
-export interface RegisterRequest {
-  phone: string;
-  email: string;
-  firstName: string;
-  lastName: string;
-  dateOfBirth: string;
-  otp: string;
-}
+/** Customer sign-up after the OTP: see CustomerSignupRequest in signup.ts. */
+export type RegisterRequest = import('./signup.js').CustomerSignupRequest;
 
 export interface RegisterPartnerRequest {
   email: string;

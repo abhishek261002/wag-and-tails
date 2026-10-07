@@ -58,6 +58,55 @@ export class CouponsService {
     return { discount, newTotal: orderValue - discount, coupon };
   }
 
+  /**
+   * Every coupon a customer could see at checkout for this service and order value, each with what it would save
+   * now or why it can't be used (minimum order not met, already used). Uses exactly the rules apply() enforces, so
+   * a coupon shown as usable is accepted when the booking is placed. Coupons that nobody can use any more (expired,
+   * inactive, used up overall) are left out.
+   */
+  async listAvailable(service: unknown, orderValue: unknown, userId: string) {
+    const svc = typeof service === 'string' ? service : '';
+    if (!['grooming', 'walking', 'store'].includes(svc)) throw new BadRequestException('service must be grooming, walking or store');
+    const value = Number(orderValue);
+    if (!Number.isFinite(value) || value < 0 || value > 1_000_000) throw new BadRequestException('orderValue is not valid');
+
+    const now = new Date();
+    const coupons = await this.prisma.coupon.findMany({
+      where: { isActive: true, validFrom: { lte: now }, validUntil: { gte: now } },
+      orderBy: { createdAt: 'desc' },
+    });
+    const usable = coupons.filter((c) =>
+      (c.applicableServices.length === 0 || c.applicableServices.includes('all') || c.applicableServices.includes(svc)) &&
+      !(c.usageLimitTotal && c.timesUsed >= c.usageLimitTotal));
+    const used = usable.length
+      ? await this.prisma.couponRedemption.groupBy({ by: ['couponId'], where: { userId, couponId: { in: usable.map((c) => c.id) } }, _count: { _all: true } })
+      : [];
+    const usedBy = new Map(used.map((u) => [u.couponId, u._count._all]));
+
+    const rows = usable.map((c) => {
+      const min = c.minOrderValue ? Number(c.minOrderValue) : 0;
+      const alreadyUsed = !!c.usageLimitPerUser && (usedBy.get(c.id) ?? 0) >= c.usageLimitPerUser;
+      let discount = c.discountType === 'flat' ? Math.min(Number(c.discountValue), value) : (value * Number(c.discountValue)) / 100;
+      if (c.discountType !== 'flat' && c.maxDiscount) discount = Math.min(discount, Number(c.maxDiscount));
+      discount = Math.round(discount);
+      const reason = alreadyUsed ? 'You have already used this coupon' : value < min ? `Add ₹${Math.ceil(min - value)} more to use this coupon` : null;
+      return {
+        code: c.code,
+        description: c.description,
+        discountType: c.discountType,
+        discountValue: Number(c.discountValue),
+        maxDiscount: c.maxDiscount ? Number(c.maxDiscount) : null,
+        minOrderValue: min || null,
+        validUntil: c.validUntil.toISOString(),
+        eligible: !reason,
+        reason,
+        discount: reason ? 0 : discount,
+      };
+    });
+    // Usable ones first, biggest saving first; then the rest.
+    return rows.sort((a, b) => Number(b.eligible) - Number(a.eligible) || b.discount - a.discount);
+  }
+
   async recordRedemption(couponId: string, userId: string, bookingId?: string, orderId?: string) {
     await this.prisma.couponRedemption.create({
       data: { couponId, userId, bookingId: bookingId ?? null, orderId: orderId ?? null },

@@ -69,6 +69,11 @@ config.resolver.resolveRequest = (context, moduleName, platform) => {
     };
   }
 
+  // MapLibre React Native has no web build (it calls native codegen at import time): use a stub on web.
+  if (platform === 'web' && moduleName === '@maplibre/maplibre-react-native') {
+    return { filePath: path.resolve(projectRoot, 'metro-stubs/maplibre-web-stub.js'), type: 'sourceFile' };
+  }
+
   // Singleton subpaths like 'react/jsx-runtime' or 'react-dom/client'
   const topLevel = moduleName.split('/')[0];
   if (singletonMap[topLevel] && moduleName.startsWith(topLevel + '/')) {

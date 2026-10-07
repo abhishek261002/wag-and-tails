@@ -9,14 +9,12 @@ import { useAuthStore } from '../../src/store/auth.store';
 
 export default function AccountScreen() {
   const [profile, setProfile] = useState<any>(null);
-  const [wallet, setWallet] = useState<{ balance: number } | null>(null);
   const [petCount, setPetCount] = useState(0);
   const { clearTokens } = useAuthStore();
 
   // Reload whenever the tab is shown, so a name or photo changed on the profile screen appears straight away.
   useFocusEffect(useCallback(() => {
     wagApi.client.get('/users/me').then((d) => setProfile(d)).catch(() => {});
-    wagApi.client.get('/users/me/wallet').then((d) => setWallet(d as any)).catch(() => {});
     wagApi.pets.list().then((p) => setPetCount(p.length)).catch(() => {});
   }, []));
 
@@ -63,7 +61,7 @@ export default function AccountScreen() {
 
         {/* Stat tiles */}
         <View style={styles.statsRow}>
-          <StatTile icon="wallet" tone="ok" value={`₹${wallet?.balance ?? 0}`} label="Wallet" onPress={() => {}} />
+          <StatTile icon="paw" tone="ok" value={String(petCount)} label="Pets" onPress={() => router.push('/(tabs)/pets' as any)} />
           <StatTile icon="gift" tone="accent" value="0" label="Offers" onPress={() => router.push('/account/offers')} />
           <StatTile icon="bell" tone="brand" value="" label="Alerts" onPress={() => router.push('/account/notifications')} />
         </View>
@@ -82,7 +80,7 @@ export default function AccountScreen() {
 
         <Section title="Support">
           <RowItem icon="help" title="Help & support" sub="FAQs and contact" onPress={() => router.push('/support')} />
-          <RowItem icon="gift" title="Refer a friend" sub="Both of you get ₹200" onPress={() => {}} />
+          <RowItem icon="heart" title="Our vets" sub="Doctors joining Wag & Tails" onPress={() => router.push('/vets' as any)} />
           <RowItem icon="doc" title="Terms of service" onPress={() => router.push('/legal/terms' as any)} />
           <RowItem icon="shield" title="Privacy policy" onPress={() => router.push('/legal/privacy' as any)} />
         </Section>

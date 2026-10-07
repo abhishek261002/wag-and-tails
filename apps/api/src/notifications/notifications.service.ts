@@ -12,7 +12,13 @@ export interface SendOptions {
   type?: string;
   /** Optional categories the user can switch off; transactional messages leave this unset. */
   optional?: 'reminders' | 'tips';
+  /** 'job' rings the partner app's job ringtone (a dog bark) on its own Android channel. */
+  sound?: 'job';
 }
+
+// Must match the partner app: the Android channel it creates in push.ts and the file bundled via app.json.
+export const JOB_CHANNEL_ID = 'job-requests';
+export const JOB_SOUND = 'woof.wav';
 
 export interface WalkRequestPayload {
   bookingId: string;
@@ -65,20 +71,20 @@ export class NotificationsService {
     });
 
     try {
-      await this.deliver(userId, { ...payload, data: { ...(payload.data ?? {}), notificationId: notification.id, type: opts.type ?? 'system' } });
+      await this.deliver(userId, { ...payload, data: { ...(payload.data ?? {}), notificationId: notification.id, type: opts.type ?? 'system' } }, opts.sound);
     } catch (err) {
       this.logger.warn(`push delivery to ${userId} failed: ${(err as Error).message}`);
     }
     return notification;
   }
 
-  private async deliver(userId: string, payload: PushPayload) {
+  private async deliver(userId: string, payload: PushPayload, sound?: 'job') {
     const tokens = await this.prisma.pushToken.findMany({ where: { userId } });
     if (tokens.length === 0) return;
 
     const provider = (process.env['PUSH_PROVIDER'] ?? 'mock').toLowerCase();
     if (provider !== 'expo') {
-      this.logger.log(`[MOCK PUSH] → ${userId}: ${payload.title} — ${payload.body}`);
+      this.logger.log(`[MOCK PUSH${sound ? ' 🔔 woof' : ''}] → ${userId}: ${payload.title} — ${payload.body}`);
       return;
     }
 
@@ -93,8 +99,8 @@ export class NotificationsService {
         title: payload.title,
         body: payload.body,
         data: payload.data ?? {},
-        sound: 'default',
-        channelId: 'default',
+        sound: sound === 'job' ? JOB_SOUND : 'default',
+        channelId: sound === 'job' ? JOB_CHANNEL_ID : 'default',
         priority: 'high',
         ttl: 60 * 60 * 24,
       }));
@@ -127,7 +133,23 @@ export class NotificationsService {
         body: `${payload.durationMinutes} min walk · ${payload.distanceKm.toFixed(1)}km away · ₹${payload.partnerPayout}`,
         data: { type: 'walk:request', bookingId: payload.bookingId, expiresAt: payload.expiresAt, pickupAddress: payload.pickupAddress },
       },
-      { type: 'booking.walk_request' }
+      { type: 'booking.walk_request', sound: 'job' }
+    );
+  }
+
+  /** A new grooming job a partner can accept: push with the job ringtone. */
+  async sendGroomingRequest(partnerId: string, p: { bookingId: string; petName: string; petBreed: string; scheduledAt: string | null; addressLine: string; partnerPayout: number }) {
+    const when = p.scheduledAt
+      ? new Date(p.scheduledAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' })
+      : 'as soon as possible';
+    await this.sendPush(
+      partnerId,
+      {
+        title: `New grooming job ✂️ ${p.petName}`,
+        body: `${p.petBreed} · ${when} · earn ₹${p.partnerPayout}`,
+        data: { type: 'job:available', bookingId: p.bookingId },
+      },
+      { type: 'booking.grooming_request', sound: 'job' }
     );
   }
 

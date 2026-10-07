@@ -2,6 +2,7 @@ import { Injectable, NotFoundException, ForbiddenException, BadRequestException,
 import { PrismaService } from '../prisma/prisma.service.js';
 import { buildPetContext, clean } from './pet-context.builder.js';
 import { generatePetChatReply, GeminiError, type GeminiTurn } from './gemini.client.js';
+import { buildHouseholdContext, drWoofSystemPrompt, DR_WOOF_REFUSALS, DR_WOOF_SUGGESTIONS } from './dr-woof.js';
 
 const MAX_MESSAGE_CHARS = 500;
 const HISTORY_TURNS = 12;
@@ -59,6 +60,16 @@ const REFUSALS = {
 
 const DEFAULT_SUGGESTIONS = ['Is it time for my next grooming?', 'Are my vaccinations up to date?', 'How have my walks been lately?'];
 
+/** Who is answering: the old per-pet persona or Dr. Woof. Everything else (guardrails, history, model call) is shared. */
+interface Persona {
+  /** Built only when the message actually goes to the model (loading pet records costs queries). */
+  systemPrompt: () => string | Promise<string>;
+  refusals: { off_topic: string; injection: string; unavailable: string; quota: string; blocked: string; notConfigured: string };
+  suggestions: string[];
+  /** The emergency answer, with whatever vet details are on file. */
+  emergency: () => string | Promise<string>;
+}
+
 @Injectable()
 export class AiPetChatService {
   private readonly logger = new Logger(AiPetChatService.name);
@@ -99,7 +110,7 @@ export class AiPetChatService {
 
     await this.prisma.aiChatMessage.create({ data: { sessionId: session.id, role: 'user', content: userText } });
 
-    const reply = await this.decideReply(context.petName, context.text, context.vetLine, session.id, userText);
+    const reply = await this.decideReply(this.petPersona(context.petName, context.text, context.vetLine), session.id, userText);
 
     const aiMessage = await this.prisma.aiChatMessage.create({
       data: {
@@ -115,23 +126,32 @@ export class AiPetChatService {
     return { sessionId: session.id, message: aiMessage };
   }
 
-  private async decideReply(petName: string, petContext: string, vetLine: string | null, sessionId: string, userText: string) {
-    const canned = (content: string, refusalReason: string | null, suggestions: string[] = DEFAULT_SUGGESTIONS) => ({ content, refusalReason, suggestions });
+  private petPersona(petName: string, petContext: string, vetLine: string | null): Persona {
+    const vet = vetLine ? ` Your vet on file is ${vetLine}.` : '';
+    return {
+      systemPrompt: () => SYSTEM_PROMPT(petContext, petName),
+      refusals: {
+        off_topic: REFUSALS.off_topic(petName), injection: REFUSALS.injection(petName), unavailable: REFUSALS.unavailable(petName),
+        quota: REFUSALS.quota(petName), blocked: REFUSALS.blocked(),
+        notConfigured: `Woof, it's ${petName}. I'm not fully connected yet, but I'd love to chat about my care, walks and grooming soon.`,
+      },
+      suggestions: DEFAULT_SUGGESTIONS,
+      emergency: () => `This sounds urgent. Please contact your vet or the nearest emergency animal clinic right now and do not wait to see if it passes.${vet} Keep ${petName} calm and warm, and do not give any medicine or try to make them vomit unless a vet tells you to.`,
+    };
+  }
+
+  private async decideReply(persona: Persona, sessionId: string, userText: string) {
+    const canned = (content: string, refusalReason: string | null, suggestions: string[] = persona.suggestions) => ({ content, refusalReason, suggestions });
 
     // Guardrail 1: prompt-injection / role-change attempts never reach the model.
     if (INJECTION_PATTERNS.some((p) => p.test(userText))) {
       this.logger.warn(`Injection attempt blocked (session ${sessionId})`);
-      return canned(REFUSALS.injection(petName), 'blocked_injection');
+      return canned(persona.refusals.injection, 'blocked_injection');
     }
 
-    // Guardrail 2: possible emergencies get a fixed, safe answer — no model in the loop.
+    // Guardrail 2: possible emergencies get a fixed, safe answer, with no model in the loop.
     if (EMERGENCY_PATTERNS.some((p) => p.test(userText))) {
-      const vet = vetLine ? ` Your vet on file is ${vetLine}.` : '';
-      return canned(
-        `This sounds urgent. Please contact your vet or the nearest emergency animal clinic right now and do not wait to see if it passes.${vet} Keep ${petName} calm and warm, and do not give any medicine or try to make them vomit unless a vet tells you to.`,
-        'medical_emergency',
-        [],
-      );
+      return canned(await persona.emergency(), 'medical_emergency', []);
     }
 
     const provider = (process.env['LLM_PROVIDER'] ?? 'mock').toLowerCase();
@@ -140,12 +160,9 @@ export class AiPetChatService {
     if (provider !== 'gemini' || !apiKey) {
       if (provider === 'gemini' && !this.warnedNoKey) {
         this.warnedNoKey = true;
-        this.logger.warn('LLM_PROVIDER=gemini but GEMINI_API_KEY is empty — serving mock replies until it is set.');
+        this.logger.warn('LLM_PROVIDER=gemini but GEMINI_API_KEY is empty, serving mock replies until it is set.');
       }
-      return canned(
-        `Woof, it's ${petName}. I'm not fully connected yet, but I'd love to chat about my care, walks and grooming soon.`,
-        null,
-      );
+      return canned(persona.refusals.notConfigured, null);
     }
 
     const history = await this.loadHistory(sessionId);
@@ -153,30 +170,86 @@ export class AiPetChatService {
       const out = await generatePetChatReply({
         apiKey,
         model: process.env['GEMINI_MODEL'] || 'gemini-3.5-flash',
-        systemPrompt: SYSTEM_PROMPT(petContext, petName),
+        systemPrompt: await persona.systemPrompt(),
         history,
       });
 
       // Guardrail 3: the model itself classified the message as out of scope.
-      if (!out.onTopic) return canned(REFUSALS.off_topic(petName), 'off_topic');
-      if (!out.answer) return canned(REFUSALS.unavailable(petName), 'unavailable', []);
+      if (!out.onTopic) return canned(persona.refusals.off_topic, 'off_topic');
+      if (!out.answer) return canned(persona.refusals.unavailable, 'unavailable', []);
 
-      // Guardrail 4: output hygiene — no prompt leakage, no links, bounded length.
-      if (/PET RECORD|STRICT RULES|read-only data|SCOPE —|GROUNDING/i.test(out.answer)) {
-        return canned(REFUSALS.off_topic(petName), 'off_topic');
+      // Guardrail 4: output hygiene: no prompt leakage, no links, bounded length.
+      if (/PET RECORD|HOUSEHOLD \(read-only|STRICT RULES|read-only data|SCOPE —|GROUNDING|OUTPUT: respond|You are Dr\. Woof, the friendly/i.test(out.answer)) {
+        return canned(persona.refusals.off_topic, 'off_topic');
       }
-      const content = out.answer.replace(/https?:\/\/\S+/gi, '').replace(/\s{3,}/g, '\n\n').trim().slice(0, 1200);
-      return { content, refusalReason: null, suggestions: out.suggestions.map((s) => clean(s, 80)) };
+      const content = out.answer.replace(/https?:\/\/\S+/gi, '').replace(/\s{3,}/g, '\n\n').trim().slice(0, 1500);
+      return { content, refusalReason: null, suggestions: out.suggestions.map((s) => clean(s, 80)).slice(0, 3) };
     } catch (err) {
       if (err instanceof GeminiError) {
         this.logger.error(`Gemini failure (${err.kind}): ${err.message}`);
-        if (err.kind === 'quota') return canned(REFUSALS.quota(petName), 'unavailable', []);
-        if (err.kind === 'blocked') return canned(REFUSALS.blocked(), 'blocked_safety');
-        return canned(REFUSALS.unavailable(petName), 'unavailable', []);
+        if (err.kind === 'quota') return canned(persona.refusals.quota, 'unavailable', []);
+        if (err.kind === 'blocked') return canned(persona.refusals.blocked, 'blocked_safety');
+        return canned(persona.refusals.unavailable, 'unavailable', []);
       }
-      this.logger.error(`Pet chat failure: ${(err as Error)?.message}`);
-      return canned(REFUSALS.unavailable(petName), 'unavailable', []);
+      this.logger.error(`Chat failure: ${(err as Error)?.message}`);
+      return canned(persona.refusals.unavailable, 'unavailable', []);
     }
+  }
+
+  // ─── Dr. Woof: one assistant for all of the customer's pets ──────────────────
+
+  async drWoofChat(customerId: string, message: unknown, sessionId?: unknown) {
+    if (typeof message !== 'string' || !message.trim()) throw new BadRequestException('Message is required');
+    const userText = message.trim().slice(0, MAX_MESSAGE_CHARS);
+    this.enforceRateLimit(customerId);
+
+    let session;
+    if (sessionId !== undefined && sessionId !== null && sessionId !== '') {
+      if (typeof sessionId !== 'string' || !/^[0-9a-f-]{36}$/i.test(sessionId)) throw new BadRequestException('sessionId is not valid');
+      session = await this.prisma.aiChatSession.findUnique({ where: { id: sessionId } });
+      // Only the customer's own Dr. Woof sessions (no pet attached) can be continued here.
+      if (!session || session.customerId !== customerId || session.petId !== null) throw new ForbiddenException('Session not found');
+    } else {
+      session = await this.prisma.aiChatSession.create({ data: { customerId, petId: null } });
+    }
+
+    await this.prisma.aiChatMessage.create({ data: { sessionId: session.id, role: 'user', content: userText } });
+
+    // The household record is loaded at most once, and only if the message needs it (not for blocked messages).
+    let loaded: Promise<{ household: Awaited<ReturnType<typeof buildHouseholdContext>>; ownerName: string | null }> | null = null;
+    const load = () => (loaded ??= Promise.all([
+      buildHouseholdContext(this.prisma, customerId),
+      this.prisma.userProfile.findUnique({ where: { userId: customerId }, select: { firstName: true } }),
+    ]).then(([household, profile]) => ({ household, ownerName: profile?.firstName ?? null })));
+
+    const reply = await this.decideReply(
+      {
+        systemPrompt: async () => { const { household, ownerName } = await load(); return drWoofSystemPrompt(household.text, ownerName); },
+        refusals: {
+          off_topic: DR_WOOF_REFUSALS.off_topic(), injection: DR_WOOF_REFUSALS.injection(), unavailable: DR_WOOF_REFUSALS.unavailable(),
+          quota: DR_WOOF_REFUSALS.quota(), blocked: DR_WOOF_REFUSALS.blocked(), notConfigured: DR_WOOF_REFUSALS.notConfigured(),
+        },
+        suggestions: DR_WOOF_SUGGESTIONS,
+        emergency: async () => {
+          const { household } = await load();
+          const vets = household.vetLines.length ? ` Vets on file: ${household.vetLines.join('; ')}.` : '';
+          return `This sounds urgent. Please contact your vet or the nearest emergency animal clinic right now and do not wait to see if it passes.${vets} Keep your pet calm and warm, and do not give any medicine or try to make them vomit unless a vet tells you to.`;
+        },
+      },
+      session.id,
+      userText,
+    );
+
+    const aiMessage = await this.prisma.aiChatMessage.create({
+      data: { sessionId: session.id, role: 'assistant', content: reply.content, refusalReason: reply.refusalReason, suggestedActions: reply.suggestions },
+    });
+    await this.prisma.aiChatSession.update({ where: { id: session.id }, data: { updatedAt: new Date() } });
+    return { sessionId: session.id, message: aiMessage };
+  }
+
+  /** The customer's Dr. Woof conversations, newest first. */
+  async drWoofSessions(customerId: string) {
+    return this.prisma.aiChatSession.findMany({ where: { customerId, petId: null }, orderBy: { updatedAt: 'desc' }, take: 20 });
   }
 
   // Refused/unavailable turns are left out so a blocked attempt can't poison later context.
@@ -201,6 +274,7 @@ export class AiPetChatService {
   }
 
   async getSessions(customerId: string, petId: string) {
+    if (typeof petId !== 'string' || !petId) throw new BadRequestException('petId is required');
     return this.prisma.aiChatSession.findMany({
       where: { customerId, petId },
       orderBy: { updatedAt: 'desc' },

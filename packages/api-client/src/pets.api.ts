@@ -1,5 +1,5 @@
 import type { ApiClient } from './client.js';
-import type { Pet, PetDetail, PetCareNote, PetVaccination, CreatePetInput, UpdatePetInput } from '@wag/shared-types';
+import type { Pet, PetDetail, PetCareNote, PetVaccination, CreatePetInput, UpdatePetInput, PetMedicalRecord, MedicalRecordInput } from '@wag/shared-types';
 
 export interface GroomingHistoryEntry {
   id: string;
@@ -52,6 +52,26 @@ export class PetsApi {
   /** Finished grooming sessions, newest first, with before/after photos. */
   groomingHistory(petId: string): Promise<GroomingHistoryEntry[]> {
     return this.client.get(`/pets/${petId}/grooming-history`);
+  }
+
+  listMedicalRecords(petId: string): Promise<PetMedicalRecord[]> {
+    return this.client.get(`/pets/${petId}/medical-records`);
+  }
+
+  addMedicalRecord(petId: string, data: MedicalRecordInput): Promise<PetMedicalRecord> {
+    return this.client.post(`/pets/${petId}/medical-records`, data);
+  }
+
+  updateMedicalRecord(petId: string, recordId: string, data: Partial<MedicalRecordInput>): Promise<PetMedicalRecord> {
+    return this.client.patch(`/pets/${petId}/medical-records/${recordId}`, data);
+  }
+
+  deleteMedicalRecord(petId: string, recordId: string): Promise<void> {
+    return this.client.delete(`/pets/${petId}/medical-records/${recordId}`);
+  }
+
+  deleteVaccination(petId: string, vaccinationId: string): Promise<void> {
+    return this.client.delete(`/pets/${petId}/vaccinations/${vaccinationId}`);
   }
 
   addVaccination(petId: string, data: Omit<PetVaccination, 'id' | 'petId'>): Promise<PetVaccination> {

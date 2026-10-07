@@ -17,3 +17,6 @@ export * from './chat.js';
 export * from './scheduling.js';
 export * from './vaccination.js';
 export * from './pet-age.js';
+export * from './signup.js';
+export * from './medical.js';
+export * from './insurance.js';

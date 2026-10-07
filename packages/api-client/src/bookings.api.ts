@@ -31,6 +31,21 @@ export interface BookingFilters {
   pageSize?: number;
 }
 
+export interface AvailableCoupon {
+  code: string;
+  description: string;
+  discountType: 'flat' | 'percent';
+  discountValue: number;
+  maxDiscount: number | null;
+  minOrderValue: number | null;
+  validUntil: string;
+  eligible: boolean;
+  /** Why it cannot be used right now; null when eligible. */
+  reason: string | null;
+  /** What it saves on this order (0 when not eligible). */
+  discount: number;
+}
+
 export class BookingsApi {
   constructor(private client: ApiClient) {}
 
@@ -95,6 +110,11 @@ export class BookingsApi {
 
   cancel(bookingId: string, reason?: string): Promise<void> {
     return this.client.patch(`/bookings/${bookingId}/cancel`, { reason });
+  }
+
+  /** Coupons for the checkout screen: each with its saving for this order, or why it cannot be used. */
+  availableCoupons(service: 'grooming' | 'walking' | 'store', orderValue: number): Promise<AvailableCoupon[]> {
+    return this.client.get('/coupons/available', { params: { service, orderValue } });
   }
 
   applyCoupon(code: string, service: string, orderValue: number): Promise<{ discount: number; newTotal: number }> {

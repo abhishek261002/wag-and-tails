@@ -4,7 +4,7 @@ export { AuthApi } from './auth.api';
 export { PetsApi } from './pets.api';
 export type { GroomingHistoryEntry } from './pets.api';
 export { BookingsApi } from './bookings.api';
-export type { PaginatedResponse, BookingFilters } from './bookings.api';
+export type { PaginatedResponse, BookingFilters, AvailableCoupon } from './bookings.api';
 export { StoreApi } from './store.api';
 export { PartnerApi } from './partner.api';
 export type { ToolMedia, ToolsResponse } from './partner.api';
@@ -17,6 +17,8 @@ export { MapsApi } from './maps.api';
 export { UsersApi } from './users.api';
 export type { ProfileUpdate } from './users.api';
 export type { PlaceSuggestion, PlaceDetails } from './maps.api';
+export { InsuranceApi } from './insurance.api';
+export type { MyInsuranceRequest, InsuranceList } from './insurance.api';
 export { RealtimeClient } from './realtime';
 
 // Convenience factory
@@ -32,6 +34,7 @@ import { PaymentsApi } from './payments.api';
 import { SupportApi } from './support.api';
 import { MapsApi } from './maps.api';
 import { UsersApi } from './users.api';
+import { InsuranceApi } from './insurance.api';
 import { RealtimeClient } from './realtime';
 import type { ApiClientConfig } from './client';
 
@@ -50,6 +53,7 @@ export function createWagApiClient(config: ApiClientConfig) {
     support: new SupportApi(client),
     maps: new MapsApi(client),
     users: new UsersApi(client),
+    insurance: new InsuranceApi(client),
     realtime: new RealtimeClient(config.baseURL, config.getAccessToken),
   };
 }

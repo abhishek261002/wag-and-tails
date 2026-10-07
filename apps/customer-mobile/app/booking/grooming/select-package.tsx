@@ -63,6 +63,17 @@ export default function SelectPackageScreen() {
                   <Text style={styles.pkgDesc} numberOfLines={isExpanded ? undefined : 1}>
                     {pkg.description}
                   </Text>
+                  {pkg.inclusions.length > 0 && (
+                    <TouchableOpacity
+                      onPress={() => setExpanded(isExpanded ? null : pkg.id)}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      accessibilityRole="button"
+                      accessibilityState={{ expanded: isExpanded }}
+                      accessibilityLabel={`${isExpanded ? 'View less' : 'View more'} about the ${pkg.name} package`}
+                    >
+                      <Text style={styles.viewMore}>{isExpanded ? 'View less ▲' : `View more (${pkg.inclusions.length} services) ▼`}</Text>
+                    </TouchableOpacity>
+                  )}
                 </View>
                 <View style={styles.priceCol}>
                   <Text style={styles.price}>₹{pkg.price}</Text>
@@ -118,6 +129,7 @@ const styles = StyleSheet.create({
   discountBadge: { flexShrink: 0, backgroundColor: colors.successLight, borderRadius: radii.full, paddingHorizontal: spacing[2], paddingVertical: 2 },
   discountText: { fontFamily: 'Inter', fontSize: 11, fontWeight: '700', color: colors.success },
   pkgDesc: { fontFamily: 'Inter', fontSize: typography.fontSize.sm, color: colors.textMuted },
+  viewMore: { fontFamily: 'Inter', fontSize: typography.fontSize.sm, fontWeight: '700', color: colors.marigoldDark, marginTop: spacing[2] },
   priceCol: { flexShrink: 0, alignItems: 'flex-end' },
   price: { fontFamily: 'Inter', fontSize: typography.fontSize.xl, fontWeight: '800', color: colors.brandBrown },
   mrp: { fontFamily: 'Inter', fontSize: typography.fontSize.sm, color: colors.textMuted, textDecorationLine: 'line-through' },

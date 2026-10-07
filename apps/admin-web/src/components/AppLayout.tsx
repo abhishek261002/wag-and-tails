@@ -49,6 +49,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       items: [
         { key: '/partners', label: 'Partners', icon: <Icon name="brief" size={17} />, badge: pendingPartners, onClick: () => navigate('/partners') },
         { key: '/customers', label: 'Customers', icon: <Icon name="user" size={17} />, onClick: () => navigate('/customers') },
+        { key: '/insurance', label: 'Pet insurance', icon: <Icon name="heart" size={17} />, onClick: () => navigate('/insurance') },
         { key: '/staff', label: 'Staff', icon: <Icon name="shield" size={17} />, onClick: () => navigate('/staff') },
         { key: '/support', label: 'Escalated support', icon: <Icon name="chat" size={17} />, badge: escalated, onClick: () => navigate('/support') },
       ],

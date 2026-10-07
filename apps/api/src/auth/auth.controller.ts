@@ -16,6 +16,7 @@ import {
 import type { FastifyReply, FastifyRequest } from 'fastify';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
+import { Transform } from 'class-transformer';
 import { ArrayNotEmpty, ArrayUnique, IsArray, IsBoolean, IsEmail, IsIn, IsInt, IsNotEmpty, IsOptional, IsString, IsUUID, Matches, MaxLength, Min, MinLength } from 'class-validator';
 import { AuthService } from './auth.service.js';
 import { KycService } from '../kyc/kyc.service.js';
@@ -24,12 +25,14 @@ import { CurrentUser } from '../common/decorators.js';
 class OtpRequestDto {
   @IsString()
   @IsNotEmpty()
+  @Matches(/^\+[1-9]\d{9,14}$/, { message: 'Enter a valid phone number with country code' })
   phone!: string;
 }
 
 class OtpVerifyDto {
   @IsString()
   @IsNotEmpty()
+  @Matches(/^\+[1-9]\d{9,14}$/, { message: 'Enter a valid phone number with country code' })
   phone!: string;
 
   @IsString()
@@ -37,30 +40,37 @@ class OtpVerifyDto {
   otp!: string;
 }
 
+// Customer sign-up. Only the shape is checked here; prepareSignup (customer-signup.ts) validates the content,
+// including each pet, and names the exact field that is wrong.
 class RegisterDto {
   @IsString()
   @IsNotEmpty()
+  @Matches(/^\+[1-9]\d{9,14}$/, { message: 'Enter a valid phone number with country code' })
   phone!: string;
 
   @IsString()
   @IsNotEmpty()
   otp!: string;
 
-  @IsEmail()
+  @IsString()
   @IsNotEmpty()
-  email!: string;
+  @MaxLength(120)
+  name!: string;
 
   @IsString()
   @IsNotEmpty()
-  firstName!: string;
+  @MaxLength(60)
+  city!: string;
 
+  @IsOptional()
   @IsString()
-  @IsNotEmpty()
-  lastName!: string;
+  @MaxLength(254)
+  email?: string;
 
-  @IsString()
-  @IsNotEmpty()
-  dateOfBirth!: string;
+  // Raw pass-through: the global pipe's implicit conversion would otherwise wrap each pet in an array.
+  @Transform(({ obj }) => obj.pets)
+  @IsArray()
+  pets!: unknown[];
 }
 
 class DigilockerStartDto {

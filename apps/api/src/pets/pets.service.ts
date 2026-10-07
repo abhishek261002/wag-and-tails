@@ -10,6 +10,7 @@ import { BUSINESS_CONFIG } from '../common/config.js';
 import { PetSex, PetSize, CoatType, PetSpecies } from '@prisma/client';
 import { sizeFromWeight, VACCINATION_VALIDITY_DAYS } from '../common/species.js';
 import { summarizeVaccinations } from '../common/vaccination.js';
+import { parseMedicalRecord, presentRecord } from './medical-records.js';
 import {
   createPetSchema,
   updatePetSchema,
@@ -79,11 +80,13 @@ export class PetsService {
       include: {
         careNotes: { orderBy: { createdAt: 'desc' } },
         vaccinations: { orderBy: { administeredDate: 'desc' } },
+        medicalRecords: { orderBy: [{ recordDate: 'desc' }, { createdAt: 'desc' }] },
       },
     });
     if (!pet) throw new NotFoundException('Pet not found');
     const visitCount = await this.prisma.booking.count({ where: { petId, status: 'completed' } });
-    return { ...pet, visitCount, vaccination: summarizeVaccinations(pet.vaccinations, pet.vaccinationStatus) };
+    const { medicalRecords, ...rest } = pet;
+    return { ...rest, medicalRecords: medicalRecords.map(presentRecord), visitCount, vaccination: summarizeVaccinations(pet.vaccinations, pet.vaccinationStatus) };
   }
 
   /**
@@ -144,7 +147,7 @@ export class PetsService {
         vetDoctorName: dto.vetDoctorName || null,
         vetClinic: dto.vetClinic || null,
         vetPhone: dto.vetPhone || null,
-        vaccinationStatus: vaccination ? 'recorded' : 'not_vaccinated_yet',
+        vaccinationStatus: vaccination ? 'recorded' : dto.notVaccinatedYet ? 'not_vaccinated_yet' : 'unknown',
         careNotes: dto.careNote
           ? { create: { note: dto.careNote, addedBy: customerId, addedByRole: 'customer' } }
           : undefined,
@@ -169,7 +172,8 @@ export class PetsService {
     assertPetRules(pet.species, { ...dto, breed: dto.breed === pet.breed ? undefined : dto.breed });
 
     const dobIso = dto.dateOfBirth ?? (pet.dateOfBirth ? pet.dateOfBirth.toISOString().slice(0, 10) : null);
-    const wantsVaccination = dto.lastVaccinationDate !== undefined || dto.notVaccinatedYet !== undefined;
+    // Only a date or an explicit "not vaccinated yet" changes the vaccination answer; anything else leaves it as is.
+    const wantsVaccination = !!dto.lastVaccinationDate || dto.notVaccinatedYet === true;
     let vaccination: ReturnType<typeof resolveVaccination> | undefined;
     if (wantsVaccination) {
       vaccination = resolveVaccination(pet.species, dobIso, dto);
@@ -295,6 +299,65 @@ export class PetsService {
   async updateAvatar(petId: string, customerId: string, avatarUrl: string) {
     await this.assertOwnership(petId, customerId);
     return this.prisma.pet.update({ where: { id: petId }, data: { avatarUrl } });
+  }
+
+  // ─── Medical history ─────────────────────────────────────────────────────────
+
+  async listMedicalRecords(petId: string, user: { sub: string; role: string }) {
+    await this.assertCanAccess(petId, user);
+    const rows = await this.prisma.petMedicalRecord.findMany({ where: { petId }, orderBy: [{ recordDate: 'desc' }, { createdAt: 'desc' }] });
+    return rows.map(presentRecord);
+  }
+
+  async addMedicalRecord(petId: string, customerId: string, body: unknown) {
+    await this.assertOwnership(petId, customerId);
+    const r = parseMedicalRecord(body);
+    const count = await this.prisma.petMedicalRecord.count({ where: { petId } });
+    if (count >= 500) throw new BadRequestException('This pet already has the maximum number of records');
+    const row = await this.prisma.petMedicalRecord.create({
+      data: {
+        petId, type: r.type, title: r.title, recordDate: new Date(`${r.recordDate}T00:00:00Z`), notes: r.notes, vetName: r.vetName,
+        followUpDate: r.followUpDate ? new Date(`${r.followUpDate}T00:00:00Z`) : null, createdBy: customerId,
+      },
+    });
+    return presentRecord(row);
+  }
+
+  async updateMedicalRecord(petId: string, recordId: string, customerId: string, body: unknown) {
+    await this.assertOwnership(petId, customerId);
+    const found = await this.prisma.petMedicalRecord.findFirst({ where: { id: recordId, petId } });
+    if (!found) throw new NotFoundException('Record not found');
+    const current = presentRecord(found);
+    const r = parseMedicalRecord(body, {
+      type: current.type, title: current.title, recordDate: current.recordDate, notes: current.notes, vetName: current.vetName, followUpDate: current.followUpDate,
+    });
+    const row = await this.prisma.petMedicalRecord.update({
+      where: { id: recordId },
+      data: {
+        type: r.type, title: r.title, recordDate: new Date(`${r.recordDate}T00:00:00Z`), notes: r.notes, vetName: r.vetName,
+        followUpDate: r.followUpDate ? new Date(`${r.followUpDate}T00:00:00Z`) : null,
+      },
+    });
+    return presentRecord(row);
+  }
+
+  async deleteMedicalRecord(petId: string, recordId: string, customerId: string) {
+    await this.assertOwnership(petId, customerId);
+    const found = await this.prisma.petMedicalRecord.findFirst({ where: { id: recordId, petId }, select: { id: true } });
+    if (!found) throw new NotFoundException('Record not found');
+    await this.prisma.petMedicalRecord.delete({ where: { id: recordId } });
+  }
+
+  /** Removes a vaccination entered by mistake. The pet's status falls back to "unknown" when none are left. */
+  async deleteVaccination(petId: string, vaccinationId: string, customerId: string) {
+    const pet = await this.assertOwnership(petId, customerId);
+    const found = await this.prisma.petVaccination.findFirst({ where: { id: vaccinationId, petId }, select: { id: true } });
+    if (!found) throw new NotFoundException('Vaccination not found');
+    await this.prisma.petVaccination.delete({ where: { id: vaccinationId } });
+    const left = await this.prisma.petVaccination.count({ where: { petId } });
+    if (left === 0 && pet.vaccinationStatus === 'recorded') {
+      await this.prisma.pet.update({ where: { id: petId }, data: { vaccinationStatus: 'unknown' } });
+    }
   }
 
   private async assertOwnership(petId: string, customerId: string) {

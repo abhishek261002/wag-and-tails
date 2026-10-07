@@ -31,15 +31,11 @@ export default function EditPetScreen() {
     if (petId) wagApi.pets.get(petId).then(setPet).catch(() => {});
   }, [petId]);
 
-  // Pets added before the vaccination question became mandatory must answer it the next time they're edited.
+  // Pets with no vaccination answer yet can add one here (optional).
   const needsVaccination = pet?.vaccinationStatus === 'unknown';
 
   const save = async () => {
     if (!pet || !petId) return;
-    if (needsVaccination && !vaccDate && !notVaccinated) {
-      setVaccError('Tell us when the last vaccination was');
-      return;
-    }
     setSaving(true);
     try {
       await wagApi.pets.update(petId, {
@@ -51,7 +47,7 @@ export default function EditPetScreen() {
         vetDoctorName: pet.vetDoctorName,
         vetClinic: pet.vetClinic,
         vetPhone: pet.vetPhone,
-        ...(needsVaccination
+        ...(needsVaccination && (notVaccinated || vaccDate)
           ? notVaccinated
             ? { notVaccinatedYet: true }
             : { lastVaccinationDate: vaccDate, lastVaccineName: vaccName || DEFAULT_VACCINE_BY_SPECIES[pet.species as 'dog' | 'cat'] }
@@ -103,7 +99,7 @@ export default function EditPetScreen() {
 
           {needsVaccination && (
             <>
-              <Text style={styles.sectionHeader}>Last vaccination *</Text>
+              <Text style={styles.sectionHeader}>Last vaccination (optional)</Text>
               <DateField
                 value={vaccDate}
                 onChange={(v) => { setVaccDate(v); setNotVaccinated(false); setVaccError(''); }}

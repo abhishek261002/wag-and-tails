@@ -8,6 +8,15 @@ export class AiApi {
     return this.client.post('/ai/pet-chat', data);
   }
 
+  /** Dr. Woof: one assistant that knows all of the customer's pets. Omit sessionId to start a new conversation. */
+  drWoof(message: string, sessionId?: string): Promise<AiChatResponse> {
+    return this.client.post('/ai/dr-woof', { message, ...(sessionId ? { sessionId } : {}) });
+  }
+
+  drWoofSessions(): Promise<Array<{ id: string; updatedAt: string }>> {
+    return this.client.get('/ai/dr-woof/sessions');
+  }
+
   getSessions(petId: string): Promise<AiChatSession[]> {
     return this.client.get('/ai/sessions', { params: { petId } });
   }

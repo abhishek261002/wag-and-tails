@@ -47,8 +47,13 @@ export class AdminController {
 
   // The approver is the signed-in admin, never an id supplied in the request body.
   @Patch('partners/:id/approve')
-  approvePartner(@Param('id') id: string, @CurrentUser() user: { sub: string }) {
-    return this.partnersService.approve(id, user.sub);
+  approvePartner(@Param('id') id: string, @CurrentUser() user: { sub: string }, @Body() body: { employmentType?: unknown }) {
+    return this.partnersService.approve(id, user.sub, body?.employmentType);
+  }
+
+  @Patch('partners/:id/employment-type')
+  setPartnerEmploymentType(@Param('id') id: string, @Body() body: { employmentType?: unknown }) {
+    return this.partnersService.setEmploymentType(id, body?.employmentType);
   }
 
   @Patch('partners/:id/suspend')

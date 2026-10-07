@@ -21,6 +21,19 @@ export class AiPetChatController {
     return this.aiService.chat(user.sub, body.petId, body.message, body.sessionId);
   }
 
+  /** Dr. Woof: one assistant with the context of all of the customer's pets. */
+  @Post('dr-woof')
+  @Roles('customer')
+  drWoof(@CurrentUser() user: { sub: string }, @Body() body: { message?: unknown; sessionId?: unknown }) {
+    return this.aiService.drWoofChat(user.sub, body?.message, body?.sessionId);
+  }
+
+  @Get('dr-woof/sessions')
+  @Roles('customer')
+  drWoofSessions(@CurrentUser() user: { sub: string }) {
+    return this.aiService.drWoofSessions(user.sub);
+  }
+
   @Get('sessions')
   @Roles('customer')
   getSessions(

@@ -27,3 +27,5 @@ export { configureMaps, getOlaMapsApiKey, getMapStyle } from './mapsConfig';
 export type { MapsConfig } from './mapsConfig';
 export { DateField, formatDisplayDate } from './DateField';
 export type { DateFieldProps } from './DateField';
+export { OptionPicker } from './OptionPicker';
+export type { OptionPickerProps } from './OptionPicker';

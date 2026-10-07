@@ -6,7 +6,7 @@ import {
 import * as ImagePicker from 'expo-image-picker';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Button, Input, BottomSheet, DateField, Icon } from '@wag/ui-mobile';
+import { Button, Input, DateField, Icon, OptionPicker } from '@wag/ui-mobile';
 import { colors, spacing, typography, radii } from '@wag/design-tokens';
 import {
   BREEDS_BY_SPECIES,
@@ -38,7 +38,6 @@ export default function AddPetScreen() {
   const [loading, setLoading] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [breedPickerOpen, setBreedPickerOpen] = useState(false);
-  const [breedSearch, setBreedSearch] = useState('');
   const [photo, setPhoto] = useState<ImagePicker.ImagePickerAsset | null>(null);
 
   const [form, setForm] = useState({
@@ -94,9 +93,6 @@ export default function AddPetScreen() {
       else if (species && w > MAX_WEIGHT[species]) errs['weightKg'] = `Weight can't be more than ${MAX_WEIGHT[species]} kg`;
     }
     if (index === 2) {
-      if (!form.notVaccinatedYet && !form.lastVaccinationDate) {
-        errs['lastVaccinationDate'] = 'Tell us when the last vaccination was';
-      }
       if (form.lastVaccinationDate && form.dateOfBirth && form.lastVaccinationDate < form.dateOfBirth) {
         errs['lastVaccinationDate'] = 'This is before your pet was born';
       }
@@ -107,7 +103,6 @@ export default function AddPetScreen() {
 
   const isStepValid = () => {
     if (step === 0) return !!form.species && form.name.trim().length > 0 && form.breed.trim().length > 0;
-    if (step === 2) return form.notVaccinatedYet || !!form.lastVaccinationDate;
     return true;
   };
 
@@ -154,7 +149,9 @@ export default function AddPetScreen() {
         vetClinic,
         ...(form.notVaccinatedYet
           ? { notVaccinatedYet: true }
-          : {
+          : !form.lastVaccinationDate
+            ? {}
+            : {
               lastVaccinationDate: form.lastVaccinationDate,
               lastVaccineName: form.lastVaccineName || DEFAULT_VACCINE_BY_SPECIES[species],
             }),
@@ -186,9 +183,6 @@ export default function AddPetScreen() {
     }
   };
 
-  const filteredBreeds = (species ? BREEDS_BY_SPECIES[species] : []).filter((b) =>
-    b.toLowerCase().includes(breedSearch.toLowerCase())
-  );
   const coatOptions = species ? COAT_OPTIONS_BY_SPECIES[species] : COAT_OPTIONS_BY_SPECIES.dog;
   const speciesNoun = species ? SPECIES_LABEL[species].toLowerCase() : 'pet';
 
@@ -342,7 +336,7 @@ export default function AddPetScreen() {
 
           {step === 2 && (
             <>
-              <Text style={styles.fieldLabel}>Last vaccination *</Text>
+              <Text style={styles.fieldLabel}>Last vaccination (optional)</Text>
               <DateField
                 value={form.lastVaccinationDate}
                 onChange={(v) => setForm((f) => ({ ...f, lastVaccinationDate: v, notVaccinatedYet: false }))}
@@ -353,7 +347,7 @@ export default function AddPetScreen() {
                 error={errors['lastVaccinationDate']}
               />
               <Text style={styles.hintText}>
-                We use this to remind you before the next booster is due. Check your vaccination card if you're unsure.
+                We use this to remind you before the next booster is due. You can skip it and add it later from the pet's Health records.
               </Text>
 
               {species && !form.notVaccinatedYet && (
@@ -430,34 +424,17 @@ export default function AddPetScreen() {
         </ScrollView>
       </KeyboardAvoidingView>
 
-      <BottomSheet visible={breedPickerOpen} onDismiss={() => setBreedPickerOpen(false)} snapPoints="70%">
-        <View style={styles.sheetHeader}>
-          <Text style={styles.sheetTitle}>Choose a {speciesNoun} breed</Text>
-        </View>
-        <View style={styles.sheetSearchWrap}>
-          <Input
-            value={breedSearch}
-            onChangeText={setBreedSearch}
-            placeholder="Search breeds"
-            leftIcon={<Icon name="search" size={16} color={colors.textMuted} />}
-          />
-        </View>
-        <ScrollView style={{ paddingHorizontal: spacing[5] }} keyboardShouldPersistTaps="handled">
-          {filteredBreeds.map((breed) => (
-            <TouchableOpacity
-              key={breed}
-              style={styles.breedRow}
-              onPress={() => {
-                update('breed', breed);
-                setBreedPickerOpen(false);
-                setBreedSearch('');
-              }}
-            >
-              <Text style={styles.breedRowText}>{breed}</Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-      </BottomSheet>
+      <OptionPicker
+        visible={breedPickerOpen}
+        title={`Choose a ${speciesNoun} breed`}
+        options={species ? BREEDS_BY_SPECIES[species] : []}
+        pinned={['Mixed', 'Other']}
+        value={form.breed}
+        onSelect={(b) => update('breed', b)}
+        onDismiss={() => setBreedPickerOpen(false)}
+        searchPlaceholder="Search breeds"
+        emptyHint="If your pet's breed isn't listed, choose Mixed or Other below."
+      />
     </SafeAreaView>
   );
 }
@@ -540,9 +517,4 @@ const styles = StyleSheet.create({
   checkBoxActive: { backgroundColor: colors.brandBrown, borderColor: colors.brandBrown },
   checkLabel: { fontFamily: 'Inter', fontSize: typography.fontSize.base, fontWeight: '600', color: colors.textPrimary },
   footer: { marginTop: spacing[8] },
-  sheetHeader: { paddingHorizontal: spacing[5], paddingBottom: spacing[3] },
-  sheetTitle: { fontFamily: 'PlusJakartaSans', fontSize: typography.fontSize.xl, fontWeight: '800', color: colors.textPrimary },
-  sheetSearchWrap: { paddingHorizontal: spacing[5], marginBottom: spacing[3] },
-  breedRow: { paddingVertical: spacing[4], borderBottomWidth: 1, borderBottomColor: colors.borderLight },
-  breedRowText: { fontFamily: 'Inter', fontSize: typography.fontSize.base, fontWeight: '700', color: colors.textPrimary },
 });

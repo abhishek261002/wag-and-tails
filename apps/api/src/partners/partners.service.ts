@@ -17,7 +17,7 @@ import { TrackingService } from '../routing/tracking.service.js';
 import { isLocationFilteringEnabled } from '../common/feature-flags.js';
 import { normalizeCity } from '../common/city.js';
 import { BUSINESS_CONFIG } from '../common/config.js';
-import { BookingType, PartnerStatus, PetSpecies, Prisma } from '@prisma/client';
+import { BookingType, PartnerEmploymentType, PartnerStatus, PetSpecies, Prisma } from '@prisma/client';
 
 const MAX_JOB_PHOTOS = 10;
 // Photos and videos of a groomer's tools, reviewed by staff before approval.
@@ -29,6 +29,11 @@ const isStoredPhotoUrl = (u: unknown): u is string =>
 
 function generateOtp(): string {
   return String(Math.floor(1000 + Math.random() * 9000));
+}
+
+function parseEmploymentType(v: unknown): PartnerEmploymentType {
+  if (v !== 'team' && v !== 'freelancer') throw new BadRequestException('Choose whether this partner is on your team or a freelancer');
+  return v;
 }
 
 @Injectable()
@@ -653,10 +658,16 @@ export class PartnersService {
     };
   }
 
-  async listAll(filters: { status?: string; page?: number; pageSize?: number } = {}) {
-    const { status, page = 1, pageSize = 20 } = filters;
+  async listAll(filters: { status?: string; employmentType?: string; page?: number; pageSize?: number } = {}) {
+    const { status, employmentType, page = 1, pageSize = 20 } = filters;
     const skip = (page - 1) * pageSize;
-    const where: Prisma.PartnerProfileWhereInput = status ? { status: status as PartnerStatus } : {};
+    if (employmentType && !['team', 'freelancer', 'unset'].includes(employmentType)) {
+      throw new BadRequestException('employmentType must be team, freelancer or unset');
+    }
+    const where: Prisma.PartnerProfileWhereInput = {
+      ...(status ? { status: status as PartnerStatus } : {}),
+      ...(employmentType ? { employmentType: employmentType === 'unset' ? null : (employmentType as PartnerEmploymentType) } : {}),
+    };
 
     const [data, total] = await Promise.all([
       this.prisma.partnerProfile.findMany({
@@ -736,7 +747,9 @@ export class PartnersService {
     await this.prisma.partnerToolMedia.delete({ where: { id: mediaId } });
   }
 
-  async approve(partnerId: string, adminId: string) {
+  /** Approval puts the partner either on the company's own team or down as a freelancer; staff must choose. */
+  async approve(partnerId: string, adminId: string, employmentType: unknown) {
+    const type = parseEmploymentType(employmentType);
     // A groomer is not approved until staff can see photos of their tools.
     const tools = await this.listTools(partnerId);
     if (!tools.complete) {
@@ -747,8 +760,16 @@ export class PartnersService {
     }
     return this.prisma.partnerProfile.update({
       where: { userId: partnerId },
-      data: { status: 'approved', approvedBy: adminId, approvedAt: new Date() },
+      data: { status: 'approved', approvedBy: adminId, approvedAt: new Date(), employmentType: type },
     });
+  }
+
+  /** Moves a partner between "My team" and "Freelancers". */
+  async setEmploymentType(partnerId: string, employmentType: unknown) {
+    const type = parseEmploymentType(employmentType);
+    const exists = await this.prisma.partnerProfile.findUnique({ where: { userId: partnerId }, select: { id: true } });
+    if (!exists) throw new NotFoundException('Partner not found');
+    return this.prisma.partnerProfile.update({ where: { userId: partnerId }, data: { employmentType: type }, select: { userId: true, employmentType: true } });
   }
 
   async suspend(partnerId: string, reason: string) {

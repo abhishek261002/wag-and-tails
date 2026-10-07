@@ -58,7 +58,7 @@ export default function WalkSummaryScreen() {
           <View style={styles.statsRow}>
             <StatBox icon="clock" label="Duration" value={`${booking.durationMinutes} min`} />
             <StatBox icon="pin" label="Route" value="1.8 km" />
-            <StatBox icon="wallet" label="Total" value={`₹${booking.total}`} />
+            <StatBox icon="card" label="Total" value={`₹${booking.total}`} />
           </View>
         )}
 

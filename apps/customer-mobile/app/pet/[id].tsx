@@ -99,7 +99,7 @@ export default function PetDetailScreen() {
         <View style={styles.actions}>
           <ActionBtn icon="scissors" label="Groom" onPress={startGroom} />
           {canWalk && <ActionBtn icon="route" label="Walk" onPress={startWalk} />}
-          <ActionBtn icon="spark" label="Ask" onPress={() => router.push({ pathname: '/chat/[petId]', params: { petId: pet.id } })} />
+          <ActionBtn icon="spark" label="Ask Dr. Woof" onPress={() => router.push('/dr-woof' as any)} />
         </View>
 
         {/* Care notes */}

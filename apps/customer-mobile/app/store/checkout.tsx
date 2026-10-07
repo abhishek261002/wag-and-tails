@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { AvailableCoupons } from '../../src/components/AvailableCoupons';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert } from 'react-native';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -36,10 +37,12 @@ export default function CheckoutScreen() {
     }).catch(() => {});
   }, []);
 
-  const applyCoupon = async () => {
-    if (!couponCode.trim()) return;
+  const applyCoupon = async (override?: string) => {
+    const code = (override ?? couponCode).trim();
+    if (!code) return;
+    setCouponCode(code);
     try {
-      const updated = await wagApi.store.applyCoupon(couponCode);
+      const updated = await wagApi.store.applyCoupon(code);
       setCart(updated);
       setDiscount(Number(updated.discount));
       Alert.alert('Coupon applied!', `₹${updated.discount} discount applied`);
@@ -123,10 +126,13 @@ export default function CheckoutScreen() {
             autoCapitalize="characters"
             accessibilityLabel="Coupon code"
           />
-          <TouchableOpacity style={styles.applyBtn} onPress={applyCoupon}>
+          <TouchableOpacity style={styles.applyBtn} onPress={() => applyCoupon()}>
             <Text style={styles.applyBtnText}>Apply</Text>
           </TouchableOpacity>
         </View>
+        {subtotal > 0 && (
+          <AvailableCoupons service="store" orderValue={subtotal} appliedCode={discount > 0 ? couponCode : undefined} onApply={applyCoupon} />
+        )}
 
         {/* Payment */}
         <SectionTitle title="Payment Method" />

@@ -48,6 +48,7 @@
     "passport-local": "^1.0.0",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
+    "sharp": "^0.34.5",
     "socket.io": "^4.7.5",
     "tsconfig-paths": "^4.2.0",
     "uuid": "^10.0.0",

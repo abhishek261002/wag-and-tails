@@ -9,6 +9,7 @@ import BookingDetailPage from './pages/BookingDetailPage';
 import OrdersPage from './pages/OrdersPage';
 import OrderDetailPage from './pages/OrderDetailPage';
 import PartnersPage from './pages/PartnersPage';
+import InsurancePage from './pages/InsurancePage';
 import PartnerDetailPage from './pages/PartnerDetailPage';
 import PayoutsPage from './pages/PayoutsPage';
 import CouponsPage from './pages/CouponsPage';
@@ -49,6 +50,7 @@ export default function App() {
                 <Route path="/customers/:id" element={<CustomerDetailPage />} />
                 <Route path="/partners" element={<PartnersPage />} />
                 <Route path="/partners/:id" element={<PartnerDetailPage />} />
+                <Route path="/insurance" element={<InsurancePage />} />
                 <Route path="/payouts" element={<PayoutsPage />} />
                 <Route path="/coupons" element={<CouponsPage />} />
                 <Route path="/packages" element={<PackagesPage />} />

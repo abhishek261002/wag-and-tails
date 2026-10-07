@@ -4,9 +4,10 @@ import { PaymentsController } from './payments.controller.js';
 import { MapsLocationModule } from '../maps-location/maps-location.module.js';
 import { BookingsModule } from '../bookings/bookings.module.js';
 import { RealtimeModule } from '../realtime/realtime.module.js';
+import { NotificationsModule } from '../notifications/notifications.module.js';
 
 @Module({
-  imports: [MapsLocationModule, RealtimeModule, BookingsModule],
+  imports: [MapsLocationModule, RealtimeModule, BookingsModule, NotificationsModule],
   providers: [PaymentsService],
   controllers: [PaymentsController],
   exports: [PaymentsService],

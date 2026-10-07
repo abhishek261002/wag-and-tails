@@ -9,6 +9,8 @@ export interface ProfileUpdate {
   dateOfBirth?: string | null;
   /** A path returned by uploadAvatar, or null to remove the photo. */
   avatarUrl?: string | null;
+  /** Customers only. */
+  city?: string;
 }
 
 export class UsersApi {

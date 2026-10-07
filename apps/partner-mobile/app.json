@@ -41,7 +41,12 @@
           "locationWhenInUsePermission": "Share your live location with the customer and get directions while you are on a job."
         }
       ],
-      "expo-notifications",
+      [
+        "expo-notifications",
+        {
+          "sounds": ["./assets/sounds/woof.wav"]
+        }
+      ],
       "expo-web-browser",
       [
         "expo-splash-screen",

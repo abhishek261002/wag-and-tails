@@ -29,6 +29,18 @@ enum PartnerStatus {
   rejected
 }
 
+// Whether an approved partner is on the company's own team or works as a freelancer (chosen by staff at approval).
+enum PartnerEmploymentType {
+  team
+  freelancer
+}
+
+enum InsuranceRequestStatus {
+  new
+  contacted
+  closed
+}
+
 enum PetSex {
   male
   female
@@ -211,6 +223,7 @@ model User {
   auditLogs              AuditLog[]
   payments               Payment[]
   supportTickets         SupportTicket[]
+  insuranceRequests      PetInsuranceRequest[]
 
   @@map("users")
 }
@@ -236,6 +249,8 @@ model CustomerProfile {
   walletBalance Decimal  @default(0) @map("wallet_balance") @db.Decimal(10, 2)
   totalBookings Int      @default(0) @map("total_bookings")
   rating        Decimal  @default(5.0) @db.Decimal(3, 2)
+  // Collected at sign-up; the operating city for dispatch comes from each address.
+  city          String?
   createdAt     DateTime @default(now()) @map("created_at")
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -244,12 +259,12 @@ model CustomerProfile {
 }
 
 model PartnerProfile {
-  id                      String           @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  userId                  String           @unique @map("user_id") @db.Uuid
-  status                  PartnerStatus    @default(pending)
-  modes                   String[]         @default([]) // 'grooming' | 'walking'
+  id                      String                 @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  userId                  String                 @unique @map("user_id") @db.Uuid
+  status                  PartnerStatus          @default(pending)
+  modes                   String[]               @default([]) // 'grooming' | 'walking'
   // Which animals this partner accepts for grooming ('dog' | 'cat'). Walking is dogs only.
-  petSpecies              String[]         @default(["dog", "cat"]) @map("pet_species")
+  petSpecies              String[]               @default(["dog", "cat"]) @map("pet_species")
   // Operations are per-city (Kanpur, Lucknow, Delhi), not radius-based — a
   // partner serves every booking in their assigned city, full stop. Kept
   // alongside serviceRadiusKm/currentLat/currentLng rather than replacing
@@ -263,41 +278,43 @@ model PartnerProfile {
   address                 String?
   // Legacy plaintext column: no longer written (Aadhaar is never stored in full). Existing values
   // are hashed into aadhaarRefHash/aadhaarLast4 by the backfill script and then nulled.
-  aadhaarNumber           String?          @map("aadhaar_number")
-  aadhaarLast4            String?          @map("aadhaar_last4")
+  aadhaarNumber           String?                @map("aadhaar_number")
+  aadhaarLast4            String?                @map("aadhaar_last4")
   // HMAC-SHA256(pepper, aadhaar). Unique, so one Aadhaar can only ever back one partner account.
-  aadhaarRefHash          String?          @unique @map("aadhaar_ref_hash")
-  kycStatus               PartnerKycStatus @default(legacy_unverified) @map("kyc_status")
-  kycProvider             String?          @map("kyc_provider")
-  kycVerifiedAt           DateTime?        @map("kyc_verified_at")
-  kycName                 String?          @map("kyc_name")
-  kycDob                  DateTime?        @map("kyc_dob") @db.Date
-  kycGender               String?          @map("kyc_gender")
-  kycAddress              String?          @map("kyc_address")
-  kycConsentAt            DateTime?        @map("kyc_consent_at")
+  aadhaarRefHash          String?                @unique @map("aadhaar_ref_hash")
+  kycStatus               PartnerKycStatus       @default(legacy_unverified) @map("kyc_status")
+  kycProvider             String?                @map("kyc_provider")
+  kycVerifiedAt           DateTime?              @map("kyc_verified_at")
+  kycName                 String?                @map("kyc_name")
+  kycDob                  DateTime?              @map("kyc_dob") @db.Date
+  kycGender               String?                @map("kyc_gender")
+  kycAddress              String?                @map("kyc_address")
+  kycConsentAt            DateTime?              @map("kyc_consent_at")
   // Whether the name entered at sign-up matches the Aadhaar name; a mismatch is flagged for staff, never auto-rejected.
-  kycNameMatch            Boolean?         @map("kyc_name_match")
-  photoUrl                String?          @map("photo_url")
-  serviceRadiusKm         Int              @default(5) @map("service_radius_km")
-  isOnline                Boolean          @default(false) @map("is_online")
-  currentLat              Float?           @map("current_lat")
-  currentLng              Float?           @map("current_lng")
+  kycNameMatch            Boolean?               @map("kyc_name_match")
+  photoUrl                String?                @map("photo_url")
+  serviceRadiusKm         Int                    @default(5) @map("service_radius_km")
+  isOnline                Boolean                @default(false) @map("is_online")
+  currentLat              Float?                 @map("current_lat")
+  currentLng              Float?                 @map("current_lng")
   bio                     String?
-  rating                  Decimal          @default(5.0) @db.Decimal(3, 2)
-  reviewCount             Int              @default(0) @map("review_count")
-  completedJobs           Int              @default(0) @map("completed_jobs")
-  bankAccountNumber       String?          @map("bank_account_number")
-  ifscCode                String?          @map("ifsc_code")
-  approvedBy              String?          @map("approved_by") @db.Uuid
-  approvedAt              DateTime?        @map("approved_at")
-  suspendReason           String?          @map("suspend_reason")
+  rating                  Decimal                @default(5.0) @db.Decimal(3, 2)
+  reviewCount             Int                    @default(0) @map("review_count")
+  completedJobs           Int                    @default(0) @map("completed_jobs")
+  bankAccountNumber       String?                @map("bank_account_number")
+  ifscCode                String?                @map("ifsc_code")
+  approvedBy              String?                @map("approved_by") @db.Uuid
+  approvedAt              DateTime?              @map("approved_at")
+  // Null for partners approved before this was introduced ("Not set" in the panels).
+  employmentType          PartnerEmploymentType? @map("employment_type")
+  suspendReason           String?                @map("suspend_reason")
   // Company's commission share of each job, in percent (30 = 70/30 split). Null = platform default.
-  commissionPct           Decimal?         @map("commission_pct") @db.Decimal(5, 2)
+  commissionPct           Decimal?               @map("commission_pct") @db.Decimal(5, 2)
   // Overrides the platform commission-due limit for this partner. Null = platform default.
-  commissionLimitOverride Decimal?         @map("commission_limit_override") @db.Decimal(10, 2)
-  lastSeenAt              DateTime?        @map("last_seen_at")
-  createdAt               DateTime         @default(now()) @map("created_at")
-  updatedAt               DateTime         @updatedAt @map("updated_at")
+  commissionLimitOverride Decimal?               @map("commission_limit_override") @db.Decimal(10, 2)
+  lastSeenAt              DateTime?              @map("last_seen_at")
+  createdAt               DateTime               @default(now()) @map("created_at")
+  updatedAt               DateTime               @updatedAt @map("updated_at")
 
   // Vet info (for the partner as a dog handler)
   vetDoctorName String? @map("vet_doctor_name")
@@ -308,7 +325,7 @@ model PartnerProfile {
   availability       PartnerAvailability[]
   neighborhoods      PartnerNeighborhood[]
   documents          PartnerDocument[]
-  toolMedia       PartnerToolMedia[]
+  toolMedia          PartnerToolMedia[]
   payouts            Payout[]
   discounts          PartnerDiscount[]
   ledgerEntries      PartnerLedgerEntry[]
@@ -459,11 +476,13 @@ model Pet {
   createdAt         DateTime             @default(now()) @map("created_at")
   updatedAt         DateTime             @updatedAt @map("updated_at")
 
-  customer     User             @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  careNotes    PetCareNote[]
-  vaccinations PetVaccination[]
-  bookings     Booking[]
-  aiSessions   AiChatSession[]
+  customer          User                  @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  careNotes         PetCareNote[]
+  medicalRecords    PetMedicalRecord[]
+  insuranceRequests PetInsuranceRequest[]
+  vaccinations      PetVaccination[]
+  bookings          Booking[]
+  aiSessions        AiChatSession[]
 
   @@index([customerId])
   @@map("pets")
@@ -481,6 +500,64 @@ model PetCareNote {
 
   @@index([petId])
   @@map("pet_care_notes")
+}
+
+// A pet's medical history: check-ups, illnesses, surgeries, medicines, allergies. A follow-up date drives check-up
+// reminders (see RemindersService). Vaccinations live in PetVaccination.
+model PetMedicalRecord {
+  id           String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  petId        String    @map("pet_id") @db.Uuid
+  type         String // checkup | illness | surgery | medication | allergy | other
+  title        String
+  recordDate   DateTime  @map("record_date") @db.Date
+  notes        String?
+  vetName      String?   @map("vet_name")
+  followUpDate DateTime? @map("follow_up_date") @db.Date
+  createdBy    String    @map("created_by") @db.Uuid
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  pet Pet @relation(fields: [petId], references: [id], onDelete: Cascade)
+
+  @@index([petId])
+  @@index([followUpDate])
+  @@map("pet_medical_records")
+}
+
+// A customer's request for a pet insurance quote. Staff and admin follow up by phone (status new -> contacted -> closed).
+// The pet's details are copied so the request still reads correctly if the pet is later edited or removed.
+model PetInsuranceRequest {
+  id                 String                 @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  customerId         String                 @map("customer_id") @db.Uuid
+  petId              String?                @map("pet_id") @db.Uuid
+  petName            String                 @map("pet_name")
+  petSpecies         String                 @map("pet_species")
+  petBreed           String                 @map("pet_breed")
+  petDateOfBirth     DateTime?              @map("pet_date_of_birth") @db.Date
+  ownerName          String                 @map("owner_name")
+  phone              String
+  email              String?
+  city               String
+  planType           String                 @map("plan_type") // accident | comprehensive | not_sure
+  coverAmount        String                 @map("cover_amount") // 25000 | 50000 | 100000 | not_sure
+  preExisting        Boolean                @default(false) @map("pre_existing")
+  preExistingDetails String?                @map("pre_existing_details")
+  preferredCallTime  String                 @map("preferred_call_time") // morning | afternoon | evening | any
+  notes              String?
+  consentAt          DateTime               @map("consent_at")
+  status             InsuranceRequestStatus @default(new)
+  staffNote          String?                @map("staff_note")
+  handledBy          String?                @map("handled_by") @db.Uuid
+  handledAt          DateTime?              @map("handled_at")
+  createdAt          DateTime               @default(now()) @map("created_at")
+  updatedAt          DateTime               @updatedAt @map("updated_at")
+
+  customer User @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  pet      Pet? @relation(fields: [petId], references: [id], onDelete: SetNull)
+
+  @@index([status, createdAt])
+  @@index([customerId])
+  @@map("pet_insurance_requests")
 }
 
 model PetVaccination {
@@ -740,7 +817,7 @@ model PartnerToolMedia {
   id        String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
   partnerId String   @map("partner_id") @db.Uuid
   url       String
-  kind      String   // image | video
+  kind      String // image | video
   mimeType  String   @map("mime_type")
   sizeBytes Int      @map("size_bytes")
   createdAt DateTime @default(now()) @map("created_at")
@@ -1257,12 +1334,13 @@ model AuditLog {
 
 model AiChatSession {
   id         String   @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
-  petId      String   @map("pet_id") @db.Uuid
+  // Null for Dr. Woof conversations, which cover all of the customer's pets; set for the older per-pet chats.
+  petId      String?  @map("pet_id") @db.Uuid
   customerId String   @map("customer_id") @db.Uuid
   createdAt  DateTime @default(now()) @map("created_at")
   updatedAt  DateTime @updatedAt @map("updated_at")
 
-  pet      Pet             @relation(fields: [petId], references: [id])
+  pet      Pet?            @relation(fields: [petId], references: [id])
   customer User            @relation(fields: [customerId], references: [id])
   messages AiChatMessage[]
 

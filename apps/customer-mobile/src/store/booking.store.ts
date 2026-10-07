@@ -14,7 +14,7 @@ interface BookingDraft {
   notes: string;
   couponCode: string | null;
   discount: number;
-  paymentMethod: 'upi' | 'card' | 'wallet' | 'cash_after_service';
+  paymentMethod: 'upi' | 'card' | 'cash_after_service';
   assignmentMode: 'any' | 'specific';
   requestedPartnerId: string | null;
   requestedPartnerName: string | null;
@@ -31,7 +31,7 @@ interface WalkDraft {
   addressLine: string | null;
   couponCode: string | null;
   discount: number;
-  paymentMethod: 'upi' | 'card' | 'wallet' | 'cash_after_service';
+  paymentMethod: 'upi' | 'card' | 'cash_after_service';
   assignmentMode: 'any' | 'specific';
   requestedPartnerId: string | null;
   requestedPartnerName: string | null;

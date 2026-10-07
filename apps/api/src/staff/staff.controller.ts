@@ -77,8 +77,13 @@ export class StaffController {
   listPartnerTools(@Param('id') id: string) { return this.partnersService.listTools(id); }
 
   @Patch('partners/:id/approve')
-  approvePartner(@Param('id') id: string, @CurrentUser() user: { sub: string }) {
-    return this.partnersService.approve(id, user.sub);
+  approvePartner(@Param('id') id: string, @CurrentUser() user: { sub: string }, @Body() body: { employmentType?: unknown }) {
+    return this.partnersService.approve(id, user.sub, body?.employmentType);
+  }
+
+  @Patch('partners/:id/employment-type')
+  setPartnerEmploymentType(@Param('id') id: string, @Body() body: { employmentType?: unknown }) {
+    return this.partnersService.setEmploymentType(id, body?.employmentType);
   }
 
   @Patch('partners/:id/suspend')

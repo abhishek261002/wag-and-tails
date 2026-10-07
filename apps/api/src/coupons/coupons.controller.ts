@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Patch, Delete, Param, Body, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Patch, Delete, Param, Body, Query, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { CouponsService } from './coupons.service.js';
@@ -19,6 +19,13 @@ export class CouponsController {
     @CurrentUser() user: { sub: string }
   ) {
     return this.couponsService.apply(body.couponCode, body.service, body.orderValue, user.sub);
+  }
+
+  /** Coupons for the checkout screen, each with its saving for this order or why it can't be used. */
+  @Get('available')
+  @Roles('customer')
+  available(@Query('service') service: string, @Query('orderValue') orderValue: string, @CurrentUser() user: { sub: string }) {
+    return this.couponsService.listAvailable(service, orderValue, user.sub);
   }
 
   @Get('active')

@@ -12,6 +12,7 @@ import OrderDetailPage from './pages/OrderDetailPage';
 import CustomersPage from './pages/CustomersPage';
 import CustomerDetailPage from './pages/CustomerDetailPage';
 import PartnersPage from './pages/PartnersPage';
+import InsurancePage from './pages/InsurancePage';
 import SupportPage from './pages/SupportPage';
 import ProfilePage from './pages/ProfilePage';
 import AppLayout from './components/AppLayout';
@@ -42,6 +43,7 @@ export default function App() {
                   <Route path="/customers" element={<CustomersPage />} />
                   <Route path="/customers/:id" element={<CustomerDetailPage />} />
                   <Route path="/partners" element={<PartnersPage />} />
+                  <Route path="/insurance" element={<InsurancePage />} />
                   <Route path="/support" element={<SupportPage />} />
                   <Route path="/profile" element={<ProfilePage />} />
                 </Routes>

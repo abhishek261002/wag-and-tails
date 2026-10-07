@@ -2,6 +2,7 @@ import type { PetSpecies, PetSize, CoatType, VaccinationStatus } from './species
 
 export type PetSex = 'male' | 'female';
 
+import type { PetMedicalRecord } from './medical.js';
 import type { VaccinationSummary } from './vaccination.js';
 
 export interface Pet {
@@ -57,6 +58,7 @@ export interface VetInfo {
 export interface PetDetail extends Pet, VetInfo {
   careNotes: PetCareNote[];
   vaccinations: PetVaccination[];
+  medicalRecords?: PetMedicalRecord[];
   groomingCount: number;
   walkingCount: number;
   lastGroomedAt: string | null;
@@ -79,8 +81,8 @@ export interface CreatePetInput {
   vetDoctorName?: string;
   vetClinic?: string;
   vetPhone?: string;
-  // Mandatory answer: either the date of the last vaccination, or the explicit
-  // "not vaccinated yet" (puppies/kittens). Exactly one of the two must be given.
+  // Optional: the date of the last vaccination, or the explicit "not vaccinated yet"
+  // (puppies/kittens), or neither (status stays unknown). Never both.
   lastVaccinationDate?: string;
   lastVaccineName?: string;
   notVaccinatedYet?: boolean;
