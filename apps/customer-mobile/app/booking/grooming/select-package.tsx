@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, spacing, typography, radii } from '@wag/design-tokens';
@@ -8,14 +8,29 @@ import { useBookingStore } from '../../../src/store/booking.store';
 import type { GroomingPackage } from '@wag/shared-types';
 import { goBack } from '../../../src/lib/nav';
 
+// The server sends `inclusions`; older servers only send the raw `items` rows. Never assume either exists.
+function servicesOf(pkg: GroomingPackage): string[] {
+  const direct = Array.isArray(pkg.inclusions) ? pkg.inclusions : null;
+  if (direct) return direct.filter((s) => typeof s === 'string' && s.trim());
+  const items = (pkg as unknown as { items?: { description?: string }[] }).items;
+  return Array.isArray(items) ? items.map((i) => i?.description ?? '').filter(Boolean) : [];
+}
+
 export default function SelectPackageScreen() {
-  const [packages, setPackages] = useState<GroomingPackage[]>([]);
+  const [packages, setPackages] = useState<GroomingPackage[] | null>(null);
+  const [failed, setFailed] = useState(false);
+  const [attempt, setAttempt] = useState(0);
   const [expanded, setExpanded] = useState<string | null>(null);
   const { groomingDraft, updateGroomingDraft } = useBookingStore();
 
   useEffect(() => {
-    wagApi.bookings.getPackages().then(setPackages).catch(() => {});
-  }, []);
+    let alive = true;
+    setFailed(false);
+    wagApi.bookings.getPackages()
+      .then((r) => { if (alive) setPackages(Array.isArray(r) ? r : []); })
+      .catch(() => { if (alive) { setPackages((cur) => cur ?? []); setFailed(true); } });
+    return () => { alive = false; };
+  }, [attempt]);
 
   const selectPackage = (pkg: GroomingPackage) => {
     updateGroomingDraft({ packageId: pkg.id, package: pkg });
@@ -35,9 +50,16 @@ export default function SelectPackageScreen() {
       <Text style={styles.sub}>For {groomingDraft.pet?.name ?? 'your pet'}</Text>
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        {packages.map((pkg) => {
+        {packages === null && <ActivityIndicator style={styles.state} color={colors.brandBrown} />}
+        {packages !== null && packages.length === 0 && (
+          <TouchableOpacity style={styles.state} onPress={() => { setPackages(null); setAttempt((a) => a + 1); }} accessibilityRole="button">
+            <Text style={styles.stateText}>{failed ? "Couldn't load packages. Tap to try again." : 'No packages are available right now.'}</Text>
+          </TouchableOpacity>
+        )}
+        {(packages ?? []).map((pkg) => {
           const isSelected = groomingDraft.packageId === pkg.id;
           const isExpanded = expanded === pkg.id;
+          const services = servicesOf(pkg);
 
           return (
             <TouchableOpacity
@@ -63,7 +85,7 @@ export default function SelectPackageScreen() {
                   <Text style={styles.pkgDesc} numberOfLines={isExpanded ? undefined : 1}>
                     {pkg.description}
                   </Text>
-                  {pkg.inclusions.length > 0 && (
+                  {services.length > 0 && (
                     <TouchableOpacity
                       onPress={() => setExpanded(isExpanded ? null : pkg.id)}
                       hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
@@ -71,7 +93,7 @@ export default function SelectPackageScreen() {
                       accessibilityState={{ expanded: isExpanded }}
                       accessibilityLabel={`${isExpanded ? 'View less' : 'View more'} about the ${pkg.name} package`}
                     >
-                      <Text style={styles.viewMore}>{isExpanded ? 'View less ▲' : `View more (${pkg.inclusions.length} services) ▼`}</Text>
+                      <Text style={styles.viewMore}>{isExpanded ? 'View less ▲' : `View more (${services.length} services) ▼`}</Text>
                     </TouchableOpacity>
                   )}
                 </View>
@@ -84,9 +106,9 @@ export default function SelectPackageScreen() {
               </View>
 
               {/* Inclusions */}
-              {isExpanded && pkg.inclusions.length > 0 && (
+              {isExpanded && services.length > 0 && (
                 <View style={styles.inclusions}>
-                  {pkg.inclusions.map((item, i) => (
+                  {services.map((item, i) => (
                     <View key={i} style={styles.inclusionRow}>
                       <Text style={styles.check}>✓</Text>
                       <Text style={styles.inclusionText}>{item}</Text>
@@ -119,6 +141,8 @@ const styles = StyleSheet.create({
   backText: { fontFamily: 'Inter', fontSize: typography.fontSize.base, color: colors.brandBrown, fontWeight: '600' },
   title: { fontFamily: 'Inter', fontSize: typography.fontSize.lg, fontWeight: '800', color: colors.textPrimary },
   sub: { fontFamily: 'Inter', fontSize: typography.fontSize.sm, color: colors.textMuted, paddingHorizontal: spacing[5], marginBottom: spacing[4] },
+  state: { alignItems: 'center', paddingVertical: spacing[10] },
+  stateText: { fontFamily: 'Inter', fontSize: typography.fontSize.base, color: colors.textMuted, textAlign: 'center' },
   content: { paddingHorizontal: spacing[5], paddingBottom: spacing[10] },
   card: { backgroundColor: colors.white, borderRadius: radii.xl, padding: spacing[5], marginBottom: spacing[3], borderWidth: 1.5, borderColor: colors.borderLight },
   cardSelected: { borderColor: colors.marigold, backgroundColor: colors.marigoldBg },

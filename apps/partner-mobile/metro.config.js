@@ -39,11 +39,6 @@ config.resolver.extraNodeModules = new Proxy(singletonMap, {
       : path.resolve(workspaceRoot, 'node_modules', name),
 });
 
-const VIRTUAL_VIEW_STUB = path.resolve(
-  projectRoot,
-  'metro-stubs/VirtualViewExperimentalNativeComponentStub.js'
-);
-
 const existingResolveRequest = config.resolver.resolveRequest;
 config.resolver.resolveRequest = (context, moduleName, platform) => {
   if (singletonMap[moduleName]) {
@@ -72,15 +67,9 @@ config.resolver.resolveRequest = (context, moduleName, platform) => {
     else throw err;
   }
 
-  if (result && result.type === 'sourceFile' && result.filePath) {
-    const resolved = result.filePath.replace(/\\/g, '/');
-    const isLegacySpec =
-      /\/react-native\/src\/private\/specs_DEPRECATED\//.test(resolved) ||
-      /\/react-native\/src\/private\/components\/virtualview\//.test(resolved);
-    if (isLegacySpec && /NativeComponent\.js$/.test(resolved)) {
-      return { filePath: VIRTUAL_VIEW_STUB, type: 'sourceFile' };
-    }
-  }
+  // NOTE: do not replace any of react-native's own *NativeComponent.js files (Modal, Switch, RefreshControl...)
+  // with a stub: bundling passes, but the shipped Android build then has no native Modal or Switch (sheets never
+  // appear, the online toggle does nothing) while web looks fine.
 
   return result;
 };

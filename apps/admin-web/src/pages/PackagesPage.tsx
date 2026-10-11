@@ -31,8 +31,9 @@ export default function PackagesPage() {
     e.preventDefault();
     setSaving(true);
     try {
-      if (editing) await wagApi.client.patch(`/grooming/packages/${editing.id}`, form);
-      else await wagApi.client.post('/grooming/packages', { ...form, inclusions: (form.inclusions ?? '').split('\n').filter(Boolean) });
+      const inclusions = (form.inclusions ?? '').split('\n').map((s: string) => s.trim()).filter(Boolean);
+      if (editing) await wagApi.client.patch(`/grooming/packages/${editing.id}`, { name: form.name, mrp: form.mrp, price: form.price, description: form.description, inclusions });
+      else await wagApi.client.post('/grooming/packages', { ...form, inclusions });
       toast({ type: 'success', title: editing ? 'Package updated' : 'Package created' });
       setModal(null); load();
     } catch (err: any) { toast({ type: 'error', title: 'Failed', message: err?.message }); }
@@ -87,7 +88,7 @@ export default function PackagesPage() {
                 { key: 'price', header: 'Price', align: 'right', render: (p: any) => <TableStrong>₹{p.price}</TableStrong> },
                 { key: 'status', header: 'Status', render: (p: any) => <Badge variant={p.isActive ? 'ok' : 'muted'}>{p.isActive ? 'Active' : 'Inactive'}</Badge> },
                 { key: 'edit', header: '', align: 'right', render: (p: any) => (
-                  <button onClick={() => { setEditing(p); setForm({ ...p }); setModal('package'); }} className="p-2 rounded-lg hover:bg-[#F4EDE5] text-[#4A1E0B]" aria-label="Edit package"><Icon name="edit" size={14} /></button>
+                  <button onClick={() => { setEditing(p); setForm({ ...p, inclusions: (p.inclusions ?? []).join('\n') }); setModal('package'); }} className="p-2 rounded-lg hover:bg-[#F4EDE5] text-[#4A1E0B]" aria-label="Edit package"><Icon name="edit" size={14} /></button>
                 ) },
               ]}
               data={packages}

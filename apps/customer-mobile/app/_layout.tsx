@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { AppErrorBoundary } from '../src/components/AppErrorBoundary';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -16,6 +17,9 @@ import { configureMaps } from '@wag/ui-mobile';
 configureMaps({ apiKey: process.env.EXPO_PUBLIC_OLA_MAPS_API_KEY || null });
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
+
+// Expo Router renders this when any screen throws, instead of letting a release build close.
+export { AppErrorBoundary as ErrorBoundary };
 
 export default function RootLayout() {
   const { loadFromStorage } = useAuthStore();
