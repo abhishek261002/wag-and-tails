@@ -9,17 +9,61 @@ function present<T extends { items?: { description: string }[] }>(pkg: T) {
   return { ...pkg, inclusions: (pkg.items ?? []).map((i) => i.description) };
 }
 
+export const PACKAGE_TAGS = ['previously_booked', 'best_selling', 'best_value'] as const;
+export type PackageTag = (typeof PACKAGE_TAGS)[number];
+
+// Bookings that count as "someone really booked this": not abandoned, cancelled, refunded or expired.
+const REAL_BOOKING = { notIn: ['draft', 'pending_payment', 'cancelled', 'refunded', 'expired'] as ('draft' | 'pending_payment' | 'cancelled' | 'refunded' | 'expired')[] };
+
 @Injectable()
 export class GroomingService {
   constructor(private prisma: PrismaService) {}
 
-  async getPackages() {
+  /**
+   * The active packages, cheapest first (so the list reads as a ladder), each with `tags`:
+   *  - best_selling: the package booked most often across all customers (needs at least one booking);
+   *  - best_value: the lowest price per included service (needs two or more packages to compare);
+   *  - previously_booked: this customer has booked it before (for this pet, when `petId` is given).
+   * A package can carry several tags; the app shows the most useful two.
+   */
+  async getPackages(customerId?: string, petId?: string) {
     const rows = await this.prisma.groomingPackage.findMany({
       where: { isActive: true },
       include: ITEMS,
-      orderBy: { price: 'asc' },
+      orderBy: [{ price: 'asc' }, { name: 'asc' }],
     });
-    return rows.map(present);
+    const packages = rows.map(present);
+    const ids = packages.map((p) => p.id);
+    const tags = new Map<string, PackageTag[]>(ids.map((id) => [id, []]));
+
+    if (ids.length > 0) {
+      const sold = await this.prisma.booking.groupBy({
+        by: ['packageId'],
+        where: { type: 'grooming', packageId: { in: ids }, status: REAL_BOOKING },
+        _count: { _all: true },
+      });
+      const top = sold.filter((s) => s.packageId).sort((a, b) => b._count._all - a._count._all)[0];
+      // A tie is not a winner: two packages with the same count would both claim the tag.
+      const tied = top && sold.filter((s) => s._count._all === top._count._all).length > 1 && packages.length > 1;
+      if (top?.packageId && !tied) tags.get(top.packageId)!.push('best_selling');
+
+      if (packages.length >= 2) {
+        const perService = (p: (typeof packages)[number]) => Number(p.price) / Math.max(1, p.inclusions.length);
+        const cheapest = [...packages].sort((a, b) => perService(a) - perService(b))[0]!;
+        const same = packages.filter((p) => Math.abs(perService(p) - perService(cheapest)) < 0.005).length;
+        if (same === 1) tags.get(cheapest.id)!.push('best_value');
+      }
+
+      if (customerId) {
+        const mine = await this.prisma.booking.findMany({
+          where: { customerId, type: 'grooming', packageId: { in: ids }, status: REAL_BOOKING, ...(petId ? { petId } : {}) },
+          select: { packageId: true },
+          distinct: ['packageId'],
+        });
+        for (const m of mine) if (m.packageId) tags.get(m.packageId)?.unshift('previously_booked');
+      }
+    }
+    return packages.map((p) => ({ ...p, tags: tags.get(p.id) ?? [] }));
   }
 
   async getPackage(packageId: string) {

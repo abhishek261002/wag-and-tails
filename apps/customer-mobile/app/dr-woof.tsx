@@ -1,16 +1,21 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View, Text, StyleSheet, FlatList, TextInput, TouchableOpacity,
-  KeyboardAvoidingView, Platform, ActivityIndicator, Alert,
+  KeyboardAvoidingView, Platform, ActivityIndicator, Alert, Image,
 } from 'react-native';
+import { router, useFocusEffect } from 'expo-router';
+import * as ImagePicker from 'expo-image-picker';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, spacing, typography, radii } from '@wag/design-tokens';
 import { Icon } from '@wag/ui-mobile';
 import type { AiChatMessage, Pet } from '@wag/shared-types';
-import { wagApi } from '../src/lib/api';
+import { wagApi, resolveMediaUrl } from '../src/lib/api';
 import { goBack } from '../src/lib/nav';
+import { useDrWoofStore } from '../src/store/drWoof.store';
 
-type ChatItem = AiChatMessage & { failed?: boolean; retryText?: string };
+type Photo = { uri: string; name: string; type: string };
+// `localPhoto` is the picture on this phone, shown until the saved copy (`imageUrl`) comes back from the server.
+type ChatItem = AiChatMessage & { failed?: boolean; retryText?: string; retryPhoto?: Photo; localPhoto?: string };
 
 const MAX_CHARS = 500;
 
@@ -26,11 +31,40 @@ export default function DrWoofScreen() {
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
   const [loadingHistory, setLoadingHistory] = useState(true);
+  const [imagesEnabled, setImagesEnabled] = useState(false);
+  const [photo, setPhoto] = useState<Photo | null>(null);
   const listRef = useRef<FlatList>(null);
   const inFlight = useRef(false);
+  const consumeRequest = useDrWoofStore((st) => st.consume);
+  const sessionRef = useRef<string | null>(null);
+  sessionRef.current = sessionId;
+
+  const openSession = useCallback(async (id: string) => {
+    setLoadingHistory(true);
+    try {
+      const history = await wagApi.ai.getSessionMessages(id);
+      setSessionId(id);
+      setMessages(history as ChatItem[]);
+    } catch {
+      Alert.alert('Could not open this chat', 'Please check your connection and try again.');
+    } finally {
+      setLoadingHistory(false);
+    }
+  }, []);
+
+  // Coming back from the History screen: open the chosen chat, start a new one, or clear the open chat if it was deleted.
+  useFocusEffect(useCallback(() => {
+    const r = consumeRequest();
+    if (!r) return;
+    if (r.kind === 'open') openSession(r.sessionId);
+    else if (r.kind === 'new' || (r.kind === 'deleted' && r.sessionId === sessionRef.current)) {
+      setMessages([]); setSessionId(null); setInput(''); setPhoto(null);
+    }
+  }, [consumeRequest, openSession]));
 
   useEffect(() => {
     wagApi.pets.list().then(setPets).catch(() => {});
+    wagApi.ai.drWoofConfig().then((c) => setImagesEnabled(!!c.imagesEnabled)).catch(() => {});
     // Pick the latest conversation back up.
     (async () => {
       try {
@@ -49,12 +83,31 @@ export default function DrWoofScreen() {
     })();
   }, []);
 
-  const send = useCallback(async (raw: string) => {
+  const pickPhoto = async (fromCamera: boolean) => {
+    const perm = fromCamera ? await ImagePicker.requestCameraPermissionsAsync() : await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!perm.granted) {
+      Alert.alert('Permission needed', fromCamera ? 'Allow camera access to take a photo.' : 'Allow photo access to share a picture with Dr. Woof.');
+      return;
+    }
+    const opts: ImagePicker.ImagePickerOptions = { mediaTypes: ['images'], quality: 0.8 };
+    const res = fromCamera ? await ImagePicker.launchCameraAsync(opts) : await ImagePicker.launchImageLibraryAsync(opts);
+    const a = !res.canceled ? res.assets?.[0] : null;
+    if (a) setPhoto({ uri: a.uri, name: a.fileName ?? 'photo.jpg', type: a.mimeType ?? 'image/jpeg' });
+  };
+
+  const choosePhoto = () => Alert.alert('Add a photo', 'Share a photo of your pet with Dr. Woof.', [
+    { text: 'Take a photo', onPress: () => pickPhoto(true) },
+    { text: 'Choose from gallery', onPress: () => pickPhoto(false) },
+    { text: 'Cancel', style: 'cancel' },
+  ]);
+
+  const send = useCallback(async (raw: string, attached?: Photo | null) => {
     const text = raw.trim().slice(0, MAX_CHARS);
     // The ref guards against a double tap sending the same message twice before `sending` re-renders.
-    if (!text || inFlight.current) return;
+    if ((!text && !attached) || inFlight.current) return;
     inFlight.current = true;
     setInput('');
+    setPhoto(null);
     setSending(true);
 
     const userMsg: ChatItem = {
@@ -65,11 +118,13 @@ export default function DrWoofScreen() {
       refusalReason: null,
       suggestedActions: [],
       createdAt: new Date().toISOString(),
+      localPhoto: attached?.uri,
     };
     setMessages((prev) => [...prev.filter((m) => !m.failed), userMsg]);
 
     try {
-      const res = await wagApi.ai.drWoof(text, sessionId ?? undefined);
+      const uploaded = attached ? await wagApi.ai.uploadDrWoofImage(attached) : null;
+      const res = await wagApi.ai.drWoof(text, sessionId ?? undefined, uploaded?.url);
       setSessionId(res.sessionId);
       setMessages((prev) => [...prev, res.message]);
     } catch (err: any) {
@@ -88,6 +143,7 @@ export default function DrWoofScreen() {
           createdAt: new Date().toISOString(),
           failed: !tooFast,
           retryText: text,
+          retryPhoto: attached ?? undefined,
         },
       ]);
     } finally {
@@ -129,6 +185,9 @@ export default function DrWoofScreen() {
               <Text style={styles.headerSub} numberOfLines={1}>{subtitle}</Text>
             </View>
           </View>
+          <TouchableOpacity onPress={() => router.push('/dr-woof-history' as any)} accessibilityLabel="Chat history" style={styles.iconBtn}>
+            <Icon name="clock" size={20} color={colors.brandBrown} />
+          </TouchableOpacity>
           <TouchableOpacity onPress={newChat} accessibilityLabel="New chat" style={styles.iconBtn} disabled={!messages.length}>
             <Icon name="plus" size={20} color={messages.length ? colors.brandBrown : colors.textDisabled} />
           </TouchableOpacity>
@@ -173,9 +232,12 @@ export default function DrWoofScreen() {
           renderItem={({ item: msg }) => (
             <View>
               <View style={[styles.bubble, msg.role === 'user' ? styles.userBubble : styles.aiBubble, msg.failed && styles.errorBubble]}>
-                <Text style={[styles.bubbleText, msg.role === 'user' ? styles.userText : styles.aiText]} selectable>{msg.content}</Text>
-                {msg.failed && !!msg.retryText && (
-                  <TouchableOpacity onPress={() => send(msg.retryText!)} style={styles.retryRow} accessibilityLabel="Retry">
+                {(!!msg.localPhoto || !!msg.imageUrl) && (
+                  <Image source={{ uri: msg.localPhoto ?? resolveMediaUrl(msg.imageUrl) }} style={styles.photo} resizeMode="cover" accessibilityLabel="Photo you sent" />
+                )}
+                {!!msg.content && <Text style={[styles.bubbleText, msg.role === 'user' ? styles.userText : styles.aiText, (!!msg.localPhoto || !!msg.imageUrl) && { marginTop: spacing[2] }]} selectable>{msg.content}</Text>}
+                {msg.failed && (!!msg.retryText || !!msg.retryPhoto) && (
+                  <TouchableOpacity onPress={() => send(msg.retryText ?? '', msg.retryPhoto)} style={styles.retryRow} accessibilityLabel="Retry">
                     <Icon name="refresh" size={13} color={colors.error} />
                     <Text style={styles.retryText}>Retry</Text>
                   </TouchableOpacity>
@@ -195,7 +257,21 @@ export default function DrWoofScreen() {
         />
 
         <Text style={styles.disclaimer}>Dr. Woof gives general guidance and is not a substitute for a vet.</Text>
+        {!!photo && (
+          <View style={styles.preview}>
+            <Image source={{ uri: photo.uri }} style={styles.previewImg} />
+            <Text style={styles.previewText}>Photo ready to send</Text>
+            <TouchableOpacity onPress={() => setPhoto(null)} accessibilityLabel="Remove photo" hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <Icon name="close" size={16} color={colors.textMuted} />
+            </TouchableOpacity>
+          </View>
+        )}
         <View style={styles.inputBar}>
+          {imagesEnabled && (
+            <TouchableOpacity style={styles.attachBtn} onPress={choosePhoto} disabled={sending} accessibilityLabel="Add a photo">
+              <Icon name="cam" size={20} color={colors.brandBrown} />
+            </TouchableOpacity>
+          )}
           <TextInput
             style={styles.textInput}
             value={input}
@@ -207,9 +283,9 @@ export default function DrWoofScreen() {
             accessibilityLabel="Message input"
           />
           <TouchableOpacity
-            style={[styles.sendBtn, (!input.trim() || sending) && styles.sendBtnDisabled]}
-            onPress={() => send(input)}
-            disabled={!input.trim() || sending}
+            style={[styles.sendBtn, ((!input.trim() && !photo) || sending) && styles.sendBtnDisabled]}
+            onPress={() => send(input, photo)}
+            disabled={(!input.trim() && !photo) || sending}
             accessibilityLabel="Send message"
           >
             {sending ? <ActivityIndicator size="small" color={colors.white} /> : <Icon name="send" size={19} color={colors.white} />}
@@ -250,6 +326,11 @@ const styles = StyleSheet.create({
   suggestions: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing[2], marginTop: spacing[2], maxWidth: '92%' },
   chip: { backgroundColor: colors.marigoldBg, borderRadius: radii.xl, paddingHorizontal: spacing[3], paddingVertical: spacing[2] },
   chipText: { fontFamily: 'Inter', fontSize: typography.fontSize.sm, color: colors.marigoldDark, fontWeight: '600' },
+  photo: { width: 200, height: 150, borderRadius: radii.lg, backgroundColor: colors.biscuitLight },
+  preview: { flexDirection: 'row', alignItems: 'center', gap: spacing[3], paddingHorizontal: spacing[4], paddingVertical: spacing[2], backgroundColor: colors.white, borderTopWidth: 1, borderTopColor: colors.borderLight },
+  previewImg: { width: 44, height: 44, borderRadius: radii.md },
+  previewText: { flex: 1, fontFamily: 'Inter', fontSize: 13, color: colors.textSecondary },
+  attachBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.biscuitLight, alignItems: 'center', justifyContent: 'center' },
   disclaimer: { fontFamily: 'Inter', fontSize: 11, color: colors.textMuted, textAlign: 'center', paddingVertical: spacing[1] },
   inputBar: { flexDirection: 'row', alignItems: 'flex-end', gap: spacing[3], padding: spacing[4], paddingTop: spacing[2], backgroundColor: colors.white, borderTopWidth: 1, borderTopColor: colors.borderLight },
   textInput: { flex: 1, borderWidth: 1.5, borderColor: colors.borderLight, borderRadius: radii.xl, paddingHorizontal: spacing[4], paddingVertical: spacing[3], fontFamily: 'Inter', fontSize: typography.fontSize.base, color: colors.textPrimary, maxHeight: 110 },

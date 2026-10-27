@@ -190,37 +190,55 @@ export default function HomeScreen() {
             <View style={styles.promoCode}><Text style={styles.promoCodeText}>FIRST20</Text></View>
           </TouchableOpacity>
 
-          {/* Ask Dr. Woof: knows all of the customer's pets */}
-          <TouchableOpacity
-            style={styles.askCard}
-            onPress={() => router.push('/dr-woof' as any)}
-            activeOpacity={0.85}
-            accessibilityRole="button"
-            accessibilityLabel="Ask Dr. Woof, the pet care assistant"
-          >
-            <View style={styles.askIcon}><Icon name="spark" size={19} color={colors.marigoldDark} /></View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.askTitle}>Ask Dr. Woof</Text>
-              <Text style={styles.askSub}>{pets.length > 1 ? 'Questions about your pets, health and care' : pet ? `Questions about ${pet.name}, health and care` : 'Pet health, food and behaviour questions'}</Text>
-            </View>
-            <Icon name="chev" size={17} color={colors.textDisabled} />
-          </TouchableOpacity>
+          {/* Pet care: one light-blue card for everything health related (Dr. Woof, insurance, blood tests) */}
+          <View style={styles.careHead}>
+            <Text style={styles.sectionTitle}>Pet care</Text>
+            <Text style={styles.sectionSub}>Health advice, cover and check-ups</Text>
+          </View>
+          <View style={styles.careCard}>
+            <TouchableOpacity
+              style={styles.careRow}
+              onPress={() => router.push('/dr-woof' as any)}
+              activeOpacity={0.8}
+              accessibilityRole="button"
+              accessibilityLabel="Ask Dr. Woof, the pet care assistant"
+            >
+              <View style={styles.careIcon}><Icon name="spark" size={19} color={colors.info} /></View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.careTitle}>Ask Dr. Woof</Text>
+                <Text style={styles.careSub}>{pets.length > 1 ? 'Questions about your pets, health and care' : pet ? `Questions about ${pet.name}, health and care` : 'Pet health, food and behaviour questions'}</Text>
+              </View>
+              <Icon name="chev" size={17} color={colors.info} />
+            </TouchableOpacity>
 
-          {/* Pet insurance enquiry */}
-          <TouchableOpacity
-            style={styles.askCard}
-            onPress={() => router.push('/insurance' as any)}
-            activeOpacity={0.85}
-            accessibilityRole="button"
-            accessibilityLabel="Pet insurance. Get a quote"
-          >
-            <View style={[styles.askIcon, { backgroundColor: colors.successLight }]}><Icon name="shield" size={19} color={colors.success} /></View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.askTitle}>Pet insurance</Text>
-              <Text style={styles.askSub}>Cover vet bills. Get a free quote in 2 minutes</Text>
+            <View style={styles.careDivider} />
+
+            <TouchableOpacity
+              style={styles.careRow}
+              onPress={() => router.push('/insurance' as any)}
+              activeOpacity={0.8}
+              accessibilityRole="button"
+              accessibilityLabel="Pet insurance. Get a quote"
+            >
+              <View style={styles.careIcon}><Icon name="umbrella" size={19} color={colors.info} /></View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.careTitle}>Pet insurance</Text>
+                <Text style={styles.careSub}>Cover vet bills. Get a free quote in 2 minutes</Text>
+              </View>
+              <Icon name="chev" size={17} color={colors.info} />
+            </TouchableOpacity>
+
+            <View style={styles.careDivider} />
+
+            <View style={styles.careRow} accessible accessibilityLabel="Blood tests at home, coming soon">
+              <View style={styles.careIcon}><Icon name="syringe" size={19} color={colors.info} /></View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.careTitle}>Blood tests at home</Text>
+                <Text style={styles.careSub}>Sample collection at your doorstep</Text>
+              </View>
+              <View style={styles.soonPill}><Text style={styles.soonPillText}>COMING SOON</Text></View>
             </View>
-            <Icon name="chev" size={17} color={colors.textDisabled} />
-          </TouchableOpacity>
+          </View>
 
           {/* Book again: this pet's past services */}
           {pet && pastBookings.length > 0 && (
@@ -261,10 +279,10 @@ export default function HomeScreen() {
             </>
           )}
 
-          {/* Trust card */}
-          <Card style={styles.trustCard}>
+          {/* Trust card: dark so it stands out from the light cards around it */}
+          <View style={styles.trustCard}>
             <View style={styles.trustRow}>
-              <View style={styles.trustIcon}><Icon name="shield" size={19} color={colors.success} /></View>
+              <View style={styles.trustIcon}><Icon name="shield" size={22} color={colors.brandBrown} /></View>
               <View style={{ flex: 1 }}>
                 <Text style={styles.trustTitle}>Every partner is verified</Text>
                 <Text style={styles.trustSub}>ID checked, police verified and trained on handling anxious dogs.</Text>
@@ -276,7 +294,7 @@ export default function HomeScreen() {
               <Metric v="98%" k="On time" />
               <Metric v={String(MOCK_VETS.length)} k="Vets" onPress={() => router.push('/vets' as any)} />
             </View>
-          </Card>
+          </View>
 
           <TouchableOpacity style={styles.helpRow} onPress={() => router.push('/support')}>
             <View style={styles.helpIconBox}><Icon name="help" size={19} color={colors.brandBrown} /></View>
@@ -286,13 +304,6 @@ export default function HomeScreen() {
             </View>
             <Icon name="chev" size={17} color={colors.textDisabled} />
           </TouchableOpacity>
-
-          {/* Coming soon */}
-          <View style={styles.soon} accessibilityLabel="Blood tests at home, coming soon">
-            <Icon name="syringe" size={16} color={colors.brandBrown} />
-            <Text style={styles.soonText}><Text style={styles.soonStrong}>Blood tests at home</Text> · coming soon</Text>
-            <View style={styles.soonPill}><Text style={styles.soonPillText}>Soon</Text></View>
-          </View>
         </View>
       </ScrollView>
 
@@ -384,11 +395,6 @@ const styles = StyleSheet.create({
   promoCode: { backgroundColor: 'rgba(255,255,255,0.2)', borderRadius: radii.xs, borderWidth: 1, borderColor: 'rgba(255,255,255,0.5)', borderStyle: 'dashed', paddingHorizontal: 10, paddingVertical: 5 },
   promoCodeText: { fontFamily: 'Inter', fontSize: 13, fontWeight: '800', color: colors.white, letterSpacing: 0.5 },
 
-  askCard: { flexDirection: 'row', alignItems: 'center', gap: spacing[3], backgroundColor: colors.white, borderWidth: 1, borderColor: colors.borderLight, borderRadius: radii.lg, padding: spacing[4], marginTop: spacing[4] },
-  askIcon: { width: 38, height: 38, borderRadius: radii.sm, backgroundColor: colors.marigoldBg, alignItems: 'center', justifyContent: 'center' },
-  askTitle: { fontFamily: 'Inter', fontSize: 14.5, fontWeight: '700', color: colors.textPrimary },
-  askSub: { fontFamily: 'Inter', fontSize: 11.5, color: colors.textMuted, marginTop: 2 },
-  chev: { fontSize: 20, color: colors.textDisabled },
 
   sectionHeadRow: { flexDirection: 'row', alignItems: 'flex-end', marginTop: spacing[5], marginBottom: spacing[3] },
   seeAll: { fontFamily: 'Inter', fontSize: 14, fontWeight: '800', color: colors.marigoldDark },
@@ -401,23 +407,27 @@ const styles = StyleSheet.create({
   rebookBadge: { backgroundColor: colors.biscuitLight, borderRadius: 999, paddingHorizontal: 16, paddingVertical: 8 },
   rebookBadgeText: { fontFamily: 'Inter', fontSize: 13, fontWeight: '800', color: colors.brandBrown },
 
-  trustCard: { backgroundColor: colors.surfaceAlt, borderColor: 'transparent', marginTop: spacing[6], padding: spacing[4] },
-  trustRow: { flexDirection: 'row', gap: spacing[3], marginBottom: spacing[3] },
-  trustIcon: { width: 36, height: 36, borderRadius: radii.sm, backgroundColor: colors.successLight, alignItems: 'center', justifyContent: 'center' },
-  trustTitle: { fontFamily: 'Inter', fontSize: 14, fontWeight: '700', color: colors.textPrimary },
-  trustSub: { fontFamily: 'Inter', fontSize: 11.5, color: colors.textMuted, marginTop: 2 },
-  metrics: { flexDirection: 'row', backgroundColor: colors.borderLight, borderRadius: radii.md, overflow: 'hidden' },
-  metric: { flex: 1, backgroundColor: colors.white, paddingVertical: spacing[3], alignItems: 'center', gap: 2 },
-  metricV: { fontFamily: 'Inter', fontSize: 18, fontWeight: '800', color: colors.textPrimary },
-  metricK: { fontFamily: 'Inter', fontSize: 9.5, fontWeight: '600', textTransform: 'uppercase', color: colors.textMuted },
+  trustCard: { backgroundColor: colors.brandBrown, borderRadius: radii.xl, marginTop: spacing[6], padding: spacing[5] },
+  trustRow: { flexDirection: 'row', alignItems: 'center', gap: spacing[4], marginBottom: spacing[5] },
+  trustIcon: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.marigold, alignItems: 'center', justifyContent: 'center' },
+  trustTitle: { fontFamily: 'Inter', fontSize: 16, fontWeight: '800', color: colors.white },
+  trustSub: { fontFamily: 'Inter', fontSize: 12.5, color: 'rgba(255,255,255,0.78)', marginTop: 3, lineHeight: 18 },
+  metrics: { flexDirection: 'row', gap: spacing[2] },
+  metric: { flex: 1, backgroundColor: 'rgba(255,255,255,0.12)', borderRadius: radii.md, paddingVertical: spacing[3], paddingHorizontal: 2, alignItems: 'center', gap: 3 },
+  metricV: { fontFamily: 'Inter', fontSize: 18, fontWeight: '800', color: colors.marigold },
+  metricK: { fontFamily: 'Inter', fontSize: 9.5, fontWeight: '700', textTransform: 'uppercase', color: 'rgba(255,255,255,0.82)', textAlign: 'center' },
 
   helpRow: { flexDirection: 'row', alignItems: 'center', gap: spacing[3], marginTop: spacing[5] },
   helpIconBox: { width: 38, height: 38, borderRadius: radii.sm, backgroundColor: colors.biscuitLighter, alignItems: 'center', justifyContent: 'center' },
   helpTitle: { fontFamily: 'Inter', fontSize: 14, fontWeight: '600', color: colors.textPrimary },
-  soon: { flexDirection: 'row', alignItems: 'center', gap: spacing[2], backgroundColor: colors.biscuitLighter, borderRadius: radii.md, paddingHorizontal: spacing[4], paddingVertical: spacing[3], marginTop: spacing[5] },
-  soonText: { flex: 1, fontFamily: 'Inter', fontSize: 12.5, color: colors.textSecondary },
-  soonStrong: { fontWeight: '800', color: colors.textPrimary },
-  soonPill: { backgroundColor: colors.brandBrown, borderRadius: 999, paddingHorizontal: 8, paddingVertical: 2 },
-  soonPillText: { fontFamily: 'Inter', fontSize: 10, fontWeight: '800', color: colors.white, letterSpacing: 0.4 },
+  careHead: { marginTop: spacing[6], marginBottom: spacing[3] },
+  careCard: { backgroundColor: colors.infoLight, borderWidth: 1, borderColor: '#CFE1EE', borderRadius: radii.xl, paddingHorizontal: spacing[4] },
+  careRow: { flexDirection: 'row', alignItems: 'center', gap: spacing[3], paddingVertical: spacing[4] },
+  careIcon: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.white, alignItems: 'center', justifyContent: 'center' },
+  careTitle: { fontFamily: 'Inter', fontSize: 14.5, fontWeight: '800', color: colors.textPrimary },
+  careSub: { fontFamily: 'Inter', fontSize: 12, color: colors.textSecondary, marginTop: 2, lineHeight: 17 },
+  careDivider: { height: 1, backgroundColor: '#CFE1EE' },
+  soonPill: { backgroundColor: colors.info, borderRadius: 999, paddingHorizontal: 9, paddingVertical: 4 },
+  soonPillText: { fontFamily: 'Inter', fontSize: 9.5, fontWeight: '800', color: colors.white, letterSpacing: 0.5 },
   helpSub: { fontFamily: 'Inter', fontSize: 11.5, color: colors.textMuted, marginTop: 1 },
 });

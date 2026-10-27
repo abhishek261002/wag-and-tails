@@ -37,6 +37,8 @@ export interface GroomingPackage {
   description: string | null;
   inclusions: string[];
   isActive: boolean;
+  /** Set by the server on the packages list: 'previously_booked' | 'best_selling' | 'best_value'. */
+  tags?: ('previously_booked' | 'best_selling' | 'best_value')[];
 }
 
 export interface AddOn {

@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Param, Body, Query, UseGuards } from '@nestjs/common';
+import { Controller, Post, Get, Delete, Param, Body, Query, UseGuards, ParseUUIDPipe } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { AiPetChatService } from './ai-pet-chat.service.js';
@@ -24,8 +24,21 @@ export class AiPetChatController {
   /** Dr. Woof: one assistant with the context of all of the customer's pets. */
   @Post('dr-woof')
   @Roles('customer')
-  drWoof(@CurrentUser() user: { sub: string }, @Body() body: { message?: unknown; sessionId?: unknown }) {
-    return this.aiService.drWoofChat(user.sub, body?.message, body?.sessionId);
+  drWoof(@CurrentUser() user: { sub: string }, @Body() body: { message?: unknown; sessionId?: unknown; imageUrl?: unknown }) {
+    return this.aiService.drWoofChat(user.sub, body?.message, body?.sessionId, body?.imageUrl);
+  }
+
+  /** What the app may offer in the chat (photos are a server switch). */
+  @Get('dr-woof/config')
+  @Roles('customer')
+  drWoofConfig() {
+    return this.aiService.drWoofConfig();
+  }
+
+  @Delete('dr-woof/sessions/:id')
+  @Roles('customer')
+  deleteDrWoofSession(@CurrentUser() user: { sub: string }, @Param('id', ParseUUIDPipe) id: string) {
+    return this.aiService.deleteDrWoofSession(user.sub, id);
   }
 
   @Get('dr-woof/sessions')

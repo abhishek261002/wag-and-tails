@@ -1,0 +1,17 @@
+# QA checklist: client app review fixes (run on the built Android APK)
+
+Build: PC terminal, in `apps/customer-mobile`: `npx eas-cli build --profile preview --platform android`. Uninstall the old app first.
+Server first (VPS terminal, project folder `git pull`, then in `apps/api`: `npm ci`, `npx prisma generate`, `npx prisma migrate deploy`, `npm run build`, `pm2 restart` the API).
+
+1. **Navigation bar**: on a phone with on-screen buttons or the gesture bar, the bottom tab bar (Home, Store, Bookings, Pets, Account) sits fully above the system bar, nothing overlaps. Check Home, Store, Account.
+2. **Home, Pet care**: after the promo banner there is a "Pet care" section with ONE light-blue card: Ask Dr. Woof, Pet insurance (umbrella icon), Blood tests at home (COMING SOON badge, under insurance). No blood-test strip at the very bottom.
+3. **Home, "Every partner is verified"**: dark brown card with an orange shield, balanced padding, four metric tiles (4.9, 12k+, 98%, Vets). It no longer blends in. Tapping Vets opens the vets list.
+4. **Store pills**: Food & Treats / Health etc. are full, round pills, the same height, scrolling sideways. Type a search with results, with no results ("zzzz"), then clear it: the pills never change size.
+5. **Store search + keyboard**: tap the search box (the bottom tab bar hides while typing), type, press Search or tap outside. When the keyboard closes there is NO blank gap above the tab bar. Check twice, including after going to another tab and back.
+6. **Packages**: each card shows tags where they apply (Previously booked, Best selling, Best value; two at most), the short description, and a line such as "5 services included" or "Everything in Basic, plus N more", all without tapping View more. View more still expands the list.
+7. **Booking confirmation**: "Need help? Contact support" shows both while "Fetching your partner" and on the confirmed screen. Tapping it opens Support with a new ticket started ("Help with booking #XXXXXXXX"); submit it and it opens the ticket. Opening Support from Account does NOT open the form.
+8. **Breeds**: Add pet, Dog, Breed: search "doodle" (Goldendoodle, Labradoodle, Aussiedoodle, Bernedoodle, Sheepadoodle, Doodle (other)), "poo" (Maltipoo, Cockapoo, Cavapoo...), "poodle" (Toy/Miniature/Standard). Cat: search "calico", "tuxedo", "tabby". Sign-up pet step offers the same lists.
+9. **Dr. Woof history**: Home, Ask Dr. Woof, tap the clock icon: past chats are listed (first question, last message, date, message count). Tap one: it opens with its messages and you can continue it. Delete a chat with the bin icon (confirm). "+" starts a new chat. Deleting the chat you have open clears it. Empty state shows "No chats yet".
+10. **Dr. Woof photos (only if you switch them on)**: on the VPS set `DR_WOOF_IMAGES=true` in `apps/api/.env`, `pm2 restart` the API. The chat then shows a camera button: take or choose a photo, add text or not, send. Photo-only works. With the flag off (default) there is no camera button. Needs the Gemini key to get real answers.
+11. **Sign-up email**: Create account step 1 has an optional Email. A bad email shows an error; an email already used by someone else keeps you on step 1 with a message; empty is fine. Login stays phone-only.
+12. **Regression**: add a pet with no vaccination date, book grooming and walking with Find Instantly and Choose Partner, checkout coupons list, store cart, notifications card on Home.

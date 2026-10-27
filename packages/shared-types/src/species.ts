@@ -16,13 +16,36 @@ export const DOG_BREEDS = [
   'Shih Tzu', 'Pug', 'Pomeranian', 'Cocker Spaniel', 'Dachshund', 'Rottweiler', 'Husky',
   'Boxer', 'Doberman', 'Great Dane', 'Saint Bernard', 'Bulldog', 'French Bulldog',
   'Lhasa Apso', 'Maltese', 'Border Collie', 'Samoyed', 'Chow Chow', 'Dalmatian', 'Akita',
-  'Rajapalayam', 'Mixed', 'Other',
+  'Rajapalayam',
+  // Doodles and other poodle crosses
+  'Goldendoodle', 'Labradoodle', 'Aussiedoodle', 'Bernedoodle', 'Sheepadoodle', 'Schnoodle', 'Whoodle',
+  'Maltipoo', 'Cockapoo', 'Cavapoo', 'Yorkipoo', 'Pomapoo', 'Shihpoo', 'Doodle (other)',
+  // Poodles
+  'Poodle (Toy)', 'Poodle (Miniature)', 'Poodle (Standard)',
+  // More breeds
+  'Alaskan Malamute', 'American Bully', 'American Pit Bull Terrier', 'Australian Shepherd', 'Basset Hound',
+  'Belgian Malinois', 'Bernese Mountain Dog', 'Bichon Frise', 'Bloodhound', 'Boerboel', 'Bull Terrier',
+  'Bullmastiff', 'Cane Corso', 'Cavalier King Charles Spaniel', 'Chihuahua', 'Corgi (Pembroke)', 'English Setter',
+  'English Springer Spaniel', 'Greyhound', 'Havanese', 'Irish Setter', 'Irish Wolfhound', 'Jack Russell Terrier',
+  'Keeshond', 'Miniature Pinscher', 'Miniature Schnauzer', 'Newfoundland', 'Papillon', 'Pekingese',
+  'Pointer', 'Saluki', 'Shiba Inu', 'Siberian Laika', 'Staffordshire Bull Terrier', 'Tibetan Mastiff',
+  'Vizsla', 'Weimaraner', 'West Highland Terrier', 'Whippet', 'Yorkshire Terrier',
+  // Indian breeds
+  'Chippiparai', 'Combai', 'Gaddi Kutta', 'Kanni', 'Mudhol Hound', 'Rampur Greyhound', 'Bully Kutta',
+  'Mixed', 'Other',
 ];
 
 export const CAT_BREEDS = [
   'Indie / Domestic Shorthair', 'Persian', 'Siamese', 'Maine Coon', 'Bengal', 'Ragdoll',
   'British Shorthair', 'Russian Blue', 'Scottish Fold', 'Sphynx', 'Himalayan', 'Abyssinian',
-  'Birman', 'Burmese', 'Norwegian Forest', 'Mixed', 'Other',
+  'Birman', 'Burmese', 'Norwegian Forest',
+  // Coat patterns people commonly give as the "breed"
+  'Calico', 'Tuxedo', 'Tabby', 'Orange Tabby', 'Tortoiseshell', 'Black Cat', 'White Cat',
+  // More breeds
+  'American Shorthair', 'Balinese', 'Bombay', 'Chartreux', 'Cornish Rex', 'Devon Rex', 'Domestic Longhair',
+  'Egyptian Mau', 'Exotic Shorthair', 'Manx', 'Munchkin', 'Nebelung', 'Oriental Shorthair', 'Ragamuffin',
+  'Savannah', 'Siberian', 'Singapura', 'Snowshoe', 'Somali', 'Tonkinese', 'Turkish Angora', 'Turkish Van',
+  'Mixed', 'Other',
 ];
 
 export const BREEDS_BY_SPECIES: Record<PetSpecies, string[]> = { dog: DOG_BREEDS, cat: CAT_BREEDS };

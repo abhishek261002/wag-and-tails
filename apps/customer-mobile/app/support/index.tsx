@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert, Linking } from 'react-native';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button, Icon, Badge } from '@wag/ui-mobile';
 import { colors, spacing, radii } from '@wag/design-tokens';
@@ -20,10 +20,13 @@ const FAQS = [
 const STATUS_VARIANT: Record<string, any> = { open: 'warning', in_progress: 'marigold', resolved: 'success' };
 
 export default function SupportScreen() {
+  // Sent by the booking confirmation screen: start a ticket for that booking straight away.
+  const { bookingId } = useLocalSearchParams<{ bookingId?: string }>();
+  const bookingRef = typeof bookingId === 'string' && /^[0-9a-f-]{36}$/i.test(bookingId) ? `#${bookingId.slice(-8).toUpperCase()}` : null;
   const [tickets, setTickets] = useState<SupportTicket[]>([]);
   const [expanded, setExpanded] = useState<number | null>(null);
-  const [showNewTicket, setShowNewTicket] = useState(false);
-  const [subject, setSubject] = useState('');
+  const [showNewTicket, setShowNewTicket] = useState(!!bookingRef);
+  const [subject, setSubject] = useState(bookingRef ? `Help with booking ${bookingRef}` : '');
   const [description, setDescription] = useState('');
   const [submitting, setSubmitting] = useState(false);
 

@@ -46,6 +46,7 @@ export const ICON_PATHS = {
   star: "<path d=\"m12 3.4 2.7 5.6 6.1.9-4.4 4.3 1 6.1-5.4-2.9-5.4 2.9 1-6.1-4.4-4.3 6.1-.9Z\"/>",
   syringe: "<path d=\"m13.4 4.6 6 6M17 3l4 4M11.6 6.4 17.6 12.4 9 21H3.6v-5.4Z\"/><path d=\"m9.4 10.6 4 4\"/>",
   trash: "<path d=\"M4.6 6.6h14.8M9.6 6.6V4.4h4.8v2.2M6.6 6.6l1 13.2h8.8l1-13.2\"/>",
+  umbrella: "<path d=\"M3.4 12.2a8.6 8.6 0 0 1 17.2 0Z\"/><path d=\"M12 12.2V18a2 2 0 0 1-4 0\"/><path d=\"M12 3.6V2.6\"/>",
   user: "<circle cx=\"12\" cy=\"8\" r=\"3.8\"/><path d=\"M4.6 20.4c.6-4.1 3.8-6.6 7.4-6.6s6.8 2.5 7.4 6.6\"/>",
   wallet: "<rect x=\"2.8\" y=\"5.8\" width=\"18.4\" height=\"13.4\" rx=\"3.4\"/><path d=\"M2.8 10h18.4\"/><circle cx=\"17\" cy=\"14.8\" r=\"1.3\" fill=\"currentColor\" stroke=\"none\"/>",
 } as const;

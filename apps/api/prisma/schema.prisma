@@ -1355,6 +1355,8 @@ model AiChatMessage {
   content          String   @db.Text
   refusalReason    String?  @map("refusal_reason")
   suggestedActions String[] @default([]) @map("suggested_actions")
+  // A photo the customer attached (Dr. Woof only, when photos are enabled): a path under /uploads.
+  imageUrl         String?  @map("image_url")
   createdAt        DateTime @default(now()) @map("created_at")
 
   session AiChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)

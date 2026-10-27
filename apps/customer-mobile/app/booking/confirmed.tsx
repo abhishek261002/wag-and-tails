@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Share, Animated } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Share, Animated, ScrollView } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button, LiveMapView, Icon } from '@wag/ui-mobile';
@@ -73,6 +73,9 @@ export default function BookingConfirmedScreen() {
     await Share.share({ message: text });
   };
 
+  // Opens Support with a new ticket already started for this booking (its short id is in the subject).
+  const contactSupport = () => router.push({ pathname: '/support', params: { bookingId: id! } } as any);
+
   const isWaiting = booking && WAITING_STATUSES.has(booking.status);
   const isTracking = booking && TRACKING_STATUSES.has(booking.status);
   // The partner is still driving to the door: draw the road and show the ETA. After arrival neither applies.
@@ -94,6 +97,13 @@ export default function BookingConfirmedScreen() {
               ? 'We\'ve notified walkers near you. This usually takes a couple of minutes.'
               : 'We\'ve notified groomers near you. This usually takes a couple of minutes.'}
           </Text>
+          <TouchableOpacity style={styles.supportBtn} onPress={contactSupport} accessibilityRole="button" accessibilityLabel="Contact support about this booking">
+            <Icon name="help" size={17} color={colors.brandBrown} />
+            <Text style={styles.supportText}>Need help? Contact support</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => router.replace('/(tabs)/home')} accessibilityRole="button" style={{ marginTop: spacing[3] }}>
+            <Text style={styles.homeLink}>Back to Home</Text>
+          </TouchableOpacity>
         </View>
       </SafeAreaView>
     );
@@ -101,7 +111,7 @@ export default function BookingConfirmedScreen() {
 
   return (
     <SafeAreaView style={styles.safe}>
-      <View style={styles.container}>
+      <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
         {/* Success animation */}
         <View style={styles.successCircle}>
           <Icon name="check" size={40} color={colors.success} />
@@ -193,11 +203,20 @@ export default function BookingConfirmedScreen() {
           >
             Share Booking
           </Button>
+          <Button
+            variant="outline"
+            onPress={contactSupport}
+            fullWidth
+            leftIcon={<Icon name="help" size={16} color={colors.brandBrown} />}
+            style={{ marginBottom: spacing[3] }}
+          >
+            Need help? Contact support
+          </Button>
           <TouchableOpacity onPress={() => router.replace('/(tabs)/home')}>
             <Text style={styles.homeLink}>Back to Home</Text>
           </TouchableOpacity>
         </View>
-      </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }
@@ -213,7 +232,9 @@ function ReceiptRow({ label, value, bold }: { label: string; value: string; bold
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: colors.canvas },
-  container: { flex: 1, paddingHorizontal: spacing[6], paddingTop: spacing[10], alignItems: 'center' },
+  container: { flexGrow: 1, paddingHorizontal: spacing[6], paddingTop: spacing[10], paddingBottom: spacing[8], alignItems: 'center' },
+  supportBtn: { flexDirection: 'row', alignItems: 'center', gap: spacing[2], marginTop: spacing[6], paddingVertical: spacing[3], paddingHorizontal: spacing[5], borderRadius: radii.xl, borderWidth: 1.5, borderColor: colors.borderMedium, backgroundColor: colors.white },
+  supportText: { fontFamily: 'Inter', fontSize: typography.fontSize.base, fontWeight: '800', color: colors.brandBrown },
   waitingContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: spacing[8] },
   pulseRing: { width: 160, height: 160, borderRadius: 80, backgroundColor: colors.marigoldBg, alignItems: 'center', justifyContent: 'center', marginBottom: spacing[6] },
   innerCircle: { width: 116, height: 116, borderRadius: 58, backgroundColor: colors.marigold, alignItems: 'center', justifyContent: 'center' },

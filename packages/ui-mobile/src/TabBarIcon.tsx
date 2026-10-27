@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { colors } from '@wag/design-tokens';
 import { Icon, type IconName } from './Icon';
 
@@ -28,6 +29,19 @@ export function TabBarIcon({ name, label, focused }: TabBarIconProps) {
 }
 
 // Shared by both apps' Tabs screenOptions so the bar itself matches too.
+// Use `useTabBarStyle()` in the layouts: on Android (edge-to-edge) the system navigation buttons or gesture bar sit
+// at the bottom of the screen, and a fixed-height bar drawn there is overlapped by them. The hook adds the bottom
+// inset to the bar's height and padding, so the icons always sit above the system bar.
+const BAR_CONTENT_HEIGHT = 58;
+export function useTabBarStyle() {
+  const insets = useSafeAreaInsets();
+  return {
+    ...tabBarStyle,
+    height: BAR_CONTENT_HEIGHT + insets.bottom,
+    paddingBottom: Math.max(insets.bottom, 12),
+  } as const;
+}
+
 export const tabBarStyle = {
   backgroundColor: 'rgba(255,255,255,0.94)',
   borderTopColor: colors.borderLight,

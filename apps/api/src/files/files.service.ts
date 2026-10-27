@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { randomBytes } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service.js';
 import * as path from 'path';
@@ -15,6 +15,19 @@ export class FilesService {
     if (!fs.existsSync(this.localUploadPath)) {
       fs.mkdirSync(this.localUploadPath, { recursive: true });
     }
+  }
+
+  /**
+   * Reads back a photo the user uploaded for `entity` (e.g. 'dr_woof'), for sending to an AI model. `url` must be
+   * the exact path the upload returned, and the file must belong to this user: nothing else can be read through here.
+   */
+  async readOwnImage(userId: string, url: string, entity: string): Promise<{ buffer: Buffer; mimeType: string }> {
+    const match = /^\/uploads\/([A-Za-z0-9_.-]+)$/.exec(url);
+    const record = match ? await this.prisma.uploadedFile.findFirst({ where: { url, uploadedBy: userId, entity } }) : null;
+    if (!match || !record || !record.mimeType.startsWith('image/')) throw new NotFoundException('Photo not found');
+    const file = path.resolve(this.localUploadPath, match[1]!);
+    if (path.dirname(file) !== this.localUploadPath || !fs.existsSync(file)) throw new NotFoundException('Photo not found');
+    return { buffer: fs.readFileSync(file), mimeType: record.mimeType };
   }
 
   /**

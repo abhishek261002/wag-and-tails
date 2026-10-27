@@ -1,7 +1,7 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity,
-  TextInput, RefreshControl, Image,
+  TextInput, RefreshControl, Image, ActivityIndicator, Keyboard,
 } from 'react-native';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -14,21 +14,40 @@ export default function StoreScreen() {
   const [products, setProducts] = useState<any[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [search, setSearch] = useState('');
+  // What is actually searched for: follows `search` after a short pause, so typing doesn't fire a request per key.
+  const [query, setQuery] = useState('');
   const [cartCount, setCartCount] = useState(0);
   const [refreshing, setRefreshing] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [failed, setFailed] = useState(false);
+  // Only the newest request may update the screen: a slow answer for "do" must not overwrite the one for "dog".
+  const requestId = useRef(0);
+
+  useEffect(() => {
+    const t = setTimeout(() => setQuery(search.trim()), 350);
+    return () => clearTimeout(t);
+  }, [search]);
 
   const load = useCallback(async () => {
+    const mine = ++requestId.current;
+    setLoading(true);
     try {
       const [cats, prods, cart] = await Promise.all([
         wagApi.store.listCategories(),
-        wagApi.store.listProducts({ categoryId: selectedCategory ?? undefined, search: search || undefined }),
+        wagApi.store.listProducts({ categoryId: selectedCategory ?? undefined, search: query || undefined }),
         wagApi.store.getCart(),
       ]);
+      if (mine !== requestId.current) return;
       setCategories(cats);
       setProducts(prods.data);
       setCartCount(cart.items.length);
-    } catch {}
-  }, [selectedCategory, search]);
+      setFailed(false);
+    } catch {
+      if (mine === requestId.current) setFailed(true);
+    } finally {
+      if (mine === requestId.current) setLoading(false);
+    }
+  }, [selectedCategory, query]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -70,8 +89,15 @@ export default function StoreScreen() {
           value={search}
           onChangeText={setSearch}
           returnKeyType="search"
+          onSubmitEditing={() => { setQuery(search.trim()); Keyboard.dismiss(); }}
+          autoCorrect={false}
           accessibilityLabel="Search products"
         />
+        {search.length > 0 && (
+          <TouchableOpacity onPress={() => { setSearch(''); setQuery(''); }} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }} accessibilityLabel="Clear search">
+            <Icon name="close" size={16} color={colors.textMuted} />
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* Categories */}
@@ -80,7 +106,11 @@ export default function StoreScreen() {
         horizontal
         showsHorizontalScrollIndicator={false}
         keyExtractor={(c) => c.id ?? 'all'}
+        // A horizontal list inside a column grows and shrinks with the space left by its siblings, which cropped
+        // the pills (big product grid) or stretched them (few results, keyboard open). Pin it to its own height.
+        style={styles.catListWrap}
         contentContainerStyle={styles.catList}
+        keyboardShouldPersistTaps="handled"
         renderItem={({ item: cat }) => (
           <TouchableOpacity
             style={[styles.catChip, selectedCategory === cat.id && styles.catChipActive]}
@@ -101,6 +131,9 @@ export default function StoreScreen() {
         numColumns={2}
         keyExtractor={(p) => p.id}
         contentContainerStyle={styles.productGrid}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+        style={styles.productList}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.brandBrown} />}
         columnWrapperStyle={{ gap: spacing[3] }}
         renderItem={({ item: product }) => (
@@ -142,8 +175,18 @@ export default function StoreScreen() {
         )}
         ListEmptyComponent={
           <View style={styles.empty}>
-            <Icon name="bag" size={40} color={colors.textDisabled} />
-            <Text style={styles.emptyText}>No products found</Text>
+            {loading ? (
+              <ActivityIndicator color={colors.brandBrown} />
+            ) : failed ? (
+              <TouchableOpacity onPress={load} accessibilityRole="button">
+                <Text style={styles.emptyText}>Couldn't load products. Tap to try again.</Text>
+              </TouchableOpacity>
+            ) : (
+              <>
+                <Icon name="bag" size={40} color={colors.textDisabled} />
+                <Text style={styles.emptyText}>{query ? `No products match "${query}"` : 'No products found'}</Text>
+              </>
+            )}
           </View>
         }
       />
@@ -161,8 +204,10 @@ const styles = StyleSheet.create({
   searchBar: { flexDirection: 'row', alignItems: 'center', marginHorizontal: spacing[5], marginBottom: spacing[3], backgroundColor: colors.white, borderRadius: radii.xl, borderWidth: 1, borderColor: colors.borderLight, paddingHorizontal: spacing[4], height: 48 },
   searchIcon: { fontSize: 16, marginRight: spacing[2] },
   searchInput: { flex: 1, fontFamily: 'Inter', fontSize: typography.fontSize.base, color: colors.textPrimary },
-  catList: { paddingHorizontal: spacing[5], gap: spacing[2], marginBottom: spacing[3] },
-  catChip: { paddingHorizontal: spacing[4], paddingVertical: spacing[2], borderRadius: radii.full, backgroundColor: colors.white, borderWidth: 1, borderColor: colors.borderLight },
+  catListWrap: { flexGrow: 0, flexShrink: 0, height: 48 },
+  catList: { paddingHorizontal: spacing[5], gap: spacing[2], alignItems: 'center' },
+  productList: { flex: 1 },
+  catChip: { height: 36, justifyContent: 'center', paddingHorizontal: spacing[4], borderRadius: radii.full, backgroundColor: colors.white, borderWidth: 1, borderColor: colors.borderLight },
   catChipActive: { backgroundColor: colors.brandBrown, borderColor: colors.brandBrown },
   catText: { fontFamily: 'Inter', fontSize: typography.fontSize.sm, fontWeight: '600', color: colors.textSecondary },
   catTextActive: { color: colors.white },

@@ -1,14 +1,17 @@
 import { Tabs } from 'expo-router';
-import { TabBarIcon, tabBarStyle } from '@wag/ui-mobile';
+import { TabBarIcon, useTabBarStyle } from '@wag/ui-mobile';
 
 // Icons and ordering follow the prototype's C_TABS: Home, Store, Bookings, Pets, Account.
 export default function TabsLayout() {
+  const tabBarStyle = useTabBarStyle();
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
         tabBarShowLabel: false,
         tabBarStyle,
+        // With the keyboard open the bar is hidden, so it can't float above the keyboard or leave a gap behind it.
+        tabBarHideOnKeyboard: true,
       }}
     >
       <Tabs.Screen name="home" options={{ tabBarIcon: ({ focused }) => <TabBarIcon name="home" label="Home" focused={focused} /> }} />

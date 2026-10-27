@@ -18,7 +18,7 @@ export { Icon } from './Icon';
 export type { IconProps, IconName } from './Icon';
 export { RowItem } from './RowItem';
 export type { RowItemProps, RowItemIconTone } from './RowItem';
-export { TabBarIcon, tabBarStyle } from './TabBarIcon';
+export { TabBarIcon, tabBarStyle, useTabBarStyle } from './TabBarIcon';
 export type { TabBarIconProps } from './TabBarIcon';
 export { ICON_PATHS, ICON_NAMES } from './iconPaths';
 export { LiveMapView, etaLabel } from './LiveMapView';

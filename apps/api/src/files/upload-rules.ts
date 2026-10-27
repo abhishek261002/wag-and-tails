@@ -16,6 +16,8 @@ export const ENTITY_KINDS: Record<string, readonly FileKind[]> = {
   booking: ['image'],
   partner: ['image'],
   conversation: ['image'],
+  // A photo the customer shares with Dr. Woof (only used when DR_WOOF_IMAGES is on).
+  dr_woof: ['image'],
   support_ticket: ['image', 'pdf'],
   partner_document: ['image', 'pdf'],
   // Photos and videos of a groomer's tools, shown to staff before approval.

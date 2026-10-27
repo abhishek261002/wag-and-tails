@@ -16,6 +16,33 @@ function servicesOf(pkg: GroomingPackage): string[] {
   return Array.isArray(items) ? items.map((i) => i?.description ?? '').filter(Boolean) : [];
 }
 
+// Tags the server puts on a package; at most two are shown, most useful first.
+const TAG_LABEL: Record<string, { label: string; tone: 'blue' | 'orange' | 'green' }> = {
+  previously_booked: { label: 'Previously booked', tone: 'blue' },
+  best_selling: { label: 'Best selling', tone: 'orange' },
+  best_value: { label: 'Best value', tone: 'green' },
+};
+
+const norm = (t: string) => t.trim().toLowerCase();
+
+/**
+ * One line that makes the price ladder obvious: packages are listed cheapest first, so each one says what it adds on
+ * top of the one before ("Everything in Basic, plus 3 more"), or just how many services it has.
+ */
+function ladderLine(prev: GroomingPackage | null, pkg: GroomingPackage): string {
+  const mine = servicesOf(pkg);
+  if (mine.length === 0) return '';
+  if (prev) {
+    const have = new Set(mine.map(norm));
+    const before = servicesOf(prev);
+    if (before.length > 0 && before.every((s) => have.has(norm(s)))) {
+      const extra = mine.length - before.length;
+      if (extra > 0) return `Everything in ${prev.name}, plus ${extra} more`;
+    }
+  }
+  return `${mine.length} service${mine.length === 1 ? '' : 's'} included`;
+}
+
 export default function SelectPackageScreen() {
   const [packages, setPackages] = useState<GroomingPackage[] | null>(null);
   const [failed, setFailed] = useState(false);
@@ -23,14 +50,15 @@ export default function SelectPackageScreen() {
   const [expanded, setExpanded] = useState<string | null>(null);
   const { groomingDraft, updateGroomingDraft } = useBookingStore();
 
+  const petId = groomingDraft.petId ?? undefined;
   useEffect(() => {
     let alive = true;
     setFailed(false);
-    wagApi.bookings.getPackages()
+    wagApi.bookings.getPackages(petId)
       .then((r) => { if (alive) setPackages(Array.isArray(r) ? r : []); })
       .catch(() => { if (alive) { setPackages((cur) => cur ?? []); setFailed(true); } });
     return () => { alive = false; };
-  }, [attempt]);
+  }, [attempt, petId]);
 
   const selectPackage = (pkg: GroomingPackage) => {
     updateGroomingDraft({ packageId: pkg.id, package: pkg });
@@ -56,10 +84,12 @@ export default function SelectPackageScreen() {
             <Text style={styles.stateText}>{failed ? "Couldn't load packages. Tap to try again." : 'No packages are available right now.'}</Text>
           </TouchableOpacity>
         )}
-        {(packages ?? []).map((pkg) => {
+        {(packages ?? []).map((pkg, index, all) => {
           const isSelected = groomingDraft.packageId === pkg.id;
           const isExpanded = expanded === pkg.id;
           const services = servicesOf(pkg);
+          const tags = (pkg.tags ?? []).filter((t) => TAG_LABEL[t]).slice(0, 2);
+          const ladder = ladderLine(index > 0 ? all[index - 1]! : null, pkg);
 
           return (
             <TouchableOpacity
@@ -70,6 +100,15 @@ export default function SelectPackageScreen() {
               accessibilityRole="button"
               accessibilityLabel={`${pkg.name} package, ₹${pkg.price}`}
             >
+              {tags.length > 0 && (
+                <View style={styles.tagRow}>
+                  {tags.map((t) => (
+                    <View key={t} style={[styles.tag, styles[`tag_${TAG_LABEL[t]!.tone}` as const]]}>
+                      <Text style={[styles.tagText, styles[`tagText_${TAG_LABEL[t]!.tone}` as const]]}>{TAG_LABEL[t]!.label}</Text>
+                    </View>
+                  ))}
+                </View>
+              )}
               <View style={styles.cardHeader}>
                 <View style={styles.nameCol}>
                   <View style={styles.nameRow}>
@@ -82,9 +121,8 @@ export default function SelectPackageScreen() {
                       </View>
                     )}
                   </View>
-                  <Text style={styles.pkgDesc} numberOfLines={isExpanded ? undefined : 1}>
-                    {pkg.description}
-                  </Text>
+                  {!!pkg.description?.trim() && <Text style={styles.pkgDesc} numberOfLines={2}>{pkg.description.trim()}</Text>}
+                  {!!ladder && <Text style={styles.ladder}>{ladder}</Text>}
                   {services.length > 0 && (
                     <TouchableOpacity
                       onPress={() => setExpanded(isExpanded ? null : pkg.id)}
@@ -141,6 +179,16 @@ const styles = StyleSheet.create({
   backText: { fontFamily: 'Inter', fontSize: typography.fontSize.base, color: colors.brandBrown, fontWeight: '600' },
   title: { fontFamily: 'Inter', fontSize: typography.fontSize.lg, fontWeight: '800', color: colors.textPrimary },
   sub: { fontFamily: 'Inter', fontSize: typography.fontSize.sm, color: colors.textMuted, paddingHorizontal: spacing[5], marginBottom: spacing[4] },
+  tagRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing[2], marginBottom: spacing[3] },
+  tag: { borderRadius: radii.full, paddingHorizontal: spacing[3], paddingVertical: 3 },
+  tag_blue: { backgroundColor: colors.infoLight },
+  tag_orange: { backgroundColor: colors.marigoldBg },
+  tag_green: { backgroundColor: colors.successLight },
+  tagText: { fontFamily: 'Inter', fontSize: 11, fontWeight: '800' },
+  tagText_blue: { color: colors.info },
+  tagText_orange: { color: colors.marigoldDark },
+  tagText_green: { color: colors.success },
+  ladder: { fontFamily: 'Inter', fontSize: typography.fontSize.sm, fontWeight: '700', color: colors.brandBrown, marginTop: spacing[1] },
   state: { alignItems: 'center', paddingVertical: spacing[10] },
   stateText: { fontFamily: 'Inter', fontSize: typography.fontSize.base, color: colors.textMuted, textAlign: 'center' },
   content: { paddingHorizontal: spacing[5], paddingBottom: spacing[10] },

@@ -1,7 +1,8 @@
 import { Injectable, NotFoundException, ForbiddenException, BadRequestException, HttpException, HttpStatus, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { FilesService } from '../files/files.service.js';
 import { buildPetContext, clean } from './pet-context.builder.js';
-import { generatePetChatReply, GeminiError, type GeminiTurn } from './gemini.client.js';
+import { generatePetChatReply, GeminiError, type GeminiImage, type GeminiTurn } from './gemini.client.js';
 import { buildHouseholdContext, drWoofSystemPrompt, DR_WOOF_REFUSALS, DR_WOOF_SUGGESTIONS } from './dr-woof.js';
 
 const MAX_MESSAGE_CHARS = 500;
@@ -76,7 +77,16 @@ export class AiPetChatService {
   private readonly recent = new Map<string, number[]>();
   private warnedNoKey = false;
 
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService, private files: FilesService) {}
+
+  /** Photos in Dr. Woof chats cost more per message, so they are a switch: set DR_WOOF_IMAGES=true to allow them. */
+  imagesEnabled(): boolean {
+    return (process.env['DR_WOOF_IMAGES'] ?? '').toLowerCase() === 'true';
+  }
+
+  drWoofConfig() {
+    return { imagesEnabled: this.imagesEnabled() };
+  }
 
   private enforceRateLimit(customerId: string) {
     const now = Date.now();
@@ -140,7 +150,7 @@ export class AiPetChatService {
     };
   }
 
-  private async decideReply(persona: Persona, sessionId: string, userText: string) {
+  private async decideReply(persona: Persona, sessionId: string, userText: string, image?: GeminiImage) {
     const canned = (content: string, refusalReason: string | null, suggestions: string[] = persona.suggestions) => ({ content, refusalReason, suggestions });
 
     // Guardrail 1: prompt-injection / role-change attempts never reach the model.
@@ -166,6 +176,12 @@ export class AiPetChatService {
     }
 
     const history = await this.loadHistory(sessionId);
+    // Only the photo sent with this message goes to the model; it rides on the newest user turn.
+    if (image) {
+      const last = history[history.length - 1];
+      if (last?.role === 'user') last.images = [image];
+      else history.push({ role: 'user', text: 'Please look at this photo.', images: [image] });
+    }
     try {
       const out = await generatePetChatReply({
         apiKey,
@@ -198,10 +214,22 @@ export class AiPetChatService {
 
   // ─── Dr. Woof: one assistant for all of the customer's pets ──────────────────
 
-  async drWoofChat(customerId: string, message: unknown, sessionId?: unknown) {
-    if (typeof message !== 'string' || !message.trim()) throw new BadRequestException('Message is required');
-    const userText = message.trim().slice(0, MAX_MESSAGE_CHARS);
+  async drWoofChat(customerId: string, message: unknown, sessionId?: unknown, imageUrl?: unknown) {
+    const hasImage = imageUrl !== undefined && imageUrl !== null && imageUrl !== '';
+    if (message !== undefined && message !== null && typeof message !== 'string') throw new BadRequestException('Message must be text');
+    const text = typeof message === 'string' ? message.trim() : '';
+    if (!text && !hasImage) throw new BadRequestException('Message is required');
+    if (hasImage && !this.imagesEnabled()) throw new BadRequestException('Photos are not available in Dr. Woof right now.');
+    if (hasImage && typeof imageUrl !== 'string') throw new BadRequestException('imageUrl is not valid');
+    const userText = text.slice(0, MAX_MESSAGE_CHARS);
     this.enforceRateLimit(customerId);
+
+    // The photo must be one this customer uploaded for Dr. Woof (checked before anything is stored).
+    let image: GeminiImage | undefined;
+    if (hasImage) {
+      const file = await this.files.readOwnImage(customerId, imageUrl as string, 'dr_woof');
+      image = { mimeType: file.mimeType === 'image/heic' || file.mimeType === 'image/avif' ? 'image/jpeg' : file.mimeType, data: file.buffer.toString('base64') };
+    }
 
     let session;
     if (sessionId !== undefined && sessionId !== null && sessionId !== '') {
@@ -213,7 +241,7 @@ export class AiPetChatService {
       session = await this.prisma.aiChatSession.create({ data: { customerId, petId: null } });
     }
 
-    await this.prisma.aiChatMessage.create({ data: { sessionId: session.id, role: 'user', content: userText } });
+    await this.prisma.aiChatMessage.create({ data: { sessionId: session.id, role: 'user', content: userText, imageUrl: hasImage ? (imageUrl as string) : null } });
 
     // The household record is loaded at most once, and only if the message needs it (not for blocked messages).
     let loaded: Promise<{ household: Awaited<ReturnType<typeof buildHouseholdContext>>; ownerName: string | null }> | null = null;
@@ -237,7 +265,8 @@ export class AiPetChatService {
         },
       },
       session.id,
-      userText,
+      userText || 'Please look at this photo.',
+      image,
     );
 
     const aiMessage = await this.prisma.aiChatMessage.create({
@@ -247,9 +276,44 @@ export class AiPetChatService {
     return { sessionId: session.id, message: aiMessage };
   }
 
-  /** The customer's Dr. Woof conversations, newest first. */
+  /**
+   * The customer's Dr. Woof conversations, newest first, each with a title (their first question), a preview of the
+   * latest message and the message count: what the History screen lists.
+   */
   async drWoofSessions(customerId: string) {
-    return this.prisma.aiChatSession.findMany({ where: { customerId, petId: null }, orderBy: { updatedAt: 'desc' }, take: 20 });
+    const sessions = await this.prisma.aiChatSession.findMany({
+      where: { customerId, petId: null },
+      orderBy: { updatedAt: 'desc' },
+      take: 50,
+      include: { _count: { select: { messages: true } } },
+    });
+    if (sessions.length === 0) return [];
+    const ids = sessions.map((x) => x.id);
+    const [firsts, lasts] = await Promise.all([
+      this.prisma.aiChatMessage.findMany({ where: { sessionId: { in: ids }, role: 'user' }, orderBy: { createdAt: 'asc' }, distinct: ['sessionId'], select: { sessionId: true, content: true, imageUrl: true } }),
+      this.prisma.aiChatMessage.findMany({ where: { sessionId: { in: ids } }, orderBy: { createdAt: 'desc' }, distinct: ['sessionId'], select: { sessionId: true, content: true } }),
+    ]);
+    const cut = (t: string, n: number) => (t.length > n ? `${t.slice(0, n - 1).trimEnd()}…` : t);
+    return sessions.map((x) => {
+      const first = firsts.find((m) => m.sessionId === x.id);
+      const last = lasts.find((m) => m.sessionId === x.id);
+      return {
+        id: x.id,
+        title: cut((first?.content || (first?.imageUrl ? 'Photo' : '')).replace(/\s+/g, ' ').trim() || 'New chat', 60),
+        preview: cut((last?.content ?? '').replace(/\s+/g, ' ').trim(), 100),
+        messageCount: x._count.messages,
+        createdAt: x.createdAt,
+        updatedAt: x.updatedAt,
+      };
+    });
+  }
+
+  /** Deletes one of the customer's own Dr. Woof conversations (and its messages). */
+  async deleteDrWoofSession(customerId: string, sessionId: string) {
+    const session = await this.prisma.aiChatSession.findFirst({ where: { id: sessionId, customerId, petId: null }, select: { id: true } });
+    if (!session) throw new NotFoundException('Chat not found');
+    await this.prisma.aiChatSession.delete({ where: { id: sessionId } });
+    return { deleted: true };
   }
 
   // Refused/unavailable turns are left out so a blocked attempt can't poison later context.
@@ -262,7 +326,7 @@ export class AiPetChatService {
     const turns: GeminiTurn[] = [];
     for (const m of rows.reverse()) {
       if (m.role === 'user') {
-        turns.push({ role: 'user', text: m.content });
+        turns.push({ role: 'user', text: m.content || '(photo)' });
       } else if (m.refusalReason) {
         // The reply was refused/unavailable: forget the question that caused it too.
         if (turns[turns.length - 1]?.role === 'user') turns.pop();

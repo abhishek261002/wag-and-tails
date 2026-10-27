@@ -1,8 +1,16 @@
 import { Logger } from '@nestjs/common';
 
+export interface GeminiImage {
+  mimeType: string;
+  /** base64 */
+  data: string;
+}
+
 export interface GeminiTurn {
   role: 'user' | 'model';
   text: string;
+  /** Photos attached to this turn (only ever the newest user turn; older photos are not re-sent). */
+  images?: GeminiImage[];
 }
 
 export interface PetChatModelOutput {
@@ -42,8 +50,10 @@ function mergeTurns(turns: GeminiTurn[]): GeminiTurn[] {
   const merged: GeminiTurn[] = [];
   for (const t of turns) {
     const last = merged[merged.length - 1];
-    if (last && last.role === t.role) last.text += `\n${t.text}`;
-    else merged.push({ ...t });
+    if (last && last.role === t.role) {
+      last.text += `\n${t.text}`;
+      if (t.images?.length) last.images = [...(last.images ?? []), ...t.images];
+    } else merged.push({ ...t });
   }
   while (merged.length && merged[0]!.role !== 'user') merged.shift();
   return merged;
@@ -67,7 +77,10 @@ export async function generatePetChatReply(opts: {
     signal: controller.signal as any,
     body: JSON.stringify({
       systemInstruction: { parts: [{ text: opts.systemPrompt }] },
-      contents: mergeTurns(opts.history).map((t) => ({ role: t.role, parts: [{ text: t.text }] })),
+      contents: mergeTurns(opts.history).map((t) => ({
+        role: t.role,
+        parts: [{ text: t.text }, ...(t.images ?? []).map((i) => ({ inlineData: { mimeType: i.mimeType, data: i.data } }))],
+      })),
       generationConfig: {
         temperature: 0.6,
         topP: 0.9,

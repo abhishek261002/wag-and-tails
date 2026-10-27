@@ -1,14 +1,17 @@
 import { Tabs } from 'expo-router';
-import { TabBarIcon, tabBarStyle } from '@wag/ui-mobile';
+import { TabBarIcon, useTabBarStyle } from '@wag/ui-mobile';
 
 // Tabs, icons and order match the prototype's P_TABS exactly.
 export default function PartnerTabsLayout() {
+  const tabBarStyle = useTabBarStyle();
   return (
     <Tabs
       screenOptions={{
         headerShown: false,
         tabBarShowLabel: false,
         tabBarStyle,
+        // With the keyboard open the bar is hidden, so it can't float above the keyboard or leave a gap behind it.
+        tabBarHideOnKeyboard: true,
       }}
     >
       <Tabs.Screen name="jobs" options={{ tabBarIcon: ({ focused }) => <TabBarIcon name="brief" label="Jobs" focused={focused} /> }} />

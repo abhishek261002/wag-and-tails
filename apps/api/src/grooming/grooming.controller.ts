@@ -2,7 +2,7 @@ import { Controller, Get, Post, Patch, Param, Body, Query, UseGuards } from '@ne
 import { AuthGuard } from '@nestjs/passport';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { GroomingService } from './grooming.service.js';
-import { Roles } from '../common/decorators.js';
+import { CurrentUser, Roles } from '../common/decorators.js';
 import { RolesGuard } from '../common/roles.guard.js';
 
 @ApiTags('grooming')
@@ -14,7 +14,11 @@ export class GroomingController {
 
   @Get('packages')
   @Roles('customer', 'partner', 'staff', 'admin')
-  getPackages() { return this.groomingService.getPackages(); }
+  getPackages(@CurrentUser() user: { sub: string; role: string }, @Query('petId') petId?: string) {
+    // "Previously booked" only means something for a customer; a malformed petId is ignored rather than failing the list.
+    const pet = petId && /^[0-9a-f-]{36}$/i.test(petId) ? petId : undefined;
+    return this.groomingService.getPackages(user.role === 'customer' ? user.sub : undefined, pet);
+  }
 
   @Get('packages/:id')
   @Roles('customer', 'partner', 'staff', 'admin')

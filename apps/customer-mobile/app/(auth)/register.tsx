@@ -27,6 +27,7 @@ type PetErrors = Partial<Record<'name' | 'species' | 'breed' | 'age' | 'sex', st
 
 const NAME_RE = /^[\p{L}][\p{L}\p{M} .'\-]*$/u;
 const OTHER_CITY = 'Other city';
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 let keyCounter = 0;
 const newPet = (): PetDraft => ({ key: `p${++keyCounter}`, name: '', species: null, breed: '', ageYears: '', ageMonths: '', sex: null });
 const digits = (s: string) => s.replace(/\D/g, '').slice(0, 2);
@@ -57,10 +58,11 @@ export default function RegisterScreen() {
 
   const [step, setStep] = useState<0 | 1>(0);
   const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
   const [cityChoice, setCityChoice] = useState<string>('');
   const [otherCity, setOtherCity] = useState('');
   const [cityOpen, setCityOpen] = useState(false);
-  const [errors, setErrors] = useState<{ name?: string; city?: string }>({});
+  const [errors, setErrors] = useState<{ name?: string; email?: string; city?: string }>({});
 
   const [pets, setPets] = useState<PetDraft[]>([newPet()]);
   const [petErrs, setPetErrs] = useState<Record<string, PetErrors>>({});
@@ -75,10 +77,11 @@ export default function RegisterScreen() {
   const city = (cityChoice === OTHER_CITY ? otherCity : cityChoice).trim().replace(/\s+/g, ' ');
 
   const validateStep0 = () => {
-    const e: { name?: string; city?: string } = {};
+    const e: { name?: string; email?: string; city?: string } = {};
     const n = name.trim().replace(/\s+/g, ' ');
     if (n.length < 2) e.name = 'Please enter your name';
     else if (!NAME_RE.test(n)) e.name = "Names can only contain letters, spaces and . ' -";
+    if (email.trim() && !EMAIL_RE.test(email.trim())) e.email = 'Please enter a valid email address';
     if (!cityChoice) e.city = 'Please choose your city';
     else if (cityChoice === OTHER_CITY && !(city.length >= 2 && NAME_RE.test(city))) e.city = 'Please enter your city';
     setErrors(e);
@@ -126,6 +129,7 @@ export default function RegisterScreen() {
         otp: otp!,
         name: name.trim().replace(/\s+/g, ' '),
         city,
+        ...(email.trim() ? { email: email.trim().toLowerCase() } : {}),
         pets: pets.map((p): SignupPetInput => ({
           name: p.name.trim().replace(/\s+/g, ' '),
           species: p.species!,
@@ -140,7 +144,12 @@ export default function RegisterScreen() {
       router.replace('/(tabs)/home');
     } catch (err: any) {
       const status = err?.statusCode;
-      if (status === 409) {
+      if (status === 409 && /email/i.test(err?.message ?? '') && !/phone number|log in/i.test(err?.message ?? '')) {
+        // Only the optional email is taken: stay on the form so it can be changed or cleared.
+        setStep(0);
+        setErrors((e) => ({ ...e, email: 'This email is already used by another account' }));
+        Alert.alert('Email already used', 'That email belongs to another account. Use a different email or leave it empty.');
+      } else if (status === 409) {
         Alert.alert('Account exists', errMsg(err), [{ text: 'Go to login', onPress: () => router.replace('/(auth)/login') }]);
       } else if (status === 401) {
         Alert.alert('Code expired', 'Your verification code has expired. Please verify your number again.', [{ text: 'OK', onPress: () => router.replace('/(auth)/login') }]);
@@ -178,6 +187,10 @@ export default function RegisterScreen() {
 
               <View style={styles.card}>
                 <Input label="Your name *" value={name} onChangeText={(v) => { setName(v); setErrors((e) => ({ ...e, name: undefined })); }} placeholder="e.g. Aarav Mehta" autoCapitalize="words" maxLength={120} error={errors.name} accessibilityLabel="Your name" />
+
+                <View style={{ marginTop: spacing[4] }}>
+                  <Input label="Email (optional)" value={email} onChangeText={(v) => { setEmail(v); setErrors((e) => ({ ...e, email: undefined })); }} placeholder="you@example.com" keyboardType="email-address" autoCapitalize="none" autoCorrect={false} maxLength={160} error={errors.email} accessibilityLabel="Email, optional" />
+                </View>
 
                 <Text style={styles.label}>City *</Text>
                 <TouchableOpacity style={[styles.select, !!errors.city && styles.selectError]} onPress={() => setCityOpen(true)} accessibilityRole="button" accessibilityLabel="Choose your city">

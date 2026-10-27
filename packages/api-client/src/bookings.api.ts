@@ -66,8 +66,8 @@ export class BookingsApi {
   }
 
   // Catalogue
-  getPackages(): Promise<GroomingPackage[]> {
-    return this.client.get('/grooming/packages');
+  getPackages(petId?: string): Promise<GroomingPackage[]> {
+    return this.client.get('/grooming/packages', { params: petId ? { petId } : undefined });
   }
 
   getAddOns(): Promise<AddOn[]> {
