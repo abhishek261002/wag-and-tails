@@ -132,6 +132,26 @@ export class PartnerApi {
   }
 
   // Decline a job a customer reserved for you specifically.
+  /** "Release job": the partner cannot do it after all (before arriving). It is offered to everyone again. */
+  releaseJob(bookingId: string, reason: string): Promise<{ released: true }> {
+    return this.client.post(`/partner/jobs/${bookingId}/release`, { reason });
+  }
+
+  /** Confirm the new time after the desk or the customer moved the booking. */
+  confirmNewTime(bookingId: string): Promise<{ confirmed: true }> {
+    return this.client.post(`/partner/jobs/${bookingId}/confirm-time`);
+  }
+
+  /** At the door, the customer cannot be reached (after waiting); a photo at the door is the proof. */
+  customerNotAvailable(bookingId: string, photoUrl: string): Promise<{ reported: true }> {
+    return this.client.post(`/partner/jobs/${bookingId}/customer-not-available`, { photoUrl });
+  }
+
+  /** Stop the job (pet unsafe, cannot continue). The desk is alerted and decides. */
+  stopJob(bookingId: string, reason: string): Promise<{ reported: true }> {
+    return this.client.post(`/partner/jobs/${bookingId}/stop`, { reason });
+  }
+
   rejectJob(bookingId: string): Promise<{ rejected: true }> {
     return this.client.post(`/partner/jobs/${bookingId}/reject`);
   }

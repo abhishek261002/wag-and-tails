@@ -51,14 +51,16 @@ export default function SelectPackageScreen() {
   const { groomingDraft, updateGroomingDraft } = useBookingStore();
 
   const petId = groomingDraft.petId ?? undefined;
+  // Website connected: the prices of the city chosen with the address (the website charges by city).
+  const city = groomingDraft.cityId ?? undefined;
   useEffect(() => {
     let alive = true;
     setFailed(false);
-    wagApi.bookings.getPackages(petId)
+    wagApi.bookings.getPackages(petId, city)
       .then((r) => { if (alive) setPackages(Array.isArray(r) ? r : []); })
       .catch(() => { if (alive) { setPackages((cur) => cur ?? []); setFailed(true); } });
     return () => { alive = false; };
-  }, [attempt, petId]);
+  }, [attempt, petId, city]);
 
   const selectPackage = (pkg: GroomingPackage) => {
     updateGroomingDraft({ packageId: pkg.id, package: pkg });

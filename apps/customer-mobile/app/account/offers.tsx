@@ -34,7 +34,7 @@ export default function OffersScreen() {
               <Text style={styles.code}>{coupon.code}</Text>
               <Text style={styles.description}>{coupon.description}</Text>
               <Text style={styles.validity}>
-                Valid till {format(new Date(coupon.validUntil), 'd MMM yyyy')}
+                {new Date(coupon.validUntil).getFullYear() >= 2099 ? 'No expiry' : `Valid till ${format(new Date(coupon.validUntil), 'd MMM yyyy')}`}
               </Text>
             </View>
             <View style={styles.couponRight}>

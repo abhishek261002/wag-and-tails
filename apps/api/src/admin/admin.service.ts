@@ -1,4 +1,5 @@
 import { Injectable, BadRequestException, ConflictException } from '@nestjs/common';
+import { managedByWebsite, wpPriceListOn } from '../wp/wp-managed.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { startOfMonth, subMonths, endOfMonth, subDays, format } from 'date-fns';
 import { UserRole } from '@prisma/client';
@@ -245,6 +246,7 @@ export class AdminService {
   }
 
   async updateWalkPricing(pricingId: string, price: number) {
+    if (wpPriceListOn()) throw managedByWebsite('Walk prices');
     return this.prisma.walkPricing.update({ where: { id: pricingId }, data: { price } });
   }
 

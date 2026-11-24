@@ -20,6 +20,8 @@ export type { PlaceSuggestion, PlaceDetails } from './maps.api';
 export { InsuranceApi } from './insurance.api';
 export type { MyInsuranceRequest, InsuranceList } from './insurance.api';
 export { RealtimeClient } from './realtime';
+export { WebsiteApi } from './website.api';
+export type { BookingConfig, WebsiteCity, WebsiteQuote, RewardRules, PointsEntry, WebsiteBooking, Complaint } from './website.api';
 
 // Convenience factory
 import { ApiClient } from './client';
@@ -36,6 +38,7 @@ import { MapsApi } from './maps.api';
 import { UsersApi } from './users.api';
 import { InsuranceApi } from './insurance.api';
 import { RealtimeClient } from './realtime';
+import { WebsiteApi } from './website.api';
 import type { ApiClientConfig } from './client';
 
 export function createWagApiClient(config: ApiClientConfig) {
@@ -54,6 +57,7 @@ export function createWagApiClient(config: ApiClientConfig) {
     maps: new MapsApi(client),
     users: new UsersApi(client),
     insurance: new InsuranceApi(client),
+    website: new WebsiteApi(client),
     realtime: new RealtimeClient(config.baseURL, config.getAccessToken),
   };
 }

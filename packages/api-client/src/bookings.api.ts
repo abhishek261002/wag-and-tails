@@ -66,8 +66,12 @@ export class BookingsApi {
   }
 
   // Catalogue
-  getPackages(petId?: string): Promise<GroomingPackage[]> {
-    return this.client.get('/grooming/packages', { params: petId ? { petId } : undefined });
+  /** With `city` (a website city's name or id) the prices are that city's website prices. */
+  getPackages(petId?: string, city?: string): Promise<GroomingPackage[]> {
+    const params: Record<string, string> = {};
+    if (petId) params['petId'] = petId;
+    if (city) params['city'] = city;
+    return this.client.get('/grooming/packages', { params: Object.keys(params).length ? params : undefined });
   }
 
   getAddOns(): Promise<AddOn[]> {
@@ -78,8 +82,9 @@ export class BookingsApi {
     return this.client.get('/walking/pricing');
   }
 
-  getAvailableSlots(packageId: string, date: string, addressId: string): Promise<string[]> {
-    return this.client.get('/grooming/slots', { params: { packageId, date, addressId } });
+  /** Free start times (ISO). With the website connected they come from its calendar; `bookingId` = moving that booking. */
+  getAvailableSlots(packageId: string, date: string, addressId: string, opts: { cityId?: string; bookingId?: string } = {}): Promise<string[]> {
+    return this.client.get('/grooming/slots', { params: { packageId, date, addressId, ...opts } });
   }
 
   // Booking creation

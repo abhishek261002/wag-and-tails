@@ -6,6 +6,9 @@ import { RealtimeGateway } from '../realtime/realtime.gateway.js';
 import { isLocationFilteringEnabled } from '../common/feature-flags.js';
 import { DispatchService } from '../bookings/dispatch.service.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
+import { WpBookingsService } from '../wp/wp-bookings.service.js';
+import { WpJobsService } from '../wp/wp-jobs.service.js';
+import { escalationDeadline } from '../wp/wp-link.js';
 
 export type { PaymentProvider };
 
@@ -19,7 +22,9 @@ export class PaymentsService {
     private mapsService: MapsLocationService,
     private realtime: RealtimeGateway,
     private dispatch: DispatchService,
-    private notifications: NotificationsService
+    private notifications: NotificationsService,
+    private wpBookings: WpBookingsService,
+    private wpJobs: WpJobsService
   ) {
     this.provider = createPaymentProvider();
   }
@@ -99,6 +104,15 @@ export class PaymentsService {
         where: { id: payment.bookingId },
         data: { paymentStatus: 'paid', status: 'confirmed' },
       });
+      // Website-linked: confirm the slot that was held while the customer paid. If the 20-minute hold ran out and
+      // someone else took the time, the money goes back and the customer is asked to book again.
+      if (booking.wpRef) {
+        const r = await this.wpBookings.paidNow(booking.wpRef, booking.id, providerPaymentId ?? payment.providerPaymentId ?? 'app');
+        if (r === 'slot_taken') {
+          await this.slotLostAfterPayment(booking.id, payment.id, Number(payment.amount));
+          return this.prisma.payment.findUniqueOrThrow({ where: { id: paymentId } });
+        }
+      }
       // Grooming is ready for a partner to claim the moment it is paid; walking has its own search step.
       if (booking.type === 'grooming') await this.dispatchGroomingBooking(booking.id);
     }
@@ -126,12 +140,34 @@ export class PaymentsService {
     return this.prisma.booking.findUniqueOrThrow({ where: { id: bookingId } });
   }
 
+  private async slotLostAfterPayment(bookingId: string, paymentId: string, amount: number) {
+    const b = await this.prisma.booking.update({
+      where: { id: bookingId },
+      data: { status: 'cancelled', cancelledAt: new Date(), cancelReason: 'The time slot was taken while the payment was open', statusHistory: { create: { status: 'cancelled', changedBy: (await this.prisma.booking.findUniqueOrThrow({ where: { id: bookingId } })).customerId, note: 'Slot lost after payment; refunded' } } },
+    });
+    try {
+      await this.refund(paymentId, amount, 'Slot no longer available');
+    } catch (e) {
+      this.logger.error(`Refund after lost slot failed for ${bookingId}: ${(e as Error).message}`);
+      await this.wpJobs.flag(bookingId, 'stopped', 'Paid but the slot was taken: refund by hand').catch(() => {});
+    }
+    await this.wpJobs.cancelled(bookingId, 'Slot taken while the customer was paying (refunded)', 'App');
+    await this.notifications.sendPush(b.customerId, {
+      title: 'Please pick another time',
+      body: `Sorry, that time was booked while you were paying. Your ₹${amount} is being refunded. Please choose another slot.`,
+      data: { type: 'booking:slot_lost', bookingId },
+    }).catch(() => {});
+  }
+
   private async dispatchGroomingBooking(bookingId: string) {
     const existing = await this.prisma.booking.findUniqueOrThrow({ where: { id: bookingId } });
     await this.prisma.booking.update({
       where: { id: bookingId },
       data: {
         status: 'needs_partner',
+        // When the desk must be told if nobody has accepted (decision 2A).
+        escalateAt: existing.scheduledAt ? escalationDeadline(new Date(), existing.scheduledAt) : null,
+        escalatedAt: null,
         // changedBy is a UUID column with no "system" actor to attribute
         // this automatic transition to, so it's recorded against the
         // customer whose payment triggered it.

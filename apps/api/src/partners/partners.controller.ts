@@ -117,6 +117,34 @@ export class PartnersController {
     return this.partnersService.completeJob(bookingId, user.sub, body);
   }
 
+  @Post('jobs/:bookingId/release')
+  @Roles('partner')
+  @HttpCode(200)
+  releaseJob(@Param('bookingId') bookingId: string, @CurrentUser() user: { sub: string }, @Body() body: { reason?: string }) {
+    return this.partnersService.releaseJob(bookingId, user.sub, body?.reason);
+  }
+
+  @Post('jobs/:bookingId/confirm-time')
+  @Roles('partner')
+  @HttpCode(200)
+  confirmNewTime(@Param('bookingId') bookingId: string, @CurrentUser() user: { sub: string }) {
+    return this.partnersService.confirmNewTime(bookingId, user.sub);
+  }
+
+  @Post('jobs/:bookingId/customer-not-available')
+  @Roles('partner')
+  @HttpCode(200)
+  customerNotAvailable(@Param('bookingId') bookingId: string, @CurrentUser() user: { sub: string }, @Body() body: { photoUrl?: string }) {
+    return this.partnersService.customerNotAvailable(bookingId, user.sub, body?.photoUrl);
+  }
+
+  @Post('jobs/:bookingId/stop')
+  @Roles('partner')
+  @HttpCode(200)
+  stopJob(@Param('bookingId') bookingId: string, @CurrentUser() user: { sub: string }, @Body() body: { reason?: string }) {
+    return this.partnersService.stopJob(bookingId, user.sub, body?.reason);
+  }
+
   @Get('earnings')
   @Roles('partner')
   getEarnings(@CurrentUser() user: { sub: string }) {

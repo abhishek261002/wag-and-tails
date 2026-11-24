@@ -24,6 +24,10 @@ export default function JobDetailScreen() {
   const [transitioning, setTransitioning] = useState(false);
   const [otpInput, setOtpInput] = useState('');
   const [endOtpInput, setEndOtpInput] = useState('');
+  // "Problem with this job?" panel: release, stop (with a reason) or customer not available (with a door photo).
+  const [problem, setProblem] = useState<null | 'release' | 'stop'>(null);
+  const [reason, setReason] = useState('');
+  const [reporting, setReporting] = useState(false);
 
   const load = useCallback(async () => {
     if (!id) return;
@@ -43,6 +47,75 @@ export default function JobDetailScreen() {
   }, [id]);
 
   useEffect(() => { load(); }, [load]);
+
+  // The desk can move the booking, change its price or take it back at any time: refresh while the job is open.
+  useEffect(() => {
+    const live = booking && ['assigned', 'accepted', 'partner_on_the_way', 'arrived', 'in_progress'].includes(booking.status);
+    if (!live) return;
+    const t = setInterval(() => { load(); }, 20000);
+    return () => clearInterval(t);
+  }, [booking?.status, load]);
+
+  const errMsg = (err: any, fallback: string) => err?.response?.data?.message ?? err?.message ?? fallback;
+
+  const confirmTime = async () => {
+    if (!id) return;
+    setReporting(true);
+    try {
+      await wagApi.partner.confirmNewTime(id);
+      await load();
+    } catch (err: any) {
+      Alert.alert('Could not confirm', errMsg(err, 'Please try again.'));
+    } finally {
+      setReporting(false);
+    }
+  };
+
+  const submitProblem = async () => {
+    if (!id || !problem || reason.trim().length < 3) return;
+    setReporting(true);
+    try {
+      if (problem === 'release') {
+        await wagApi.partner.releaseJob(id, reason.trim());
+        Alert.alert('Job released', 'It has been offered to other partners and the desk has been told.', [
+          { text: 'OK', onPress: () => router.replace('/(tabs)/jobs') },
+        ]);
+      } else {
+        await wagApi.partner.stopJob(id, reason.trim());
+        Alert.alert('Desk alerted', 'The booking desk will call you shortly and decide what happens next.');
+        await load();
+      }
+      setProblem(null);
+      setReason('');
+    } catch (err: any) {
+      Alert.alert('Could not send', errMsg(err, 'Please try again.'));
+    } finally {
+      setReporting(false);
+    }
+  };
+
+  // Customer not home: after waiting at the door (the server checks how long), with a photo of the door as proof.
+  const reportNoShow = async () => {
+    if (!id) return;
+    const perm = await ImagePicker.requestCameraPermissionsAsync();
+    if (!perm.granted) {
+      Alert.alert('Camera needed', 'Allow camera access to photograph the door.');
+      return;
+    }
+    const result = await ImagePicker.launchCameraAsync({ quality: 0.6 });
+    if (result.canceled || !result.assets[0]) return;
+    setReporting(true);
+    try {
+      const url = await wagApi.partner.uploadJobPhoto(id, asUpload(result.assets[0]));
+      await wagApi.partner.customerNotAvailable(id, url);
+      Alert.alert('Desk alerted', 'The customer and the booking desk have been told. Please wait for the desk to call you.');
+      await load();
+    } catch (err: any) {
+      Alert.alert(err?.response?.data?.code === 'WAIT_LONGER' ? 'Please wait a little longer' : 'Could not send', errMsg(err, 'Please try again.'));
+    } finally {
+      setReporting(false);
+    }
+  };
 
   const toggleCheck = (item: string) => {
     setChecked((prev) => {
@@ -205,12 +278,44 @@ export default function JobDetailScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        {booking.reconfirmBy && ['assigned', 'accepted'].includes(status) ? (
+          <View style={styles.reconfirm}>
+            <Text style={styles.reconfirmTitle}>This booking was moved</Text>
+            <Text style={styles.reconfirmText}>
+              New time: {booking.scheduledAt ? new Date(booking.scheduledAt).toLocaleString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }) : '—'}.
+              {' '}Confirm by {new Date(booking.reconfirmBy).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' })}, or it goes to other partners.
+            </Text>
+            <View style={{ flexDirection: 'row', gap: spacing[2], marginTop: spacing[3] }}>
+              <View style={{ flex: 1 }}><Button onPress={confirmTime} loading={reporting} fullWidth>I can do it</Button></View>
+              <View style={{ flex: 1 }}><Button variant="outline" onPress={() => { setProblem('release'); setReason('Cannot make the new time'); }} fullWidth>I can't</Button></View>
+            </View>
+          </View>
+        ) : null}
+        {booking.staffFlag && ['customer_not_available', 'stopped'].includes(booking.staffFlag) ? (
+          <View style={[styles.reconfirm, { backgroundColor: colors.errorLight }]}>
+            <Text style={[styles.reconfirmTitle, { color: colors.error }]}>Waiting for the desk</Text>
+            <Text style={[styles.reconfirmText, { color: colors.error }]}>You reported: {booking.staffFlag === 'stopped' ? 'job stopped' : 'customer not available'}{booking.staffFlagNote ? ` (${booking.staffFlagNote})` : ''}. The desk will call you.</Text>
+          </View>
+        ) : null}
+
         {/* Pet summary */}
         <Card style={styles.section}>
           <View style={styles.sectionTitleRow}>
             <Icon name="paw" size={15} color={colors.textPrimary} />
             <Text style={styles.sectionTitle}>Pet Details</Text>
           </View>
+          {booking.wpRef ? (
+            <Text style={styles.sourceLine}>{booking.wpSource === 'App' ? 'App booking' : `${booking.wpSource ?? 'Website'} booking`} · {booking.wpRef}</Text>
+          ) : null}
+          {booking.petAggression ? (
+            <View style={[styles.careNote, !/^calm/i.test(booking.petAggression) && { backgroundColor: colors.errorLight }]}>
+              <View style={styles.careNoteTitleRow}>
+                <Icon name="alert" size={13} color={/^calm/i.test(booking.petAggression) ? colors.warning : colors.error} />
+                <Text style={[styles.careNoteTitle, !/^calm/i.test(booking.petAggression) && { color: colors.error }]}>Temperament</Text>
+              </View>
+              <Text style={[styles.careNoteText, !/^calm/i.test(booking.petAggression) && { color: colors.error }]}>{booking.petAggression}</Text>
+            </View>
+          ) : null}
           <InfoRow label="Pet" value={`${booking.petName} — ${booking.petSpecies === 'cat' ? 'Cat' : 'Dog'}, ${booking.petBreed}`} />
           <InfoRow label="Size" value={booking.petSize} />
           {booking.pet?.weightKg && <InfoRow label="Weight" value={`${booking.pet.weightKg} kg`} />}
@@ -351,21 +456,30 @@ export default function JobDetailScreen() {
             <Text style={styles.sectionTitle}>Your Payout</Text>
           </View>
           <View style={styles.payoutRow}>
-            <Text style={styles.payoutLabel}>Booking total</Text>
-            <Text style={styles.payoutValue}>₹{booking.total}</Text>
+            <Text style={styles.payoutLabel}>Booking total{booking.paymentStatus === 'paid' ? ' (paid)' : ' (collect after service)'}</Text>
+            <Text style={styles.payoutValue}>₹{Number(booking.total)}</Text>
           </View>
-          <View style={styles.payoutRow}>
-            <Text style={styles.payoutLabel}>Platform fee (20%)</Text>
-            <Text style={[styles.payoutValue, { color: colors.error }]}>
-              -₹{Math.round(Number(booking.total) * 0.20)}
-            </Text>
-          </View>
-          <View style={[styles.payoutRow, styles.payoutTotal]}>
-            <Text style={styles.payoutTotalLabel}>Your earnings</Text>
-            <Text style={styles.payoutTotalValue}>
-              ₹{Math.round(Number(booking.total) * 0.80)}
-            </Text>
-          </View>
+          {booking.commissionPct != null && Number(booking.commissionPct) === 0 ? (
+            <View style={[styles.payoutRow, styles.payoutTotal]}>
+              <Text style={styles.payoutTotalLabel}>Team job</Text>
+              <Text style={[styles.payoutValue, { color: colors.textMuted }]}>Salaried, no per-job split</Text>
+            </View>
+          ) : (
+            <>
+              <View style={styles.payoutRow}>
+                <Text style={styles.payoutLabel}>Platform fee{booking.commissionPct != null ? ` (${Number(booking.commissionPct)}%)` : ''}</Text>
+                <Text style={[styles.payoutValue, { color: colors.error }]}>
+                  -₹{booking.commissionAmount != null ? Number(booking.commissionAmount) : Math.round(Number(booking.total) * 0.20)}
+                </Text>
+              </View>
+              <View style={[styles.payoutRow, styles.payoutTotal]}>
+                <Text style={styles.payoutTotalLabel}>Your earnings</Text>
+                <Text style={styles.payoutTotalValue}>
+                  ₹{booking.partnerShareAmount != null ? Number(booking.partnerShareAmount) : Math.round(Number(booking.total) * 0.80)}
+                </Text>
+              </View>
+            </>
+          )}
         </Card>
 
         {/* Action buttons */}
@@ -454,6 +568,45 @@ export default function JobDetailScreen() {
               <Text style={styles.completedText}>Job completed</Text>
             </View>
           )}
+
+          {/* Problems (flows 4.4): release before arriving, customer not home at the door, stop an unsafe job */}
+          {['assigned', 'accepted', 'partner_on_the_way', 'arrived', 'in_progress'].includes(status) && (
+            <View style={styles.problemBox}>
+              <Text style={styles.problemTitle}>Problem with this job?</Text>
+              {problem ? (
+                <View style={{ gap: spacing[2] }}>
+                  <Text style={styles.problemHint}>
+                    {problem === 'release' ? 'Why can you not do this job? It will be offered to other partners.' : 'Why does the job have to stop? The desk will call you.'}
+                  </Text>
+                  <TextInput
+                    style={styles.reasonInput}
+                    value={reason}
+                    onChangeText={setReason}
+                    placeholder={problem === 'release' ? 'e.g. bike broke down' : 'e.g. dog is biting, not safe to continue'}
+                    multiline
+                    maxLength={200}
+                    accessibilityLabel="Reason"
+                  />
+                  <View style={{ flexDirection: 'row', gap: spacing[2] }}>
+                    <View style={{ flex: 1 }}><Button variant="outline" onPress={() => { setProblem(null); setReason(''); }} fullWidth>Back</Button></View>
+                    <View style={{ flex: 1 }}><Button onPress={submitProblem} loading={reporting} disabled={reason.trim().length < 3} fullWidth>{problem === 'release' ? 'Release job' : 'Alert the desk'}</Button></View>
+                  </View>
+                </View>
+              ) : (
+                <View style={{ gap: spacing[2] }}>
+                  {['assigned', 'accepted', 'partner_on_the_way'].includes(status) && (
+                    <Button variant="outline" onPress={() => setProblem('release')} fullWidth>I can't do this job</Button>
+                  )}
+                  {status === 'arrived' && (
+                    <Button variant="outline" onPress={reportNoShow} loading={reporting} fullWidth>Customer not available</Button>
+                  )}
+                  {['arrived', 'in_progress'].includes(status) && (
+                    <Button variant="outline" onPress={() => setProblem('stop')} fullWidth>Stop the job (unsafe)</Button>
+                  )}
+                </View>
+              )}
+            </View>
+          )}
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -521,6 +674,14 @@ const styles = StyleSheet.create({
     fontWeight: '800', letterSpacing: 8, textAlign: 'center', color: colors.textPrimary,
     fontFamily: 'Inter', backgroundColor: colors.white,
   },
+  sourceLine: { fontFamily: 'Inter', fontSize: 12, fontWeight: '600', color: colors.textMuted, marginBottom: spacing[2] },
+  reconfirm: { marginHorizontal: spacing[4], marginBottom: spacing[3], backgroundColor: colors.warningLight, borderRadius: radii.xl, padding: spacing[4] },
+  reconfirmTitle: { fontFamily: 'Inter', fontSize: 15, fontWeight: '800', color: colors.warning },
+  reconfirmText: { fontFamily: 'Inter', fontSize: 13, color: colors.warning, marginTop: 4, lineHeight: 19 },
+  problemBox: { marginTop: spacing[6], borderTopWidth: 1, borderTopColor: colors.borderLight, paddingTop: spacing[4], gap: spacing[3] },
+  problemTitle: { fontFamily: 'Inter', fontSize: 14, fontWeight: '800', color: colors.textSecondary },
+  problemHint: { fontFamily: 'Inter', fontSize: 13, color: colors.textMuted },
+  reasonInput: { borderWidth: 1.5, borderColor: colors.borderLight, borderRadius: radii.md, padding: spacing[3], minHeight: 70, fontFamily: 'Inter', fontSize: 14, color: colors.textPrimary, backgroundColor: colors.white, textAlignVertical: 'top' },
   infoRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: spacing[2], borderBottomWidth: 1, borderBottomColor: colors.borderLight },
   infoLabel: { fontFamily: 'Inter', fontSize: 13, color: colors.textMuted },
   infoValue: { fontFamily: 'Inter', fontSize: 13, fontWeight: '600', color: colors.textPrimary, maxWidth: '60%', textAlign: 'right' },

@@ -1,0 +1,60 @@
+# Local staging copy of the client's WordPress site: WordPress + WooCommerce + the wag-and-tails plugin.
+# The plugin is mounted from /wp-plugin, so edits are live. Never point this at the live database.
+# Start:  docker compose -f infra/wp-staging/docker-compose.yml up -d
+# Setup:  bash infra/wp-staging/setup.sh   (first time, or to reset sample data)
+# Site:   http://localhost:8090   Admin: http://localhost:8090/wp-admin  (admin / admin12345)
+name: wag-wp-staging
+services:
+  db:
+    image: mysql:8.0
+    environment:
+      MYSQL_DATABASE: wordpress
+      MYSQL_USER: wp
+      MYSQL_PASSWORD: wp
+      MYSQL_ROOT_PASSWORD: root
+    volumes: [db:/var/lib/mysql]
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-proot"]
+      interval: 5s
+      retries: 30
+  wordpress:
+    image: wordpress:6.8-php8.2-apache
+    depends_on:
+      db: { condition: service_healthy }
+    ports: ["8090:80"]
+    environment:
+      WORDPRESS_DB_HOST: db
+      WORDPRESS_DB_USER: wp
+      WORDPRESS_DB_PASSWORD: wp
+      WORDPRESS_DB_NAME: wordpress
+      WORDPRESS_CONFIG_EXTRA: |
+        define('WP_ENVIRONMENT_TYPE', 'local');
+        define('WT_CONNECTOR_SECRET', getenv('WT_CONNECTOR_SECRET') ?: 'local-dev-connector-secret-change-me');
+        define('WT_CONNECTOR_URL', getenv('WT_CONNECTOR_URL') ?: 'http://host.docker.internal:3001/api/v1/connector/events');
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    volumes:
+      - wp:/var/www/html
+      - ../../wp-plugin:/var/www/html/wp-content/plugins/wag-and-tails
+  cli:
+    image: wordpress:cli-php8.2
+    depends_on: [wordpress]
+    user: "33:33"
+    environment:
+      WORDPRESS_DB_HOST: db
+      WORDPRESS_DB_USER: wp
+      WORDPRESS_DB_PASSWORD: wp
+      WORDPRESS_DB_NAME: wordpress
+      # Same extra config as the web container (wp-config.php reads it from the environment at runtime).
+      WORDPRESS_CONFIG_EXTRA: |
+        define('WP_ENVIRONMENT_TYPE', 'local');
+        define('WT_CONNECTOR_SECRET', getenv('WT_CONNECTOR_SECRET') ?: 'local-dev-connector-secret-change-me');
+        define('WT_CONNECTOR_URL', getenv('WT_CONNECTOR_URL') ?: 'http://host.docker.internal:3001/api/v1/connector/events');
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    volumes:
+      - wp:/var/www/html
+      - ../../wp-plugin:/var/www/html/wp-content/plugins/wag-and-tails
+      - ./:/staging:ro
+    entrypoint: ["sleep", "infinity"]
+volumes:
+  db:
+  wp:

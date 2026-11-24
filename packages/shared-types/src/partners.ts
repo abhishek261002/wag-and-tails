@@ -91,4 +91,18 @@ export interface PartnerJobCard {
   /** The customer chose this partner specifically; declining tells the customer to pick someone else. */
   isDirectRequest?: boolean;
   requestExpiresAt?: string | null;
+  /** The website's aggression level for the pet ("Mild — nervous with strangers"), when the booking has one. */
+  petAggression?: string | null;
+  /** Where the booking came from: App, Website, Phone call, WhatsApp … */
+  source?: string;
+  /** The website booking reference (WT-…), when linked. */
+  bookingRef?: string | null;
+  /** Team partners are salaried: their offer shows no per-job earning. */
+  salaried?: boolean;
+  total?: number;
+  paymentStatus?: string;
+  /** After a reschedule, confirm the new time before this moment or the job is offered again. */
+  reconfirmBy?: string | null;
+  staffFlag?: string | null;
+  staffFlagNote?: string | null;
 }

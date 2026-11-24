@@ -17,7 +17,8 @@ async function bootstrap() {
   const app = await NestFactory.create<NestFastifyApplication>(
     AppModule,
     new FastifyAdapter({ logger: false }),
-    { bufferLogs: true }
+    // rawBody: the WordPress plugin's signed messages are checked against the exact bytes sent (wp.controller.ts).
+    { bufferLogs: true, rawBody: true }
   );
 
   // Without this, FilesController's `req.file()` is always undefined —

@@ -172,6 +172,12 @@ export interface CreateGroomingBookingInput {
   /** "any" (default) lets any eligible partner claim it; "specific" reserves it for requestedPartnerId. */
   assignmentMode?: AssignmentMode;
   requestedPartnerId?: string;
+  /** Website connected: pay part of the price with reward points (the website applies its rules). */
+  usePoints?: boolean;
+  /** The total the customer saw; the booking is refused with PRICE_CHANGED if the website's price differs. */
+  expectTotal?: number;
+  /** The website city when one GPS city covers several (North/South/Navi Mumbai). */
+  cityId?: string;
 }
 
 export interface CreateWalkingBookingInput {

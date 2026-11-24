@@ -86,7 +86,7 @@ export default function BookingDetailScreen() {
             await wagApi.bookings.cancel(id!);
             load();
           } catch (err: any) {
-            Alert.alert('Error', err?.message ?? 'Could not cancel booking');
+            Alert.alert('Could not cancel', err?.message ?? 'Could not cancel booking');
           } finally {
             setCancelling(false);
           }
@@ -306,6 +306,17 @@ export default function BookingDetailScreen() {
               style={styles.actionBtn}
             >
               Rate & Review
+            </Button>
+          )}
+          {isCompleted && booking.wpRef && booking.completedAt && Date.now() - new Date(booking.completedAt).getTime() < 24 * 3600_000 && (
+            <Button
+              onPress={() => router.push({ pathname: '/account/complaints', params: { ref: booking.wpRef } } as any)}
+              variant="outline"
+              fullWidth
+              leftIcon={<Icon name="alert" size={16} color={colors.brandBrown} />}
+              style={styles.actionBtn}
+            >
+              Report a problem
             </Button>
           )}
           {CANCELLABLE.includes(booking.status) && (

@@ -211,16 +211,20 @@ export class CommissionService {
   async applyClaimPricing(bookingId: string, partnerId: string) {
     const [booking, partner, settings] = await Promise.all([
       this.prisma.booking.findUniqueOrThrow({ where: { id: bookingId } }),
-      this.prisma.partnerProfile.findUniqueOrThrow({ where: { userId: partnerId }, select: { commissionPct: true } }),
+      this.prisma.partnerProfile.findUniqueOrThrow({ where: { userId: partnerId }, select: { commissionPct: true, employmentType: true } }),
       loadSettings(this.prisma),
     ]);
     const discounts = await loadActiveDiscounts(this.prisma, [partnerId]);
     const pct = discounts.get(partnerId) ?? null;
+    // Website-linked bookings are priced by the website (one price list), so partner discounts do not apply.
+    // Team partners are salaried (decision 8A): no commission split, no dues, no payout share.
+    const salaried = partner.employmentType === 'team';
     const price = priceBooking({
-      subtotal: Number(booking.subtotal),
-      couponDiscount: Number(booking.discount),
-      partnerDiscountPct: pct && pct <= settings.maxPartnerDiscountPct ? pct : null,
-      commissionPct: partner.commissionPct == null ? settings.defaultCommissionPct : Number(partner.commissionPct),
+      // Website price as charged (after coupon and points); our own bookings start from subtotal and coupon.
+      subtotal: booking.wpRef ? Number(booking.total) : Number(booking.subtotal),
+      couponDiscount: booking.wpRef ? 0 : Number(booking.discount),
+      partnerDiscountPct: !booking.wpRef && !salaried && pct && pct <= settings.maxPartnerDiscountPct ? pct : null,
+      commissionPct: salaried ? 0 : partner.commissionPct == null ? settings.defaultCommissionPct : Number(partner.commissionPct),
     });
 
     await this.prisma.booking.update({
@@ -260,6 +264,20 @@ export class CommissionService {
     try {
       const booking = await this.prisma.booking.findUniqueOrThrow({ where: { id: bookingId } });
       const partnerId = booking.partnerId!;
+      // Team partners are salaried (decision 8A): the job is recorded, but no commission is owed and no payout made.
+      const who = await this.prisma.partnerProfile.findUniqueOrThrow({ where: { userId: partnerId }, select: { employmentType: true } });
+      if (who.employmentType === 'team') {
+        await this.prisma.booking.update({
+          where: { id: bookingId },
+          data: {
+            commissionPct: 0, commissionAmount: 0, partnerShareAmount: 0,
+            ...(booking.paymentMethod === 'cash_after_service' || booking.collectedAt
+              ? { paymentStatus: 'paid', collectedAt: booking.collectedAt ?? new Date(), collectedMethod: booking.collectedMethod ?? 'cash', collectedAmount: booking.collectedAmount ?? booking.total }
+              : {}),
+          },
+        });
+        return { mode: 'team' as const };
+      }
       let { commissionPct, commissionAmount, partnerShareAmount } = booking;
       if (commissionAmount == null || partnerShareAmount == null || commissionPct == null) {
         const [partner, settings] = await Promise.all([

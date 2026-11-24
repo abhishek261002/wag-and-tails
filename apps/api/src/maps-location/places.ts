@@ -46,8 +46,16 @@ export function isValidCoordinate(lat: unknown, lng: unknown): lat is number {
   );
 }
 
-/** Cities the business operates in. Override with SERVICE_CITIES="Kanpur,Lucknow,Delhi". */
+// When the WordPress plugin is connected, its city list (cities that take bookings) replaces SERVICE_CITIES.
+// Set by WpConfigSyncService after every sync and at start-up from the last synced copy.
+let syncedCities: string[] | null = null;
+export function setSyncedServiceCities(names: string[]) {
+  syncedCities = names.length ? [...names] : null;
+}
+
+/** Cities the business operates in: the website's cities, else SERVICE_CITIES="Kanpur,Lucknow,Delhi". */
 export function serviceCities(): string[] {
+  if (syncedCities) return [...syncedCities];
   const raw = process.env['SERVICE_CITIES'] ?? 'Kanpur,Lucknow,Delhi';
   return raw.split(',').map((c) => c.trim()).filter(Boolean);
 }

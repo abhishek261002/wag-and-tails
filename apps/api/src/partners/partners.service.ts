@@ -18,6 +18,14 @@ import { isLocationFilteringEnabled } from '../common/feature-flags.js';
 import { normalizeCity } from '../common/city.js';
 import { BUSINESS_CONFIG } from '../common/config.js';
 import { BookingType, PartnerEmploymentType, PartnerStatus, PetSpecies, Prisma } from '@prisma/client';
+import { WpJobsService } from '../wp/wp-jobs.service.js';
+import { WpBookingsService } from '../wp/wp-bookings.service.js';
+import { appRules } from '../wp/wp-link.js';
+
+// A partner may report "customer not available" only after waiting this long at the door.
+export const NO_SHOW_WAIT_MINUTES = () => Number(process.env['NO_SHOW_WAIT_MINUTES'] ?? appRules().noShowMins);
+// Flags that a partner taking the job settles (the desk no longer needs to act).
+const CLEARED_BY_CLAIM = ['no_partner', 'released', 'reconfirm_lapsed'];
 
 const MAX_JOB_PHOTOS = 10;
 // Photos and videos of a groomer's tools, reviewed by staff before approval.
@@ -47,7 +55,9 @@ export class PartnersService {
     private messagingService: MessagingService,
     private dispatch: DispatchService,
     private commission: CommissionService,
-    private tracking: TrackingService
+    private tracking: TrackingService,
+    private wpJobs: WpJobsService,
+    private wpBookings: WpBookingsService
   ) {}
 
   async getProfile(partnerId: string) {
@@ -252,6 +262,10 @@ export class PartnersService {
         status: b.status,
         isDirectRequest: b.assignmentMode === 'specific',
         requestExpiresAt: b.requestExpiresAt,
+        petAggression: b.petAggression,
+        source: b.wpSource ?? 'App',
+        bookingRef: b.wpRef,
+        salaried: partner.employmentType === 'team',
       }));
   }
 
@@ -302,7 +316,7 @@ export class PartnersService {
     const startOtp = generateOtp();
     const claimed = await this.prisma.booking.updateMany({
       where: { id: bookingId, status: 'needs_partner', partnerId: null, ...claimableBy(partnerId) },
-      data: { partnerId, status: 'assigned', startOtp },
+      data: { partnerId, status: 'assigned', startOtp, reconfirmBy: null, lateFlaggedAt: null },
     });
     if (claimed.count === 0) {
       throw new ConflictException({ code: 'JOB_TAKEN', message: 'Another partner just accepted this job' });
@@ -314,7 +328,12 @@ export class PartnersService {
     await this.commission.applyClaimPricing(bookingId, partnerId);
     const updated = await this.prisma.booking.findUniqueOrThrow({ where: { id: bookingId } });
 
+    if (updated.staffFlag && CLEARED_BY_CLAIM.includes(updated.staffFlag)) {
+      await this.prisma.booking.update({ where: { id: bookingId }, data: { staffFlag: null, staffFlagNote: null, staffFlagAt: null } });
+    }
     await this.notifyAssigned(bookingId, partnerId);
+    await this.wpJobs.jobChanged(bookingId, { transition: true });
+    if (updated.type === 'walking') await this.wpBookings.walkChanged(bookingId, 'Walker assigned');
     // Chat opens the moment a job is claimed, not on-demand when someone
     // first opens the messaging screen — so both sides can message from
     // the instant the partner is assigned.
@@ -337,6 +356,18 @@ export class PartnersService {
     if (merged.length > MAX_JOB_PHOTOS) throw new BadRequestException(`At most ${MAX_JOB_PHOTOS} before-photos per job`);
     const updated = await this.prisma.booking.update({ where: { id: bookingId }, data: { beforePhotos: merged }, select: { beforePhotos: true } });
     return { beforePhotos: updated.beforePhotos };
+  }
+
+  /**
+   * Move a job to its next step exactly once. Two taps (or two requests) at the same moment both pass the earlier
+   * "is it in the right state?" read; only the update that still finds the old state wins, the other is refused
+   * instead of doing the step twice (double pushes, double history, a second end code, a second settlement).
+   */
+  private async advanceOnce(bookingId: string, partnerId: string, from: string[], data: Record<string, unknown>, history: { status: string; note: string }) {
+    const res = await this.prisma.booking.updateMany({ where: { id: bookingId, partnerId, status: { in: from as any } }, data: data as any });
+    if (res.count === 0) throw new ConflictException({ code: 'ALREADY_DONE', message: 'This step was already done. Refresh the job.' });
+    await this.prisma.bookingStatusHistory.create({ data: { bookingId, status: history.status, changedBy: partnerId, note: history.note } });
+    return this.prisma.booking.findUniqueOrThrow({ where: { id: bookingId } });
   }
 
   private async notifyAssigned(bookingId: string, partnerId: string) {
@@ -396,6 +427,14 @@ export class PartnersService {
       durationMinutes: b.durationMinutes,
       partnerPayout: Math.round(Number(b.total) * (1 - BUSINESS_CONFIG.PLATFORM_COMMISSION_RATE)),
       status: b.status,
+      petAggression: b.petAggression,
+      source: b.wpSource ?? 'App',
+      bookingRef: b.wpRef,
+      total: Number(b.total),
+      paymentStatus: b.paymentStatus,
+      reconfirmBy: b.reconfirmBy,
+      staffFlag: b.staffFlag,
+      staffFlagNote: b.staffFlagNote,
     }));
   }
 
@@ -410,19 +449,18 @@ export class PartnersService {
     });
     if (!booking) throw new NotFoundException('Assigned job not found');
 
-    const updated = await this.prisma.booking.update({
-      where: { id: bookingId },
-      data: {
-        status: 'partner_on_the_way',
-        statusHistory: {
-          create: { status: 'partner_on_the_way', changedBy: partnerId, note: 'Partner is on the way' },
-        },
-      },
-    });
+    const updated = await this.advanceOnce(bookingId, partnerId, ['assigned', 'accepted'], {
+      status: 'partner_on_the_way',
+      reconfirmBy: null,
+      ...(booking.staffFlag === 'late' ? { staffFlag: null, staffFlagNote: null, staffFlagAt: null } : {}),
+    }, { status: 'partner_on_the_way', note: 'Partner is on the way' });
 
     this.realtime.emitToBooking(bookingId, 'booking:status_changed', {
       bookingId, status: 'partner_on_the_way', partnerId, updatedAt: updated.updatedAt.toISOString(),
     });
+    const withPlaces = await this.prisma.booking.findUnique({ where: { id: bookingId }, include: { address: true, partner: { select: { currentLat: true, currentLng: true } } } });
+    const eta = withPlaces ? await this.wpJobs.etaMins(withPlaces).catch(() => null) : null;
+    await this.wpJobs.jobChanged(bookingId, { transition: true, ...(eta != null ? { etaMins: eta } : {}) });
     return updated;
   }
 
@@ -432,19 +470,12 @@ export class PartnersService {
     });
     if (!booking) throw new NotFoundException('Job not on the way');
 
-    const updated = await this.prisma.booking.update({
-      where: { id: bookingId },
-      data: {
-        status: 'arrived',
-        statusHistory: {
-          create: { status: 'arrived', changedBy: partnerId, note: 'Partner has arrived' },
-        },
-      },
-    });
+    const updated = await this.advanceOnce(bookingId, partnerId, ['partner_on_the_way'], { status: 'arrived' }, { status: 'arrived', note: 'Partner has arrived' });
 
     this.realtime.emitToBooking(bookingId, 'booking:status_changed', {
       bookingId, status: 'arrived', partnerId, updatedAt: updated.updatedAt.toISOString(),
     });
+    await this.wpJobs.jobChanged(bookingId, { transition: true, etaMins: 0 });
     return updated;
   }
 
@@ -468,18 +499,7 @@ export class PartnersService {
     const endOtp = generateOtp();
     const sessionStartedAt = new Date();
 
-    const updated = await this.prisma.booking.update({
-      where: { id: bookingId },
-      data: {
-        status: 'in_progress',
-        startOtp: null,
-        endOtp,
-        sessionStartedAt,
-        statusHistory: {
-          create: { status: 'in_progress', changedBy: partnerId, note: 'Session started (OTP verified)' },
-        },
-      },
-    });
+    const updated = await this.advanceOnce(bookingId, partnerId, ['arrived'], { status: 'in_progress', startOtp: null, endOtp, sessionStartedAt }, { status: 'in_progress', note: 'Session started (OTP verified)' });
 
     // Walking sessions track a live GPS trail via WalkSession/WalkLocationPoint;
     // start one here so `partner:location_updated` events have somewhere to
@@ -498,6 +518,7 @@ export class PartnersService {
       sessionStartedAt: sessionStartedAt.toISOString(),
       updatedAt: updated.updatedAt.toISOString(),
     });
+    await this.wpJobs.jobChanged(bookingId, { transition: true });
     return updated;
   }
 
@@ -555,19 +576,13 @@ export class PartnersService {
       throw new BadRequestException('After-photos must be uploaded before completing the job');
     }
 
-    const updated = await this.prisma.booking.update({
-      where: { id: bookingId },
-      data: {
-        status: 'completed',
-        completedAt: new Date(),
-        endOtp: null,
-        afterPhotos: data.afterPhotos,
-        checklistCompleted: data.checklistItems,
-        statusHistory: {
-          create: { status: 'completed', changedBy: partnerId, note: 'Job completed' },
-        },
-      },
-    });
+    const updated = await this.advanceOnce(bookingId, partnerId, ['in_progress'], {
+      status: 'completed',
+      completedAt: new Date(),
+      endOtp: null,
+      afterPhotos: data.afterPhotos,
+      checklistCompleted: data.checklistItems,
+    }, { status: 'completed', note: 'Job completed' });
 
     // Post the finished job to the money books (commission owed, or online payout). Idempotent; a failure
     // here is retried by CommissionService.reconcile and must not fail the completion itself.
@@ -595,7 +610,71 @@ export class PartnersService {
     this.realtime.emitToBooking(bookingId, 'booking:status_changed', {
       bookingId, status: 'completed', partnerId, updatedAt: updated.updatedAt.toISOString(),
     });
+    // Website record: Completed with the payment mode (points, completion WhatsApp, reports).
+    if (booking.wpRef) {
+      if (booking.staffFlag) await this.prisma.booking.update({ where: { id: bookingId }, data: { staffFlag: null, staffFlagNote: null, staffFlagAt: null } });
+      await this.wpJobs.completed(bookingId);
+    }
+    if (booking.type === 'walking') await this.wpBookings.walkChanged(bookingId, 'Completed');
     return updated;
+  }
+
+  // ── Problems on a job (P1, flows 4.4) ────────────────────────────────────────
+
+  /** "Release job": the partner cannot do it after all. It is offered to everyone again and the desk is told. */
+  async releaseJob(bookingId: string, partnerId: string, reason: unknown) {
+    const why = typeof reason === 'string' ? reason.trim().slice(0, 200) : '';
+    if (why.length < 3) throw new BadRequestException('Tell us why you cannot do this job');
+    const b = await this.prisma.booking.findFirst({ where: { id: bookingId, partnerId, status: { in: ['assigned', 'accepted', 'partner_on_the_way'] } } });
+    if (!b) throw new NotFoundException('You can release a job only before you arrive');
+    const me = await this.prisma.partnerProfile.update({ where: { userId: partnerId }, data: { releaseCount: { increment: 1 } }, include: { user: { include: { profile: true } } } });
+    const name = me.user?.profile ? `${me.user.profile.firstName} ${me.user.profile.lastName}`.trim() : 'Partner';
+    const ok = await this.wpJobs.unassign(bookingId, partnerId, 'released', `${name}: ${why}`, partnerId);
+    if (!ok) throw new ConflictException('This job changed a moment ago. Refresh and try again.');
+    return { released: true };
+  }
+
+  /** The partner confirms the new time after a reschedule (otherwise the job is offered again after 2 hours). */
+  async confirmNewTime(bookingId: string, partnerId: string) {
+    const res = await this.prisma.booking.updateMany({ where: { id: bookingId, partnerId, reconfirmBy: { not: null } }, data: { reconfirmBy: null } });
+    if (!res.count) throw new NotFoundException('Nothing to confirm for this job');
+    await this.prisma.bookingStatusHistory.create({ data: { bookingId, status: 'assigned', changedBy: partnerId, note: 'Partner confirmed the new time' } });
+    await this.wpJobs.jobChanged(bookingId);
+    return { confirmed: true };
+  }
+
+  /** "Customer not available": after waiting at the door, with a photo as proof. The desk decides what happens. */
+  async customerNotAvailable(bookingId: string, partnerId: string, photoUrl: unknown) {
+    if (!isStoredPhotoUrl(photoUrl)) throw new BadRequestException('Take a photo at the door first');
+    const b = await this.prisma.booking.findFirst({ where: { id: bookingId, partnerId, status: 'arrived' } });
+    if (!b) throw new NotFoundException('Mark yourself arrived first');
+    // The arrival itself, not any later note written while the status is still "arrived" (a desk price change, a
+    // website sync): those must not restart the wait.
+    const arrived = await this.prisma.bookingStatusHistory.findFirst({ where: { bookingId, status: 'arrived', note: 'Partner has arrived' }, orderBy: { changedAt: 'desc' } });
+    const waited = arrived ? (Date.now() - arrived.changedAt.getTime()) / 60_000 : 0;
+    if (waited < NO_SHOW_WAIT_MINUTES()) {
+      throw new ConflictException({ code: 'WAIT_LONGER', message: `Please wait ${Math.ceil(NO_SHOW_WAIT_MINUTES() - waited)} more minutes and try calling the customer.`, minutesLeft: Math.ceil(NO_SHOW_WAIT_MINUTES() - waited) });
+    }
+    await this.prisma.booking.update({ where: { id: bookingId }, data: { noShowPhoto: photoUrl } });
+    await this.prisma.bookingStatusHistory.create({ data: { bookingId, status: 'arrived', changedBy: partnerId, note: 'Customer not available' } });
+    await this.wpJobs.flag(bookingId, 'customer_not_available', `waited ${Math.round(waited)} min`);
+    await this.notificationsService.sendPush(b.customerId, {
+      title: 'Your partner is at the door',
+      body: `Your partner has been waiting for ${Math.round(waited)} minutes for ${b.petName}. Please call them or our team.`,
+      data: { type: 'booking:no_show', bookingId },
+    }).catch(() => {});
+    return { reported: true };
+  }
+
+  /** "Stop job": the pet is unsafe or the job cannot go on. The desk is alerted and decides. */
+  async stopJob(bookingId: string, partnerId: string, reason: unknown) {
+    const why = typeof reason === 'string' ? reason.trim().slice(0, 200) : '';
+    if (why.length < 3) throw new BadRequestException('Tell us why the job has to stop');
+    const b = await this.prisma.booking.findFirst({ where: { id: bookingId, partnerId, status: { in: ['arrived', 'in_progress'] } } });
+    if (!b) throw new NotFoundException('Active job not found');
+    await this.prisma.bookingStatusHistory.create({ data: { bookingId, status: b.status, changedBy: partnerId, note: `Stopped: ${why}` } });
+    await this.wpJobs.flag(bookingId, 'stopped', why);
+    return { reported: true };
   }
 
   async getEarnings(partnerId: string) {

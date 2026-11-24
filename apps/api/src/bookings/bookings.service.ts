@@ -4,6 +4,7 @@ import {
   ForbiddenException,
   BadRequestException,
   UnprocessableEntityException,
+  ConflictException,
 } from '@nestjs/common';
 import { ModuleRef } from '@nestjs/core';
 import { RoutingService } from '../routing/routing.service.js';
@@ -20,6 +21,22 @@ import { speciesSupportsService } from '../common/species.js';
 import { isBefore, addHours } from 'date-fns';
 import { scheduleProblem, SCHEDULE_PROBLEM_MESSAGE } from '../common/scheduling.js';
 import { BookingType, BookingStatus, BookingChannel, PaymentMethod, Prisma } from '@prisma/client';
+import { randomUUID } from 'crypto';
+import { WpBookingsService } from '../wp/wp-bookings.service.js';
+import { WpJobsService } from '../wp/wp-jobs.service.js';
+import { WpOutboxService } from '../wp/wp-outbox.service.js';
+import { appRules, dateToIst, escalationDeadline } from '../wp/wp-link.js';
+
+// App customers may cancel or move a website-linked booking themselves up to this many hours before it (decision 6A;
+// set in the website's admin panel, or APP_SELF_SERVICE_CUTOFF_HOURS).
+export const selfServiceCutoffHours = () => Number(process.env['APP_SELF_SERVICE_CUTOFF_HOURS'] ?? appRules().cancelHours);
+
+/** "3 years" / "8 months" from a date of birth, for the website booking record. */
+function ageText(dob: Date | null | undefined): string {
+  if (!dob) return '';
+  const months = Math.max(0, Math.floor((Date.now() - dob.getTime()) / (30.44 * 86_400_000)));
+  return months >= 24 ? `${Math.floor(months / 12)} years` : months >= 12 ? '1 year' : `${Math.max(1, months)} months`;
+}
 
 // `include: { customer: ..., partner: { include: { user: ... } } }` pulls
 // the full User row on both sides — including passwordHash — straight
@@ -72,6 +89,20 @@ function customerSafePartner<T extends { status: string; partner?: any }>(bookin
   } as T;
 }
 
+// Fields of a booking that are the company's and the partner's business, never the customer's: the commission split,
+// settlement, and everything the booking desk uses to chase a job (timers, flags, the website revision, the public
+// tracking token). Removed from every response a customer receives.
+const INTERNAL_BOOKING_FIELDS = [
+  'commissionPct', 'commissionAmount', 'partnerShareAmount', 'settledAt',
+  'escalateAt', 'escalatedAt', 'staffFlag', 'staffFlagNote', 'staffFlagAt', 'reconfirmBy', 'lateFlaggedAt', 'noShowPhoto',
+  'trackToken', 'wpRev', 'wpStatus',
+] as const;
+function stripInternalForCustomer<T extends object>(booking: T): T {
+  const out: any = { ...booking };
+  for (const k of INTERNAL_BOOKING_FIELDS) delete out[k];
+  return out;
+}
+
 // Booking lists by meaning, for the apps' Home and Bookings screens:
 //  live     = a partner is being found or is on the job (Home "Happening now")
 //  upcoming = not finished yet (Bookings > Upcoming)
@@ -87,7 +118,10 @@ export class BookingsService {
     private couponsService: CouponsService,
     private dispatch: DispatchService,
     private moduleRef: ModuleRef,
-    private routing: RoutingService
+    private routing: RoutingService,
+    private wpBookings: WpBookingsService,
+    private wpJobs: WpJobsService,
+    private wpOutbox: WpOutboxService
   ) {}
 
   // Turns the customer's dispatch choice into booking fields, after checking the chosen partner can
@@ -302,7 +336,7 @@ export class BookingsService {
       this.prisma.booking.count({ where }),
     ]);
 
-    return { data: data.map((b) => customerSafePartner(stripBookingPasswordHashes(b))), total, page, pageSize };
+    return { data: data.map((b) => stripInternalForCustomer(customerSafePartner(stripBookingPasswordHashes(b)))), total, page, pageSize };
   }
 
   async listAll(filters: {
@@ -369,7 +403,7 @@ export class BookingsService {
     }
 
     const safe = stripBookingPasswordHashes(booking);
-    return { ...(requesterRole === 'customer' ? customerSafePartner(safe) : safe), dispatch: await this.dispatchInfo(booking) };
+    return { ...(requesterRole === 'customer' ? stripInternalForCustomer(customerSafePartner(safe)) : safe), dispatch: await this.dispatchInfo(booking) };
   }
 
   private async dispatchInfo(b: { assignmentMode: 'any' | 'specific'; requestedPartnerId: string | null; requestExpiresAt: Date | null; requestOutcome: string | null }) {
@@ -403,6 +437,7 @@ export class BookingsService {
     scheduledAt: string; addressId: string; notes?: string;
     couponCode?: string; paymentMethod: string; channel?: string;
     assignmentMode?: string; requestedPartnerId?: string;
+    usePoints?: boolean; expectTotal?: number; cityId?: string;
   }) {
     const scheduledAt = this.assertSchedulable(data.scheduledAt);
 
@@ -429,6 +464,11 @@ export class BookingsService {
     const addOns = addOnIds.length > 0
       ? await this.prisma.addOn.findMany({ where: { id: { in: addOnIds }, isActive: true } })
       : [];
+
+    // Website connected: the slot is reserved on the website first and priced there (B3).
+    if (this.wpBookings.enabled && pkg.wpId) {
+      return this.createLinkedGrooming(customerId, data, { pet, address, pkg: { ...pkg, wpId: pkg.wpId }, addOns, scheduledAt });
+    }
 
     // Calculate pricing
     let subtotal = Number(pkg.price) + addOns.reduce((s, a) => s + Number(a.price), 0);
@@ -510,6 +550,13 @@ export class BookingsService {
 
     const address = await this.prisma.address.findFirst({ where: { id: data.addressId, userId: customerId } });
     if (!address) throw new NotFoundException('Address not found');
+    // Walks run only where the website's walking switch is on (decision 11A).
+    if (this.wpBookings.enabled) {
+      const city = await this.wpBookings.cityFor(address.city);
+      if (!city?.walking) {
+        throw new UnprocessableEntityException({ code: 'WALKING_NOT_AVAILABLE', message: `Dog walking is not available in ${address.city} yet.` });
+      }
+    }
 
     let subtotal = Number(pricing.price);
     let discount = 0;
@@ -556,6 +603,7 @@ export class BookingsService {
       },
       include: { pet: true },
     });
+    await this.wpBookings.walkChanged(booking.id, 'Booked');
 
     return booking;
   }
@@ -593,6 +641,7 @@ export class BookingsService {
       where: { id: bookingId, customerId },
     });
     if (!booking) throw new NotFoundException('Booking not found');
+    if (booking.wpRef) return this.rescheduleLinked(booking, newTime, reason);
     if (!['confirmed', 'needs_partner', 'assigned'].includes(booking.status)) {
       throw new BadRequestException('Booking cannot be rescheduled in current status');
     }
@@ -623,8 +672,28 @@ export class BookingsService {
         // Late cancellation — allow but flag (fee logic handled by payment service)
       }
     }
+    // Website-linked booking: app customers cancel themselves only until the cut-off; after that the desk decides.
+    if (requesterRole === 'customer' && booking.wpRef) this.assertSelfService(booking.scheduledAt, booking.status, 'cancel');
 
-    return this.transition(bookingId, 'cancelled', requesterId, requesterRole, reason);
+    const updated = await this.transition(bookingId, 'cancelled', requesterId, requesterRole, reason);
+    if (booking.wpRef) await this.wpJobs.cancelled(bookingId, reason || 'No reason given', requesterRole === 'customer' ? 'Customer (app)' : requesterRole);
+    if (booking.type === 'walking') await this.wpBookings.walkChanged(bookingId, 'Cancelled');
+    if (booking.partnerId) {
+      await this.wpJobs.tellPartner(booking.partnerId, bookingId, 'job:removed', 'Booking cancelled', `${booking.petName}'s ${booking.type} was cancelled${reason ? ': ' + reason : ''}.`, { status: 'cancelled' });
+    }
+    return updated;
+  }
+
+  private assertSelfService(scheduledAt: Date | null, status: string, what: 'cancel' | 'move') {
+    if (!['pending_payment', 'confirmed', 'needs_partner', 'assigned', 'accepted'].includes(status)) {
+      throw new BadRequestException(`This booking can no longer be ${what === 'cancel' ? 'cancelled' : 'moved'} in the app. Please call or WhatsApp us.`);
+    }
+    if (scheduledAt && scheduledAt.getTime() - Date.now() < selfServiceCutoffHours() * 3600_000) {
+      throw new ForbiddenException({
+        code: 'SELF_SERVICE_CLOSED',
+        message: `Bookings can be ${what === 'cancel' ? 'cancelled' : 'moved'} in the app up to ${selfServiceCutoffHours()} hours before. Please call or WhatsApp us and we will help.`,
+      });
+    }
   }
 
   async getHistory(bookingId: string) {
@@ -647,10 +716,113 @@ export class BookingsService {
       data: {
         partnerId,
         status: 'assigned' as BookingStatus,
+        staffFlag: null, staffFlagNote: null,
         statusHistory: {
           create: { status: 'assigned', changedBy: staffId, note: `Partner assigned by staff` },
         },
       },
     });
+    await this.wpJobs.jobChanged(bookingId, { transition: true });
+  }
+
+  // ── Website-linked grooming (B3) ──────────────────────────────────────────────
+
+  private async createLinkedGrooming(
+    customerId: string,
+    data: { petId: string; packageId: string; notes?: string; couponCode?: string; paymentMethod: string; assignmentMode?: string; requestedPartnerId?: string; usePoints?: boolean; expectTotal?: number; cityId?: string },
+    ctx: { pet: any; address: any; pkg: { id: string; name: string; price: Prisma.Decimal; wpId: string }; addOns: { id: string; name: string; price: Prisma.Decimal }[]; scheduledAt: Date }
+  ) {
+    const { pet, address, pkg, addOns, scheduledAt } = ctx;
+    const city = await this.wpBookings.requireCity(address.city, data.cityId);
+    if (!/^\d{6}$/.test(String(address.pincode ?? ''))) {
+      throw new UnprocessableEntityException({ code: 'ADDRESS_INCOMPLETE', message: 'Add the 6-digit pincode to this address first.' });
+    }
+    const user = await this.prisma.user.findUniqueOrThrow({ where: { id: customerId }, include: { profile: true } });
+    const route = await this.resolveDispatch(data, { type: 'grooming', species: pet.species, city: address.city });
+    const careNote = await this.prisma.petCareNote.findFirst({ where: { petId: pet.id }, orderBy: { createdAt: 'desc' } });
+    const id = randomUUID();
+    const payOnline = data.paymentMethod !== 'cash_after_service';
+    const name = user.profile ? `${user.profile.firstName} ${user.profile.lastName}`.trim() : 'App customer';
+    const addressText = [address.line1, address.line2, address.city].filter(Boolean).join(', ');
+
+    const rec = await this.wpBookings.reserve({
+      jobId: id, cityId: city.id, pkgWpId: pkg.wpId, petType: pet.species === 'cat' ? 'Cat' : 'Dog', petName: pet.name, breed: pet.breed,
+      gender: pet.sex === 'female' ? 'Female' : 'Male', age: ageText(pet.dateOfBirth), aggression: pet.temperament,
+      name: name.length >= 2 ? name : 'App customer', email: user.email, phone: user.phone, address: addressText, pincode: String(address.pincode),
+      lat: address.lat, lng: address.lng, scheduledAt, coupon: data.couponCode ?? null, usePts: !!data.usePoints,
+      notes: [data.notes, careNote?.note].filter(Boolean).join(' · ') || null,
+      extras: addOns.map((a) => ({ name: a.name, price: Number(a.price) })), payOnline,
+      expectTotal: typeof data.expectTotal === 'number' ? data.expectTotal : null,
+    });
+
+    const discount = Number(rec.discount ?? 0) + Number(rec.ptsDiscount ?? 0);
+    try {
+      return await this.prisma.booking.create({
+        data: {
+          id,
+          type: 'grooming' as BookingType,
+          status: 'pending_payment' as BookingStatus,
+          customerId,
+          petId: pet.id, petName: pet.name, petSpecies: pet.species, petBreed: pet.breed, petSize: pet.size,
+          petCareNotes: careNote?.note ?? null,
+          petAggression: rec.aggression ?? null,
+          ...route,
+          packageId: pkg.id, packageName: pkg.name, packagePrice: Number(rec.subtotal ?? pkg.price) - addOns.reduce((s, a) => s + Number(a.price), 0),
+          scheduledAt,
+          addressId: address.id,
+          addressLine: `${address.line1}, ${address.city}`,
+          channel: 'app' as BookingChannel,
+          notes: data.notes ?? null,
+          subtotal: Number(rec.subtotal ?? 0),
+          discount,
+          total: Number(rec.total ?? 0),
+          couponCode: rec.coupon || null,
+          paymentMethod: data.paymentMethod as PaymentMethod,
+          paymentStatus: 'pending' as const,
+          wpRef: rec.id, wpRev: Number(rec._rev) || null, wpSource: 'App', wpCityId: city.id, wpStatus: rec.status ?? null,
+          addOns: { create: addOns.map((a) => ({ addOnId: a.id, name: a.name, price: a.price })) },
+          statusHistory: { create: { status: 'pending_payment', changedBy: customerId, note: `Reserved on the website as ${rec.id}` } },
+        },
+        include: { addOns: { include: { addOn: true } }, pet: true },
+      });
+    } catch (e) {
+      // The slot is held on the website but our job could not be saved: release it so nobody is blocked.
+      await this.wpOutbox.enqueue('action', `action:${id}:cancel`, { path: `bookings/${rec.id}/action`, body: { action: 'cancel', reason: 'Other', details: 'App booking could not be completed', actor: 'App' } }, null);
+      throw e;
+    }
+  }
+
+  private async rescheduleLinked(booking: { id: string; wpRef: string | null; status: string; scheduledAt: Date | null; partnerId: string | null; customerId: string; packageId: string | null; petName: string }, newTime: Date, reason?: string) {
+    this.assertSelfService(booking.scheduledAt, booking.status, 'move');
+    if (booking.scheduledAt && booking.scheduledAt.getTime() === newTime.getTime()) {
+      throw new BadRequestException({ code: 'SAME_TIME', message: 'That is the time you already have. Please pick a different time.' });
+    }
+    // The new time must be free on the website's calendar (this booking itself does not count).
+    const pkg = booking.packageId ? await this.prisma.groomingPackage.findUnique({ where: { id: booking.packageId }, select: { wpId: true } }) : null;
+    const full = await this.prisma.booking.findUniqueOrThrow({ where: { id: booking.id }, include: { address: true } });
+    const { date, start } = dateToIst(newTime);
+    const res = await this.wpBookings.slots(full.wpCityId ?? '', date, pkg?.wpId ?? null, null, booking.wpRef);
+    const slot = (res.slots ?? []).find((s) => s.start === start);
+    if (!slot || !slot.free) throw new ConflictException({ code: 'SLOT_TAKEN', message: 'That time is not free. Please choose another slot.' });
+
+    const keepPartner = !!booking.partnerId && ['assigned', 'accepted'].includes(booking.status);
+    const updated = await this.prisma.booking.update({
+      where: { id: booking.id },
+      data: {
+        scheduledAt: newTime,
+        lateFlaggedAt: null,
+        ...(keepPartner ? { reconfirmBy: new Date(Date.now() + appRules().reconfirmHours * 3600_000) } : {}),
+        ...(booking.status === 'needs_partner' ? { escalateAt: escalationDeadline(new Date(), newTime), escalatedAt: null } : {}),
+        statusHistory: { create: { status: booking.status, changedBy: booking.customerId, note: `Rescheduled by the customer: ${reason ?? 'no reason'}` } },
+      },
+    });
+    await this.wpJobs.rescheduled(booking.id, reason ?? 'Moved by the customer in the app');
+    if (keepPartner) {
+      await this.wpJobs.tellPartner(booking.partnerId!, booking.id, 'job:updated', 'Job rescheduled',
+        `${booking.petName}'s grooming moved to ${date} ${start}. Please confirm the new time within ${appRules().reconfirmHours} hours.`, { changes: ['time'], reconfirmBy: updated.reconfirmBy });
+    } else if (booking.status === 'needs_partner') {
+      await this.wpJobs.announce(booking.id);
+    }
+    return updated;
   }
 }

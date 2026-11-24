@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -7,12 +7,19 @@ import { colors, spacing, typography, radii } from '@wag/design-tokens';
 import { wagApi } from '../../src/lib/api';
 import { format } from 'date-fns';
 import { SlotPicker } from '../../src/components/SlotPicker';
+import { WebsiteSlotPicker } from '../../src/components/WebsiteSlotPicker';
+import { errorMessage, useBookingConfig } from '../../src/lib/website';
 import { goBack } from '../../src/lib/nav';
 
 export default function RescheduleScreen() {
   const { id: bookingId } = useLocalSearchParams<{ id: string }>();
   const [when, setWhen] = useState<Date | null>(null);
   const [loading, setLoading] = useState(false);
+  const cfg = useBookingConfig();
+  // A website-linked grooming booking moves within the website's calendar (its own slot does not count as taken).
+  const [booking, setBooking] = useState<any>(null);
+  useEffect(() => { if (bookingId) wagApi.bookings.get(bookingId).then(setBooking).catch(() => setBooking({})); }, [bookingId]);
+  const website = !!cfg?.connected && !!booking?.wpRef && booking?.type === 'grooming' && !!booking?.packageId;
 
   const handleConfirm = async () => {
     if (!when) {
@@ -27,7 +34,7 @@ export default function RescheduleScreen() {
         { text: 'OK', onPress: () => goBack() },
       ]);
     } catch (err: any) {
-      Alert.alert('Error', err?.message ?? 'Could not reschedule');
+      Alert.alert('Could not reschedule', errorMessage(err, 'Could not reschedule'));
     } finally {
       setLoading(false);
     }
@@ -44,7 +51,16 @@ export default function RescheduleScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.content}>
-        <SlotPicker onChange={setWhen} dateLabel="CHOOSE NEW DATE" timeLabel="CHOOSE NEW TIME" />
+        {booking === null || cfg === null ? null : website ? (
+          <WebsiteSlotPicker packageId={booking.packageId} addressId={booking.addressId} cityId={booking.wpCityId} bookingId={bookingId} daysAhead={cfg.maxDaysAhead ?? 10} onChange={setWhen} />
+        ) : (
+          <SlotPicker onChange={setWhen} dateLabel="CHOOSE NEW DATE" timeLabel="CHOOSE NEW TIME" />
+        )}
+        {website ? (
+          <Text style={{ fontFamily: 'Inter', fontSize: 12, color: colors.textMuted, marginTop: spacing[4] }}>
+            You can move a booking here up to {cfg?.selfServiceCutoffHours ?? 4} hours before it. Closer to the time, please call or WhatsApp us.
+          </Text>
+        ) : null}
 
         {when && (
           <View style={[styles.confirmBox, { flexDirection: 'row', alignItems: 'center', gap: spacing[2] }]}>

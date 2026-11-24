@@ -32,7 +32,20 @@ type PartnerJobCard = {
   status: string;
   isDirectRequest?: boolean;
   requestExpiresAt?: string | null;
+  petAggression?: string | null;
+  source?: string;
+  salaried?: boolean;
+  reconfirmBy?: string | null;
+  staffFlag?: string | null;
 };
+
+/** "Today 11:30 am" / "Sat 22 Nov, 9:00 am": website jobs are often days ahead. */
+function when(at: string) {
+  const d = new Date(at);
+  const time = d.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' });
+  return d.toDateString() === new Date().toDateString() ? `Today ${time}` : `${d.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })}, ${time}`;
+}
+const calm = (a?: string | null) => !a || /^calm/i.test(a);
 
 type IncomingJob = {
   bookingId: string;
@@ -135,9 +148,12 @@ export default function JobsScreen() {
       load();
       notifyIfBackgrounded('New walk request', job);
     });
+    // The booking desk can assign a job to this partner, take one back, move it or change its price.
+    const offDesk = ['job:assigned', 'job:removed', 'job:updated'].map((ev) => wagApi.realtime.on(ev, () => { load(); }));
     return () => {
       offJob();
       offWalk();
+      offDesk.forEach((off) => off());
       wagApi.realtime.disconnect();
     };
   }, [isOnline, load]);
@@ -382,11 +398,13 @@ function OpenJobCard({ job, claiming, onClaim, onDecline }: { job: PartnerJobCar
         <View style={{ flex: 1, minWidth: 0 }}>
           <View style={styles.jobcardTitleRow}>
             <Text style={styles.jobcardName} numberOfLines={1}>{job.packageName ?? job.petBreed}</Text>
-            <Text style={styles.jobcardPayout}>₹{job.partnerPayout}</Text>
+            <Text style={styles.jobcardPayout}>{job.salaried ? 'Team job' : `₹${job.partnerPayout}`}</Text>
           </View>
           <Text style={styles.jobcardMeta} numberOfLines={1}>{job.petName} · {job.petSpecies === 'cat' ? 'Cat' : 'Dog'} · {job.petBreed} · {job.petSize}{job.petWeightKg ? `, ${job.petWeightKg}kg` : ''}</Text>
           <View style={styles.pillRow}>
-            {job.scheduledAt && <Pill label={new Date(job.scheduledAt).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' })} />}
+            {job.scheduledAt && <Pill label={when(job.scheduledAt)} />}
+            {job.source && job.source !== 'App' && <Pill label={job.source} />}
+            {job.petAggression && !calm(job.petAggression) && <Pill label={job.petAggression.split('—')[0].trim()} accent />}
             <Pill label={`${job.distanceKm.toFixed(1)} km`} />
             {job.durationMinutes ? <Pill label={`${job.durationMinutes} min`} /> : null}
             {job.isDirectRequest && <Pill label="Requested for you" accent />}
@@ -428,6 +446,11 @@ function AssignedJobCard({ job }: { job: PartnerJobCard }) {
             <Text style={styles.jobcardPayout}>₹{job.partnerPayout}</Text>
           </View>
           <Text style={styles.jobcardMeta} numberOfLines={1}>{job.petName} · {job.petSpecies === 'cat' ? 'Cat' : 'Dog'} · {job.petBreed} · {job.customerName}</Text>
+          <View style={styles.pillRow}>
+            {job.scheduledAt && <Pill label={when(job.scheduledAt)} />}
+            {job.reconfirmBy && <Pill label="Confirm new time" accent />}
+            {job.petAggression && !calm(job.petAggression) && <Pill label={job.petAggression.split('—')[0].trim()} accent />}
+          </View>
         </View>
       </View>
     </TouchableOpacity>

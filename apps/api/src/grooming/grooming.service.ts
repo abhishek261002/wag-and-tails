@@ -1,6 +1,10 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { addHours, isAfter } from 'date-fns';
+import { managedByWebsite, wpPriceListOn } from '../wp/wp-managed.js';
+import { matchWpCity } from '../wp/wp-config-map.js';
+import { WpBookingsService } from '../wp/wp-bookings.service.js';
+import { istToDate } from '../wp/wp-link.js';
 
 // Packages store their services as ordered rows (`items`); the apps and the admin panel read a plain
 // `inclusions: string[]`. Every package response goes through this so the two never drift apart again.
@@ -17,7 +21,7 @@ const REAL_BOOKING = { notIn: ['draft', 'pending_payment', 'cancelled', 'refunde
 
 @Injectable()
 export class GroomingService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService, private wpBookings: WpBookingsService) {}
 
   /**
    * The active packages, cheapest first (so the list reads as a ladder), each with `tags`:
@@ -25,14 +29,25 @@ export class GroomingService {
    *  - best_value: the lowest price per included service (needs two or more packages to compare);
    *  - previously_booked: this customer has booked it before (for this pet, when `petId` is given).
    * A package can carry several tags; the app shows the most useful two.
+   * With `city` (a website city's name or id), prices are that city's website prices and packages the
+   * website does not price there are left out; `cityId` in the answer says which website city was used.
    */
-  async getPackages(customerId?: string, petId?: string) {
+  async getPackages(customerId?: string, petId?: string, city?: string) {
     const rows = await this.prisma.groomingPackage.findMany({
       where: { isActive: true },
-      include: ITEMS,
+      include: { ...ITEMS, cityPrices: true },
       orderBy: [{ price: 'asc' }, { name: 'asc' }],
     });
-    const packages = rows.map(present);
+    const wpCity = city ? matchWpCity(await this.prisma.wpCity.findMany({ where: { present: true } }), city) : null;
+    const priced = rows
+      .map((r) => {
+        const cp = wpCity ? r.cityPrices.find((c) => c.cityId === wpCity.id) : undefined;
+        if (wpCity && r.wpId && !cp) return null;
+        return { ...r, price: cp ? cp.price : r.price, cityId: cp ? wpCity!.id : null };
+      })
+      .filter((r): r is NonNullable<typeof r> => r !== null)
+      .sort((a, b) => Number(a.price) - Number(b.price) || a.name.localeCompare(b.name));
+    const packages = priced.map(present);
     const ids = packages.map((p) => p.id);
     const tags = new Map<string, PackageTag[]>(ids.map((id) => [id, []]));
 
@@ -79,7 +94,21 @@ export class GroomingService {
     return this.prisma.addOn.findMany({ where: { isActive: true }, orderBy: { name: 'asc' } });
   }
 
-  async getAvailableSlots(packageId: string, date: string, addressId: string): Promise<string[]> {
+  async getAvailableSlots(packageId: string, date: string, addressId: string, cityId?: string, excludeBookingId?: string): Promise<string[]> {
+    // With the website connected, slots come from its calendar (city capacity, buffer, holidays), so the website and
+    // the app can never double-book (ground rule 2). The answer keeps the same shape: start times as ISO instants.
+    if (this.wpBookings.enabled) {
+      const pkg = await this.prisma.groomingPackage.findUnique({ where: { id: packageId }, select: { wpId: true, durationMinutes: true } });
+      if (pkg?.wpId) {
+        const addr = addressId ? await this.prisma.address.findUnique({ where: { id: addressId }, select: { city: true } }) : null;
+        const city = await this.wpBookings.requireCity(addr?.city, cityId);
+        const day = /^\d{4}-\d{2}-\d{2}/.exec(String(date))?.[0];
+        if (!day) throw new BadRequestException('date must be YYYY-MM-DD');
+        const ref = excludeBookingId ? (await this.prisma.booking.findUnique({ where: { id: excludeBookingId }, select: { wpRef: true } }))?.wpRef : null;
+        const res = await this.wpBookings.slots(city.id, day, pkg.wpId, null, ref);
+        return (res.slots ?? []).filter((s) => s.free).map((s) => istToDate(day, s.start)?.toISOString()).filter((s): s is string => !!s);
+      }
+    }
     // Generate time slots for the given date (09:00–18:00, 1h intervals)
     const slots: string[] = [];
     const targetDate = new Date(date);
@@ -114,6 +143,7 @@ export class GroomingService {
     name: string; mrp: number; price: number; description?: string;
     inclusions: string[];
   }) {
+    if (wpPriceListOn()) throw managedByWebsite('Grooming packages and their prices');
     const { inclusions, ...pkg } = data;
     return present(await this.prisma.groomingPackage.create({
       data: {
@@ -129,8 +159,10 @@ export class GroomingService {
   async updatePackage(packageId: string, data: Partial<{
     name: string; mrp: number; price: number; description: string; isActive: boolean; inclusions: string[];
   }>) {
-    const exists = await this.prisma.groomingPackage.findUnique({ where: { id: packageId }, select: { id: true } });
+    const exists = await this.prisma.groomingPackage.findUnique({ where: { id: packageId }, select: { id: true, wpId: true } });
     if (!exists) throw new NotFoundException('Package not found');
+    // A website package may only get our own extra description; name, prices, services and on/off come from the website.
+    if (wpPriceListOn() && Object.keys(data ?? {}).some((k) => k !== 'description')) throw managedByWebsite('Grooming packages and their prices');
     const { name, mrp, price, description, isActive, inclusions } = data ?? {};
     const list = Array.isArray(inclusions)
       ? inclusions.filter((s): s is string => typeof s === 'string' && s.trim().length > 0).map((s) => s.trim())

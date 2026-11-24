@@ -115,10 +115,16 @@ export class ApiClient {
 
   private normalizeError(error: unknown): ApiError {
     if (axios.isAxiosError(error)) {
+      const data = error.response?.data;
       return {
-        message: error.response?.data?.message ?? error.message ?? 'Network error',
+        message: (typeof data?.message === 'string' ? data.message : null) ?? error.message ?? 'Network error',
         statusCode: error.response?.status ?? 0,
-        errors: error.response?.data?.errors ?? null,
+        errors: data?.errors ?? null,
+        // Machine-readable reason (SLOT_TAKEN, PRICE_CHANGED, PARTNER_NOT_AVAILABLE …). Screens also read it as
+        // err.response.data.code, so the response shape is kept too.
+        code: typeof data?.code === 'string' ? data.code : undefined,
+        data: data ?? null,
+        response: error.response ? { status: error.response.status, data } : undefined,
       };
     }
     return { message: 'Unknown error', statusCode: 0, errors: null };
@@ -154,4 +160,10 @@ export interface ApiError {
   message: string;
   statusCode: number;
   errors: Record<string, string[]> | null;
+  /** The server's machine-readable reason, e.g. SLOT_TAKEN. */
+  code?: string;
+  /** The server's full error body (may carry extra fields such as `amount` or `cities`). */
+  data?: any;
+  /** Same shape as an axios error's response, for screens that read err.response.data. */
+  response?: { status: number; data: any };
 }

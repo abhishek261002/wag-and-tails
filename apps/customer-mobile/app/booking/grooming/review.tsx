@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, ActivityIndicator, Switch } from 'react-native';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button, Input, Icon, type IconName } from '@wag/ui-mobile';
@@ -11,6 +11,8 @@ import { PartnerChoice } from '../../../src/components/PartnerChoice';
 import { payWithProvider } from '../../../src/lib/razorpay';
 import { AvailableCoupons } from '../../../src/components/AvailableCoupons';
 import { goBack } from '../../../src/lib/nav';
+import { useBookingConfig, errorCode, errorMessage } from '../../../src/lib/website';
+import type { WebsiteQuote } from '@wag/api-client';
 
 const PAYMENT_OPTIONS: { label: string; hint: string; value: 'upi' | 'cash_after_service'; icon: IconName }[] = [
   { label: 'Pay after service', hint: 'Pay your partner directly once the service is done', value: 'cash_after_service', icon: 'bag' },
@@ -26,14 +28,46 @@ export default function ReviewGroomingBookingScreen() {
 
   const pkg = groomingDraft.package;
   const addOns = groomingDraft.addOns;
-  const subtotal = (Number(pkg?.price ?? 0)) + addOns.reduce((s, a) => s + Number(a.price), 0);
-  const discount = groomingDraft.discount;
+  const cfg = useBookingConfig();
+  // Website connected: the website prices the booking (city price, coupon, points), exactly as on wagandtails.in.
+  const website = !!cfg?.connected;
+  const [quote, setQuote] = useState<WebsiteQuote | null>(null);
+  const [quoteError, setQuoteError] = useState<string | null>(null);
+  const [quoting, setQuoting] = useState(false);
+  const rules = cfg?.rewards;
+
+  const subtotal = website && quote ? quote.subtotal : (Number(pkg?.price ?? 0)) + addOns.reduce((s, a) => s + Number(a.price), 0);
+  const discount = website ? (quote?.discount ?? 0) : groomingDraft.discount;
   // What the customer will pay. A chosen partner's discount is known now; with "Find anyone" it depends on
   // who accepts. The server always recomputes at claim and never stacks it with a coupon (the bigger wins).
-  const partnerPct = groomingDraft.assignmentMode === 'specific' ? groomingDraft.requestedPartnerDiscountPct : null;
+  // Website prices are final: partner discounts do not apply to them.
+  const partnerPct = !website && groomingDraft.assignmentMode === 'specific' ? groomingDraft.requestedPartnerDiscountPct : null;
   const partnerDiscount = partnerPct ? Math.round((subtotal * partnerPct) / 100) : 0;
   const effectiveDiscount = Math.max(discount, partnerDiscount);
-  const total = subtotal - effectiveDiscount;
+  const total = website ? (quote?.total ?? 0) : subtotal - effectiveDiscount;
+
+  const refreshQuote = async (code: string | null, usePoints: boolean) => {
+    if (!groomingDraft.packageId || !groomingDraft.addressId) return null;
+    setQuoting(true);
+    try {
+      const q = await wagApi.website.quote({
+        packageId: groomingDraft.packageId, addressId: groomingDraft.addressId, cityId: groomingDraft.cityId ?? undefined,
+        couponCode: code ?? undefined, usePoints, addOnIds: groomingDraft.addOnIds, petId: groomingDraft.petId ?? undefined,
+      });
+      setQuote(q);
+      setQuoteError(null);
+      return q;
+    } catch (err: any) {
+      setQuoteError(errorMessage(err, 'Could not get the price'));
+      throw err;
+    } finally {
+      setQuoting(false);
+    }
+  };
+
+  useEffect(() => {
+    if (website) refreshQuote(groomingDraft.couponCode, groomingDraft.usePoints).catch(() => {});
+  }, [website]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const applyCoupon = async (override?: string) => {
     const code = (override ?? couponCode).trim();
@@ -41,14 +75,27 @@ export default function ReviewGroomingBookingScreen() {
     setCouponCode(code);
     setApplyingCoupon(true);
     try {
-      const res = await wagApi.bookings.applyCoupon(code, 'grooming', subtotal);
-      updateGroomingDraft({ couponCode: code, discount: res.discount });
+      if (website) {
+        const q = await refreshQuote(code, groomingDraft.usePoints);
+        if (!q || !q.discount) throw new Error('This coupon does not apply to this booking');
+        updateGroomingDraft({ couponCode: code, discount: q.discount });
+      } else {
+        const res = await wagApi.bookings.applyCoupon(code, 'grooming', subtotal);
+        updateGroomingDraft({ couponCode: code, discount: res.discount });
+      }
       setCouponApplied(true);
     } catch (err: any) {
-      Alert.alert('Invalid Coupon', err?.message ?? 'Coupon not valid');
+      if (website) refreshQuote(null, groomingDraft.usePoints).catch(() => {});
+      updateGroomingDraft({ couponCode: null, discount: 0 });
+      Alert.alert('Invalid Coupon', errorMessage(err, 'Coupon not valid'));
     } finally {
       setApplyingCoupon(false);
     }
+  };
+
+  const togglePoints = (on: boolean) => {
+    updateGroomingDraft({ usePoints: on });
+    refreshQuote(groomingDraft.couponCode, on).catch(() => {});
   };
 
   const handleConfirm = async () => {
@@ -74,6 +121,7 @@ export default function ReviewGroomingBookingScreen() {
         channel: 'app',
         assignmentMode: groomingDraft.assignmentMode,
         requestedPartnerId: groomingDraft.requestedPartnerId ?? undefined,
+        ...(website ? { usePoints: groomingDraft.usePoints, expectTotal: quote?.total, cityId: groomingDraft.cityId ?? undefined } : {}),
       });
       // Confirming payment is what moves the booking to needs_partner and
       // triggers the nearby-partner dispatch — without this it would sit at
@@ -103,7 +151,14 @@ export default function ReviewGroomingBookingScreen() {
       else router.replace({ pathname: '/booking/confirmed', params: { id: booking.id } });
     } catch (err: any) {
       const data = err?.response?.data;
-      if (data?.code === 'PARTNER_NOT_AVAILABLE') {
+      if (errorCode(err) === 'SLOT_TAKEN') {
+        Alert.alert('That time was just booked', 'Someone booked that time a moment ago. Please pick another time.', [
+          { text: 'Pick a time', onPress: () => router.replace('/booking/grooming/select-date-time') },
+        ]);
+      } else if (errorCode(err) === 'PRICE_CHANGED') {
+        await refreshQuote(groomingDraft.couponCode, groomingDraft.usePoints).catch(() => {});
+        Alert.alert('Price updated', `${data.message} Please check the new total and confirm again.`);
+      } else if (data?.code === 'PARTNER_NOT_AVAILABLE') {
         // The chosen partner can no longer take it; fall back so the customer can pick again.
         updateGroomingDraft({ assignmentMode: 'any', requestedPartnerId: null, requestedPartnerName: null, requestedPartnerDiscountPct: null });
         Alert.alert('Partner unavailable', `${data.message}. Please choose another partner or let anyone accept.`);
@@ -150,7 +205,7 @@ export default function ReviewGroomingBookingScreen() {
               requestedPartnerName: groomingDraft.requestedPartnerName,
               requestedPartnerDiscountPct: groomingDraft.requestedPartnerDiscountPct,
             }}
-            anyHint="If the partner who accepts offers a discount, it is applied automatically."
+            anyHint={website ? 'The first available groomer near you accepts. If your chosen groomer cannot, we ask the others.' : 'If the partner who accepts offers a discount, it is applied automatically.'}
             onChange={(v) => updateGroomingDraft(v)}
           />
         </Section>
@@ -183,6 +238,25 @@ export default function ReviewGroomingBookingScreen() {
           )}
         </Section>
 
+        {website && rules?.enabled && quote && quote.points > 0 ? (
+          <Section title="Reward points">
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+              <View style={{ flex: 1, paddingRight: spacing[3] }}>
+                <Text style={{ fontFamily: 'Inter', fontSize: 14, fontWeight: '700', color: colors.textPrimary }}>Use my points</Text>
+                <Text style={{ fontFamily: 'Inter', fontSize: 12, color: colors.textMuted, marginTop: 2 }}>
+                  {quote.points} points available{quote.points < (rules.minRedeem ?? 0) ? ` · usable from ${rules.minRedeem}` : ` · up to ${rules.maxPct}% of the bill`}
+                </Text>
+              </View>
+              <Switch
+                value={groomingDraft.usePoints}
+                onValueChange={togglePoints}
+                disabled={quoting || quote.points < (rules.minRedeem ?? 0)}
+                accessibilityLabel="Use my reward points"
+              />
+            </View>
+          </Section>
+        ) : null}
+
         {/* Payment Method */}
         <Section title="Payment Method">
           <View style={styles.paymentList}>
@@ -214,6 +288,25 @@ export default function ReviewGroomingBookingScreen() {
         </Section>
 
         {/* Price breakdown */}
+        {website ? (
+          <Section title="Price">
+            {quote ? (
+              <>
+                <Row label="Subtotal" value={`₹${quote.subtotal}`} />
+                {quote.discount > 0 && <Row label={`Coupon ${quote.coupon}`} value={`-₹${quote.discount}`} valueStyle={{ color: colors.success }} />}
+                {quote.ptsDiscount > 0 && <Row label={`${quote.pointsUsed} points`} value={`-₹${quote.ptsDiscount}`} valueStyle={{ color: colors.success }} />}
+                <Row label={groomingDraft.paymentMethod === 'cash_after_service' ? 'You pay the partner' : 'Total'} value={`₹${quote.total}`} bold />
+                <Text style={{ fontFamily: 'Inter', fontSize: 12, color: colors.textMuted, marginTop: spacing[2] }}>Same price as on wagandtails.in for {quote.cityName}.</Text>
+              </>
+            ) : quoteError ? (
+              <TouchableOpacity onPress={() => refreshQuote(groomingDraft.couponCode, groomingDraft.usePoints).catch(() => {})}>
+                <Text style={{ fontFamily: 'Inter', fontSize: 13, color: colors.error }}>{quoteError} Tap to try again.</Text>
+              </TouchableOpacity>
+            ) : (
+              <ActivityIndicator color={colors.brandBrown} />
+            )}
+          </Section>
+        ) : (
         <Section title="Price">
           <Row label="Subtotal" value={`₹${subtotal}`} />
           {discount > 0 && partnerDiscount <= discount && <Row label="Coupon discount" value={`-₹${discount}`} valueStyle={{ color: colors.success }} />}
@@ -232,8 +325,9 @@ export default function ReviewGroomingBookingScreen() {
             </Text>
           )}
         </Section>
+        )}
 
-        <Button onPress={handleConfirm} fullWidth loading={loading} style={styles.cta}>
+        <Button onPress={handleConfirm} fullWidth loading={loading} disabled={website && (!quote || quoting)} style={styles.cta}>
           Confirm Booking · ₹{total}
         </Button>
       </ScrollView>

@@ -6,6 +6,7 @@ import { PetAvatar, Card, Icon } from '@wag/ui-mobile';
 import { colors, spacing, typography, radii } from '@wag/design-tokens';
 import { wagApi, resolveMediaUrl } from '../../../src/lib/api';
 import { useBookingStore } from '../../../src/store/booking.store';
+import { loadBookingConfig } from '../../../src/lib/website';
 import type { Pet } from '@wag/shared-types';
 import { goBack } from '../../../src/lib/nav';
 
@@ -26,9 +27,11 @@ export default function SelectPetScreen() {
     }
   }, [preselected, pets]);
 
-  const selectPet = (pet: Pet) => {
-    updateGroomingDraft({ petId: pet.id, pet, assignmentMode: 'any', requestedPartnerId: null, requestedPartnerName: null, requestedPartnerDiscountPct: null });
-    router.push('/booking/grooming/select-package');
+  const selectPet = async (pet: Pet) => {
+    updateGroomingDraft({ petId: pet.id, pet, assignmentMode: 'any', requestedPartnerId: null, requestedPartnerName: null, requestedPartnerDiscountPct: null, usePoints: false });
+    // With the website connected, prices and free times depend on the city, so the address comes first.
+    const cfg = await loadBookingConfig();
+    router.push(cfg.connected ? '/booking/grooming/select-address' : '/booking/grooming/select-package');
   };
 
   return (

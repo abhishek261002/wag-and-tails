@@ -122,6 +122,7 @@ enum AssignmentMode {
 
 enum BookingChannel {
   app
+  website
   whatsapp
   phone_call
   instagram
@@ -295,6 +296,8 @@ model PartnerProfile {
   photoUrl                String?                @map("photo_url")
   serviceRadiusKm         Int                    @default(5) @map("service_radius_km")
   isOnline                Boolean                @default(false) @map("is_online")
+  // Jobs this partner accepted and then released (shown to the admin).
+  releaseCount            Int                    @default(0) @map("release_count")
   currentLat              Float?                 @map("current_lat")
   currentLng              Float?                 @map("current_lng")
   bio                     String?
@@ -586,11 +589,15 @@ model GroomingPackage {
   description       String?
   applicableSpecies String[] @default(["dog", "cat"]) @map("applicable_species")
   isActive          Boolean  @default(true) @map("is_active")
+  // Set when the package comes from the WordPress plugin's price list (its package id, e.g. "pkfull").
+  wpId              String?  @unique @map("wp_id")
+  durationMinutes   Int?     @map("duration_minutes")
   createdAt         DateTime @default(now()) @map("created_at")
   updatedAt         DateTime @updatedAt @map("updated_at")
 
-  items    GroomingPackageItem[]
-  bookings Booking[]
+  items      GroomingPackageItem[]
+  bookings   Booking[]
+  cityPrices GroomingPackageCityPrice[]
 
   @@map("grooming_packages")
 }
@@ -605,6 +612,18 @@ model GroomingPackageItem {
 
   @@index([packageId])
   @@map("grooming_package_items")
+}
+
+// The price of a plugin package in one plugin city (the website charges by city).
+model GroomingPackageCityPrice {
+  packageId String  @map("package_id") @db.Uuid
+  cityId    String  @map("city_id")
+  price     Decimal @db.Decimal(10, 2)
+
+  package GroomingPackage @relation(fields: [packageId], references: [id], onDelete: Cascade)
+
+  @@id([packageId, cityId])
+  @@map("grooming_package_city_prices")
 }
 
 model AddOn {
@@ -719,6 +738,24 @@ model Booking {
   cancelledAt        DateTime? @map("cancelled_at")
   cancelReason       String?   @map("cancel_reason")
 
+  // ── Link to the WordPress plugin booking (the business record on the staff desk) ──
+  wpRef         String?   @unique @map("wp_ref") // "WT-ABC1234"
+  wpRev         Int?      @map("wp_rev") // plugin revision last seen or written; older events are ignored
+  wpSource      String?   @map("wp_source") // plugin "source": Website, App, Phone call, WhatsApp, Redo …
+  wpCityId      String?   @map("wp_city_id")
+  wpStatus      String?   @map("wp_status") // plugin status: Confirmed, Rescheduled, Completed, Cancelled …
+  petAggression String?   @map("pet_aggression") // the plugin's aggression level, shown to partners
+  // ── Escalation and problems the desk must handle ──
+  escalateAt    DateTime? @map("escalate_at") // no partner by then → desk alert
+  escalatedAt   DateTime? @map("escalated_at")
+  staffFlag     String?   @map("staff_flag") // no_partner | released | customer_not_available | stopped | late | reconfirm_lapsed
+  staffFlagNote String?   @map("staff_flag_note")
+  staffFlagAt   DateTime? @map("staff_flag_at")
+  reconfirmBy   DateTime? @map("reconfirm_by") // after a reschedule the partner must confirm the new time by then
+  lateFlaggedAt DateTime? @map("late_flagged_at")
+  noShowPhoto   String?   @map("no_show_photo")
+  trackToken    String?   @unique @map("track_token") // public live-tracking link for website customers
+
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
@@ -740,6 +777,7 @@ model Booking {
   @@index([status])
   @@index([scheduledAt])
   @@index([requestedPartnerId])
+  @@index([escalateAt])
   @@map("bookings")
 }
 
@@ -1009,6 +1047,8 @@ model Coupon {
   validFrom          DateTime     @map("valid_from")
   validUntil         DateTime     @map("valid_until")
   isActive           Boolean      @default(true) @map("is_active")
+  // "app" = made in our admin panel; "wp" = copied from the WordPress plugin (edited only there).
+  source             String       @default("app")
   createdAt          DateTime     @default(now()) @map("created_at")
 
   redemptions CouponRedemption[]
@@ -1479,4 +1519,51 @@ model ReminderLog {
 
   @@index([createdAt])
   @@map("reminder_logs")
+}
+
+// ─── WordPress plugin sync ────────────────────────────────────────────────────
+
+// Cities exactly as set in the plugin's admin panel. `id` is the plugin's city id ("lucknow").
+model WpCity {
+  id        String   @id
+  name      String
+  service   Boolean  @default(true)
+  walking   Boolean  @default(false)
+  capacity  Int?
+  // false once the city is removed from the plugin (kept so old bookings still resolve)
+  present   Boolean  @default(true)
+  sortOrder Int      @default(0) @map("sort_order")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("wp_cities")
+}
+
+// Small key/value store for sync bookkeeping: the last plugin config, its hash, last success/error.
+model WpSyncState {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("wp_sync_state")
+}
+
+// Writes to the WordPress plugin, queued so a slow or offline website never blocks the apps.
+// kind "job": push the booking's current job state (rebuilt at send time, so only the latest matters).
+// kind "action": complete / cancel / reschedule / paid, sent once each (dedupeKey).
+model WpOutbox {
+  id            String    @id @default(dbgenerated("uuid_generate_v4()")) @db.Uuid
+  bookingId     String?   @map("booking_id") @db.Uuid
+  kind          String
+  dedupeKey     String    @unique @map("dedupe_key")
+  payload       Json      @default("{}")
+  attempts      Int       @default(0)
+  nextAttemptAt DateTime  @default(now()) @map("next_attempt_at")
+  lastError     String?   @map("last_error")
+  doneAt        DateTime? @map("done_at")
+  failedAt      DateTime? @map("failed_at")
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  @@index([doneAt, failedAt, nextAttemptAt])
+  @@map("wp_outbox")
 }

@@ -7,17 +7,21 @@ import { colors, spacing, typography, radii } from '@wag/design-tokens';
 import { format } from 'date-fns';
 import { useBookingStore } from '../../../src/store/booking.store';
 import { SlotPicker } from '../../../src/components/SlotPicker';
+import { WebsiteSlotPicker } from '../../../src/components/WebsiteSlotPicker';
+import { useBookingConfig } from '../../../src/lib/website';
 import { goBack } from '../../../src/lib/nav';
 
 // Today is bookable: only slots that start at least 30 minutes from now are offered (rule shared with the API).
 export default function SelectDateTimeScreen() {
-  const { updateGroomingDraft } = useBookingStore();
+  const { groomingDraft, updateGroomingDraft } = useBookingStore();
   const [when, setWhen] = useState<Date | null>(null);
+  const cfg = useBookingConfig();
+  const website = !!cfg?.connected && !!groomingDraft.packageId && !!groomingDraft.addressId;
 
   const handleContinue = () => {
     if (!when) return;
     updateGroomingDraft({ scheduledAt: when.toISOString() });
-    router.push('/booking/grooming/select-address');
+    router.push(website ? '/booking/grooming/groomer-note' : '/booking/grooming/select-address');
   };
 
   return (
@@ -31,7 +35,17 @@ export default function SelectDateTimeScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <SlotPicker onChange={setWhen} />
+        {cfg === null ? null : website ? (
+          <WebsiteSlotPicker
+            packageId={groomingDraft.packageId!}
+            addressId={groomingDraft.addressId!}
+            cityId={groomingDraft.cityId}
+            daysAhead={cfg.maxDaysAhead ?? 10}
+            onChange={setWhen}
+          />
+        ) : (
+          <SlotPicker onChange={setWhen} />
+        )}
 
         {when && (
           <View style={[styles.confirmBox, { flexDirection: 'row', alignItems: 'center', gap: spacing[2] }]}>

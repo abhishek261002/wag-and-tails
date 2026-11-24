@@ -16,6 +16,7 @@ import { OrdersModule } from './orders/orders.module.js';
 import { PaymentsModule } from './payments/payments.module.js';
 import { PayoutsModule } from './payouts/payouts.module.js';
 import { CatalogImportModule } from './catalog-import/catalog-import.module.js';
+import { WpModule } from './wp/wp.module.js';
 import { ScheduleModule } from '@nestjs/schedule';
 import { RemindersModule } from './reminders/reminders.module.js';
 import { CommissionModule } from './commission/commission.module.js';
@@ -69,6 +70,7 @@ import { InsuranceModule } from './insurance/insurance.module.js';
     InsuranceModule,
     AuditLogModule,
     RealtimeModule,
+    WpModule,
   ],
   controllers: [HealthController],
 })

@@ -10,7 +10,8 @@
     "test": "jest --runInBand",
     "db:migrate": "prisma migrate deploy",
     "db:seed": "ts-node prisma/seed.ts",
-    "db:studio": "prisma studio"
+    "db:studio": "prisma studio",
+    "test:e2e": "jest -c jest.e2e.config.js --runInBand"
   },
   "prisma": {
     "seed": "node prisma/seed.js"

@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { managedByWebsite } from '../wp/wp-managed.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { DiscountType } from '@prisma/client';
 
@@ -147,6 +148,7 @@ export class CouponsService {
   }
 
   async update(couponId: string, data: Partial<{ isActive: boolean; validUntil: string }>) {
+    await this.refuseWebsiteCoupon(couponId);
     const { validUntil, ...rest } = data;
     return this.prisma.coupon.update({
       where: { id: couponId },
@@ -154,7 +156,13 @@ export class CouponsService {
     });
   }
 
+  private async refuseWebsiteCoupon(couponId: string) {
+    const c = await this.prisma.coupon.findUnique({ where: { id: couponId }, select: { source: true } });
+    if (c?.source === 'wp') throw managedByWebsite('Website coupons');
+  }
+
   async delete(couponId: string) {
+    await this.refuseWebsiteCoupon(couponId);
     return this.prisma.coupon.delete({ where: { id: couponId } });
   }
 }

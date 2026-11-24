@@ -3,10 +3,12 @@ import { CommissionService } from '../commission/commission.service.js';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { BookingType, BookingChannel, BookingStatus, PaymentMethod } from '@prisma/client';
 import { speciesSupportsService } from '../common/species.js';
+import { WpJobsService } from '../wp/wp-jobs.service.js';
+import { wpPriceListOn } from '../wp/wp-managed.js';
 
 @Injectable()
 export class StaffService {
-  constructor(private prisma: PrismaService, private commission: CommissionService) {}
+  constructor(private prisma: PrismaService, private commission: CommissionService, private wpJobs: WpJobsService) {}
 
   async getDashboardKpis() {
     const today = new Date();
@@ -52,6 +54,11 @@ export class StaffService {
     scheduledAt: string; addressId: string; notes?: string;
     partnerId?: string; channel: string;
   }) {
+    // With the website connected, phone bookings are made on the WordPress booking desk, so there is one slot
+    // calendar and one business record (ground rules 1-2); they reach partners automatically (decision 13A).
+    if (wpPriceListOn()) {
+      throw new UnprocessableEntityException({ code: 'USE_WEBSITE_DESK', message: 'Add phone bookings on the WordPress booking desk. They reach partners automatically.' });
+    }
     // Staff creates a booking on behalf of customer (off-app channels)
     const pet = await this.prisma.pet.findFirst({ where: { id: data.petId, customerId: data.customerId } });
     if (!pet) throw new NotFoundException('Pet not found for this customer');
@@ -159,6 +166,8 @@ export class StaffService {
     const status = booking.type === 'walking' ? 'accepted' : 'assigned';
     await this.prisma.bookingStatusHistory.create({ data: { bookingId, status: status as BookingStatus, changedBy: staffId, note: 'Partner assigned by staff' } });
     await this.commission.applyClaimPricing(bookingId, partnerId);
+    await this.wpJobs.tellPartner(partnerId, bookingId, 'job:assigned', 'Job assigned to you', `Staff gave you ${booking.petName}'s ${booking.type}. Open the app to see it.`);
+    await this.wpJobs.jobChanged(bookingId, { transition: true });
     return this.prisma.booking.findUniqueOrThrow({ where: { id: bookingId } });
   }
 
@@ -168,11 +177,13 @@ export class StaffService {
     if (!['assigned', 'accepted', 'partner_on_the_way'].includes(booking.status)) {
       throw new BadRequestException('A partner can only be removed before the session starts');
     }
-    return this.prisma.booking.update({
+    const updated = await this.prisma.booking.update({
       where: { id: bookingId },
       data: {
         partnerId: null,
         startOtp: null,
+        reconfirmBy: null,
+        lateFlaggedAt: null,
         status: (booking.type === 'walking' ? 'searching_partner' : 'needs_partner') as BookingStatus,
         // The next partner prices the job afresh; until then an unpaid booking shows the undiscounted price.
         partnerDiscountPct: null,
@@ -187,6 +198,10 @@ export class StaffService {
         },
       },
     });
+    if (booking.partnerId) await this.wpJobs.tellPartner(booking.partnerId, bookingId, 'job:removed', 'Job removed', `${booking.petName}'s job was taken off you by staff.`);
+    await this.wpJobs.jobChanged(bookingId, { transition: true });
+    if (booking.type === 'grooming') await this.wpJobs.announce(bookingId);
+    return updated;
   }
 
   async listCustomers(filters: { search?: string; page?: number; pageSize?: number } = {}) {

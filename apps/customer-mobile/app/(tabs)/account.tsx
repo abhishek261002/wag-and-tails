@@ -6,16 +6,20 @@ import { colors, spacing, typography, radii } from '@wag/design-tokens';
 import { Icon, RowItem } from '@wag/ui-mobile';
 import { wagApi, resolveMediaUrl } from '../../src/lib/api';
 import { useAuthStore } from '../../src/store/auth.store';
+import { useBookingConfig } from '../../src/lib/website';
 
 export default function AccountScreen() {
   const [profile, setProfile] = useState<any>(null);
   const [petCount, setPetCount] = useState(0);
   const { clearTokens } = useAuthStore();
+  const cfg = useBookingConfig();
+  const [points, setPoints] = useState<number | null>(null);
 
   // Reload whenever the tab is shown, so a name or photo changed on the profile screen appears straight away.
   useFocusEffect(useCallback(() => {
     wagApi.client.get('/users/me').then((d) => setProfile(d)).catch(() => {});
     wagApi.pets.list().then((p) => setPetCount(p.length)).catch(() => {});
+    wagApi.website.rewards().then((r) => setPoints(r.connected ? r.points : null)).catch(() => {});
   }, []));
 
   const handleLogout = () => {
@@ -72,6 +76,14 @@ export default function AccountScreen() {
           <RowItem icon="card" title="Payment methods" onPress={() => {}} />
           <RowItem icon="paw" title="My pets" value={String(petCount)} onPress={() => router.push('/(tabs)/pets' as any)} />
         </Section>
+
+        {cfg?.connected ? (
+          <Section title="Rewards & history">
+            <RowItem icon="gift" title="Reward points" sub="Same points as on wagandtails.in" value={points != null ? String(points) : undefined} onPress={() => router.push('/account/rewards' as any)} />
+            <RowItem icon="cal" title="Website & phone bookings" sub="Bookings made with your number" onPress={() => router.push('/account/website-bookings' as any)} />
+            <RowItem icon="alert" title="Complaints" sub="Raise one or check its status" onPress={() => router.push('/account/complaints' as any)} />
+          </Section>
+        ) : null}
 
         <Section title="Preferences">
           <RowItem icon="bell" title="Notifications" sub="Booking updates, offers, reminders" onPress={() => router.push('/account/notifications')} />

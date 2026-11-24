@@ -19,6 +19,10 @@ interface BookingDraft {
   requestedPartnerId: string | null;
   requestedPartnerName: string | null;
   requestedPartnerDiscountPct: number | null;
+  /** Website connected: the website city of the chosen address, and whether to pay partly with points. */
+  cityId: string | null;
+  cityName: string | null;
+  usePoints: boolean;
 }
 
 interface WalkDraft {
@@ -53,6 +57,7 @@ const defaultGroomingDraft: BookingDraft = {
   addressLine: null, notes: '', couponCode: null, discount: 0,
   paymentMethod: 'upi',
   assignmentMode: 'any', requestedPartnerId: null, requestedPartnerName: null, requestedPartnerDiscountPct: null,
+  cityId: null, cityName: null, usePoints: false,
 };
 
 const defaultWalkDraft: WalkDraft = {

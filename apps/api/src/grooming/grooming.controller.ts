@@ -14,10 +14,10 @@ export class GroomingController {
 
   @Get('packages')
   @Roles('customer', 'partner', 'staff', 'admin')
-  getPackages(@CurrentUser() user: { sub: string; role: string }, @Query('petId') petId?: string) {
+  getPackages(@CurrentUser() user: { sub: string; role: string }, @Query('petId') petId?: string, @Query('city') city?: string) {
     // "Previously booked" only means something for a customer; a malformed petId is ignored rather than failing the list.
     const pet = petId && /^[0-9a-f-]{36}$/i.test(petId) ? petId : undefined;
-    return this.groomingService.getPackages(user.role === 'customer' ? user.sub : undefined, pet);
+    return this.groomingService.getPackages(user.role === 'customer' ? user.sub : undefined, pet, city?.slice(0, 80));
   }
 
   @Get('packages/:id')
@@ -33,9 +33,11 @@ export class GroomingController {
   getSlots(
     @Query('packageId') packageId: string,
     @Query('date') date: string,
-    @Query('addressId') addressId: string
+    @Query('addressId') addressId: string,
+    @Query('cityId') cityId?: string,
+    @Query('bookingId') bookingId?: string
   ) {
-    return this.groomingService.getAvailableSlots(packageId, date, addressId);
+    return this.groomingService.getAvailableSlots(packageId, date, addressId, cityId, bookingId);
   }
 
   @Post('packages')
