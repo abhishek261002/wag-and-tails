@@ -1,4 +1,4 @@
-import { Controller, Post, Patch, Param, Body, UseGuards } from '@nestjs/common';
+import { Controller, Post, Patch, Param, Body, UseGuards, ForbiddenException } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiTags, ApiBearerAuth } from '@nestjs/swagger';
 import { PaymentsService } from './payments.service.js';
@@ -12,17 +12,19 @@ import { RolesGuard } from '../common/roles.guard.js';
 export class PaymentsController {
   constructor(private paymentsService: PaymentsService) {}
 
+  // Customers pay for bookings and store orders; partners (groomers) pay for their own store orders only.
   @Post('orders')
-  @Roles('customer')
+  @Roles('customer', 'partner')
   createPaymentOrder(
-    @CurrentUser() user: { sub: string },
+    @CurrentUser() user: { sub: string; role: string },
     @Body() body: { bookingId?: string; orderId?: string }
   ) {
+    if (user.role === 'partner' && body.bookingId) throw new ForbiddenException('Partners can only pay for store orders');
     return this.paymentsService.createPaymentOrder(body.bookingId ?? null, body.orderId ?? null, user.sub);
   }
 
   @Patch(':id/confirm')
-  @Roles('customer')
+  @Roles('customer', 'partner')
   confirm(
     @Param('id') id: string,
     @CurrentUser() user: { sub: string; role: string },

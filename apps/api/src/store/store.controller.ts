@@ -56,16 +56,24 @@ export class StoreController {
 
   @Post('cart/coupon')
   @Roles('customer', 'partner')
-  applyCoupon(@CurrentUser() user: { sub: string }, @Body() body: { couponCode: string }) {
-    return this.storeService.applyCoupon(user.sub, body.couponCode);
+  applyCoupon(@CurrentUser() user: { sub: string; role: string }, @Body() body: { couponCode: string }) {
+    return this.storeService.applyCoupon(user.sub, String(body?.couponCode ?? '').trim(), user.role);
+  }
+
+  /** Checkout totals: prices, coupon, shipping and whether cash on delivery is offered (WooCommerce decides). */
+  @Post('quote')
+  @Roles('customer', 'partner')
+  quote(@CurrentUser() user: { sub: string; role: string }, @Body() body: { addressId?: string; couponCode?: string }) {
+    return this.storeService.quote(user.sub, user.role, body?.addressId || undefined, body?.couponCode?.trim() || undefined);
   }
 
   @Post('orders')
   @Roles('customer', 'partner')
   checkout(
-    @CurrentUser() user: { sub: string },
-    @Body() body: { addressId: string; paymentMethod: string; couponCode?: string }
+    @CurrentUser() user: { sub: string; role: string },
+    @Body() body: { addressId: string; paymentMethod: string; couponCode?: string; expectedTotal?: number }
   ) {
-    return this.storeService.checkout(user.sub, body.addressId, body.paymentMethod, body.couponCode);
+    const expected = body?.expectedTotal === undefined || body.expectedTotal === null ? undefined : Number(body.expectedTotal);
+    return this.storeService.checkout(user.sub, body.addressId, body.paymentMethod, body.couponCode, user.role, Number.isFinite(expected) ? expected : undefined);
   }
 }

@@ -9,6 +9,22 @@ export interface ProductFilters {
   pageSize?: number;
 }
 
+/** What the cart costs now, as the website's shop works it out. */
+export interface StoreQuote {
+  subtotal: number;
+  discount: number;
+  shipping: number;
+  shippingMethod?: string;
+  tax: number;
+  total: number;
+  coupons: string[];
+  couponError: string;
+  /** Cash on delivery is offered. */
+  cod: boolean;
+  /** The prices come from the website's shop (the app's own coupon list does not apply). */
+  woo: boolean;
+}
+
 export class StoreApi {
   constructor(private client: ApiClient) {}
 
@@ -46,8 +62,13 @@ export class StoreApi {
     return this.client.post('/store/cart/coupon', { couponCode: code });
   }
 
-  checkout(addressId: string, paymentMethod: string, couponCode?: string): Promise<StoreOrder> {
-    return this.client.post('/store/orders', { addressId, paymentMethod, couponCode });
+  quote(addressId?: string, couponCode?: string): Promise<StoreQuote> {
+    return this.client.post('/store/quote', { addressId, couponCode });
+  }
+
+  /** `expectedTotal` is the total the customer saw; if the price changed meanwhile the order is refused (409). */
+  checkout(addressId: string, paymentMethod: string, couponCode?: string, expectedTotal?: number): Promise<StoreOrder> {
+    return this.client.post('/store/orders', { addressId, paymentMethod, couponCode, expectedTotal });
   }
 
   listOrders(): Promise<StoreOrder[]> {

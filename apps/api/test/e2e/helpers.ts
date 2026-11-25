@@ -90,9 +90,9 @@ export async function signedApi<T = any>(method: string, p: string, o: SignOpts 
   const ts = String(o.ts ?? Math.floor(Date.now() / 1000));
   const nonce = o.nonce ?? randomBytes(12).toString('hex');
   const raw = o.body === undefined ? '' : JSON.stringify(o.body);
-  const route = '/api/v1/' + p;
+  const route = '/api/v1/' + canonical(p, o.query);
   const sig = o.sig ?? signature(o.method ?? method, route, o.signedBody ?? raw, ts, nonce, o.secret);
-  return http<T>(method, API + '/' + p, { raw: raw || undefined, headers: { 'X-WT-Timestamp': ts, 'X-WT-Nonce': nonce, 'X-WT-Signature': sig } });
+  return http<T>(method, API + '/' + canonical(p, o.query), { raw: raw || undefined, headers: { 'X-WT-Timestamp': ts, 'X-WT-Nonce': nonce, 'X-WT-Signature': sig } });
 }
 
 // ── scenario helpers ─────────────────────────────────────────────────────────────────
@@ -189,4 +189,30 @@ export async function preflight() {
   if (!h || h.s !== 200) throw new Error('The API is not running on :3001. Start it (node apps/api/dist/apps/api/src/main.js) and try again.');
   const w = await http('GET', SITE + '/wt/v1/connector/config').catch(() => null);
   if (!w || w.s !== 401) throw new Error('The staging WordPress is not answering on :8090 (docker compose -f infra/wp-staging/docker-compose.yml up -d).');
+}
+
+/** Call one of the plugin's own REST routes as a WordPress user (tests the real permission checks), without a browser. */
+export function wpRest(userLogin: string | null, method: string, route: string, body?: Record<string, unknown>, query?: Record<string, string>): { s: number; d: any } {
+  const b64 = (o: unknown) => Buffer.from(JSON.stringify(o ?? {})).toString('base64');
+  const php = `
+    $u = ${userLogin ? `get_user_by( 'login', '${userLogin}' )` : 'null'};
+    wp_set_current_user( $u ? $u->ID : 0 );
+    $r = new WP_REST_Request( '${method}', '${route}' );
+    $q = json_decode( base64_decode( '${b64(query)}' ), true ); if ( $q ) { $r->set_query_params( $q ); }
+    $b = json_decode( base64_decode( '${b64(body)}' ), true );
+    if ( $b && '${method}' !== 'GET' ) { $r->set_header( 'content-type', 'application/json' ); $r->set_body( wp_json_encode( $b ) ); }
+    $res = rest_do_request( $r );
+    echo wp_json_encode( array( 's' => $res->get_status(), 'd' => $res->get_data() ) );`;
+  return JSON.parse(wp(php));
+}
+
+/** A valid 12-digit Aadhaar-style number (passes the Verhoeff checksum) built from 11 digits. */
+export function aadhaarNumber(prefix11: string): string {
+  const d = [[0,1,2,3,4,5,6,7,8,9],[1,2,3,4,0,6,7,8,9,5],[2,3,4,0,1,7,8,9,5,6],[3,4,0,1,2,8,9,5,6,7],[4,0,1,2,3,9,5,6,7,8],[5,9,8,7,6,0,4,3,2,1],[6,5,9,8,7,1,0,4,3,2],[7,6,5,9,8,2,1,0,4,3],[8,7,6,5,9,3,2,1,0,4],[9,8,7,6,5,4,3,2,1,0]];
+  const p = [[0,1,2,3,4,5,6,7,8,9],[1,5,7,6,2,8,3,0,9,4],[5,8,0,3,7,9,6,1,4,2],[8,9,1,6,0,4,3,5,2,7],[9,4,5,3,1,2,6,8,7,0],[4,2,8,6,5,7,3,9,0,1],[2,7,9,3,8,0,6,4,1,5],[7,0,4,6,9,1,3,2,5,8]];
+  const inv = [0,4,3,2,1,5,6,7,8,9];
+  let c = 0;
+  const digits = (prefix11 + '0').split('').reverse().map(Number);
+  digits.forEach((x, i) => { c = d[c]![p[i % 8]![x]!]!; });
+  return prefix11 + inv[c]!;
 }

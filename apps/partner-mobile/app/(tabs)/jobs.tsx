@@ -9,6 +9,7 @@ import { colors, spacing, radii } from '@wag/design-tokens';
 import { wagApi } from '../../src/lib/api';
 import { useModeStore } from '../../src/store/mode.store';
 import { DuesBanner } from '../../src/components/DuesBanner';
+import { AadhaarBanner } from '../../src/components/AadhaarBanner';
 import { configurePartnerNotifications, notifyIncomingJob } from '../../src/lib/notifications';
 
 type PartnerJobCard = {
@@ -250,6 +251,7 @@ export default function JobsScreen() {
 
             {/* role switch — mirrors the prototype's .rolebar */}
             <View style={styles.pad}>
+              <AadhaarBanner />
               <DuesBanner variant="banner" onChanged={load} />
               <View style={styles.rolebar}>
                 {(['grooming', 'walking'] as const).map((m) => (

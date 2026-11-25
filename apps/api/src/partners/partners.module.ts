@@ -7,11 +7,14 @@ import { PartnersController } from './partners.controller.js';
 import { RealtimeModule } from '../realtime/realtime.module.js';
 import { NotificationsModule } from '../notifications/notifications.module.js';
 import { MessagingModule } from '../messaging/messaging.module.js';
+import { AuditLogModule } from '../audit-log/audit-log.module.js';
+import { AadhaarService } from './aadhaar.service.js';
+import { AadhaarController } from './aadhaar.controller.js';
 
 @Module({
-  imports: [RealtimeModule, NotificationsModule, MessagingModule, BookingsModule, CommissionModule, RoutingModule],
-  providers: [PartnersService],
-  controllers: [PartnersController],
-  exports: [PartnersService],
+  imports: [RealtimeModule, NotificationsModule, MessagingModule, BookingsModule, CommissionModule, RoutingModule, AuditLogModule],
+  providers: [PartnersService, AadhaarService],
+  controllers: [PartnersController, AadhaarController],
+  exports: [PartnersService, AadhaarService],
 })
 export class PartnersModule {}

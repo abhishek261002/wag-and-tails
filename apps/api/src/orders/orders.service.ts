@@ -20,7 +20,8 @@ export class OrdersService {
       include: { items: true },
     });
     if (!order) throw new NotFoundException('Order not found');
-    if (requesterRole === 'customer' && order.userId !== requesterId) {
+    // Staff and admin can open any order; everyone else (customers and partners who shop) only their own.
+    if (requesterRole !== 'staff' && requesterRole !== 'admin' && order.userId !== requesterId) {
       throw new NotFoundException('Order not found');
     }
     return order;

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
 import { useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Badge, Icon } from '@wag/ui-mobile';
@@ -7,14 +7,35 @@ import { colors, spacing, radii } from '@wag/design-tokens';
 import { wagApi } from '../../../src/lib/api';
 import { format } from 'date-fns';
 import { goBack } from '../../../src/lib/nav';
+import { payWithProvider } from '../../../src/lib/razorpay';
 
 export default function PartnerOrderDetailScreen() {
   const { id: orderId } = useLocalSearchParams<{ id: string }>();
   const [order, setOrder] = useState<any>(null);
+  const [paying, setPaying] = useState(false);
+
+  const load = () => { if (orderId) wagApi.store.getOrder(orderId).then(setOrder).catch(() => {}); };
+  useEffect(load, [orderId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    if (orderId) wagApi.store.getOrder(orderId).then(setOrder).catch(() => {});
-  }, [orderId]);
+    const t = setInterval(load, 60_000);
+    return () => clearInterval(t);
+  }, [orderId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const unpaid = !!order && order.paymentMethod !== 'cod' && order.paymentStatus !== 'paid' && !['cancelled', 'refunded'].includes(order.status);
+  const payNow = async () => {
+    setPaying(true);
+    try {
+      const pay = await wagApi.payments.createStoreOrderPayment(order.id);
+      const res = await payWithProvider({ keyId: pay.keyId, providerOrderId: pay.providerOrderId, amountInr: Number(pay.payment.amount), description: `Order ${order.orderNumber}` });
+      await wagApi.payments.confirm(pay.payment.id, { method: 'upi', providerPaymentId: res.providerPaymentId, signature: res.signature });
+      load();
+    } catch (err: any) {
+      Alert.alert('Payment not completed', err?.message ?? 'Please try again.');
+    } finally {
+      setPaying(false);
+    }
+  };
 
   const STATUS_VARIANT: Record<string, 'success' | 'warning' | 'error' | 'info'> = {
     placed: 'info', packed: 'warning', out_for_delivery: 'warning',
@@ -50,6 +71,14 @@ export default function PartnerOrderDetailScreen() {
           <Text style={styles.orderNum}>#{order.orderNumber}</Text>
           <Badge variant={STATUS_VARIANT[order.status] ?? 'info'} label={order.status.replace(/_/g, ' ')} />
         </View>
+        {unpaid && (
+          <View style={{ backgroundColor: colors.white, borderRadius: radii.xl, padding: spacing[4], marginBottom: spacing[3], borderWidth: 1, borderColor: colors.borderLight }}>
+            <Text style={{ fontFamily: 'Inter', color: colors.textPrimary, marginBottom: spacing[2] }}>Payment pending. Your items are kept for you for a short while. Pay to confirm the order.</Text>
+            <TouchableOpacity onPress={payNow} disabled={paying} accessibilityRole="button" style={{ backgroundColor: colors.brandBrown, borderRadius: radii.lg, paddingVertical: spacing[3], alignItems: 'center' }}>
+              <Text style={{ color: colors.white, fontFamily: 'Inter', fontWeight: '600' }}>{paying ? 'Opening payment…' : `Pay ₹${Number(order.total)} now`}</Text>
+            </TouchableOpacity>
+          </View>
+        )}
         <Text style={styles.orderDate}>Placed {format(new Date(order.createdAt), 'EEE, d MMM yyyy · h:mm a')}</Text>
 
         {!['cancelled', 'refunded'].includes(order.status) && (
@@ -105,7 +134,7 @@ export default function PartnerOrderDetailScreen() {
           )}
           <PriceRow label="Shipping" value={Number(order.shippingFee) === 0 ? 'Free' : `₹${Number(order.shippingFee)}`} />
           <PriceRow label="Total" value={`₹${Number(order.total)}`} bold />
-          <PriceRow label="Payment" value={order.paymentMethod ?? '—'} />
+          <PriceRow label="Payment" value={order.paymentMethod === 'cod' ? 'Cash on delivery' : order.paymentStatus === 'paid' ? 'Paid online' : 'Awaiting payment'} />
         </View>
       </ScrollView>
     </SafeAreaView>

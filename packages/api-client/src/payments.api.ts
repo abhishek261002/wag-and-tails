@@ -15,6 +15,11 @@ export class PaymentsApi {
     return this.client.post('/payments/orders', { bookingId });
   }
 
+  /** Online payment for a store order (customers and partners). The amount is the order's total on the server. */
+  createStoreOrderPayment(orderId: string): Promise<PaymentOrder> {
+    return this.client.post('/payments/orders', { orderId });
+  }
+
   confirm(
     paymentId: string,
     data: { method: 'upi' | 'card' | 'wallet'; providerPaymentId?: string; signature?: string }

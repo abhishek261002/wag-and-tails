@@ -504,6 +504,12 @@ function wt_conn_points_run( $in ) {
 	return array( 'ok' => true, 'balance' => wt_points_balance( $phone ) );
 }
 
+function wt_conn_insurance_locked( $in ) {
+	return wt_conn_locked( 'ins' . (string) ( $in['appId'] ?? wp_generate_password( 12, false ) ), function () use ( $in ) {
+		return wt_conn_insurance( $in );
+	} );
+}
+
 /** Insurance enquiry from the app: same list, same alerts as the website form. */
 function wt_conn_insurance( $in ) {
 	$fields = isset( $in['fields'] ) && is_array( $in['fields'] ) ? $in['fields'] : array();
@@ -520,7 +526,19 @@ function wt_conn_insurance( $in ) {
 		return wt_err( 'Fields and a valid phone are required.' );
 	}
 	$data['Source'] = 'App';
-	$lead           = wt_rec_insert( 'insurance', array( 'data' => $data, 'phone' => $phone, 'status' => 'New' ), 'IN' );
+	// The app's own request id: the same request sent twice (a retried write) is stored once, and status changes
+	// made here are matched back to it in the app.
+	$app_id = preg_match( '/^[0-9a-f\-]{36}$/i', (string) ( $in['appId'] ?? '' ) ) ? strtolower( $in['appId'] ) : '';
+	if ( $app_id ) {
+		$prev = wt_conn_xref_get( 'I' . str_replace( '-', '', $app_id ) );
+		if ( $prev && wt_rec_get( 'insurance', $prev ) ) {
+			return array( 'ok' => true, 'id' => $prev, 'duplicate' => true );
+		}
+	}
+	$lead = wt_rec_insert( 'insurance', array( 'data' => $data, 'phone' => $phone, 'status' => 'New', 'appId' => $app_id ), 'IN' );
+	if ( $app_id ) {
+		wt_conn_xref_set( 'I' . str_replace( '-', '', $app_id ), $lead['id'] );
+	}
 	$text           = implode( ', ', array_map( function ( $k, $v ) { return $k . ': ' . $v; }, array_keys( $data ), $data ) );
 	$s              = wt_config()['settings'];
 	wt_email( $s['notifyEmail'], 'New pet insurance enquiry (app)', $text );
@@ -735,7 +753,7 @@ add_action(
 			array( 'POST', 'connector/complaints', 'wt_conn_complaint' ),
 			array( 'GET', 'connector/complaints', 'wt_conn_complaints' ),
 			array( 'POST', 'connector/points', 'wt_conn_points' ),
-			array( 'POST', 'connector/insurance', 'wt_conn_insurance' ),
+			array( 'POST', 'connector/insurance', 'wt_conn_insurance_locked' ),
 		);
 		foreach ( $routes as $rt ) {
 			register_rest_route( 'wt/v1', '/' . $rt[1], array( 'methods' => $rt[0], 'permission_callback' => 'wt_conn_auth', 'callback' => wt_rest( $rt[2] ) ) );

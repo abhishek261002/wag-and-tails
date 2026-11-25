@@ -13,3 +13,8 @@ coverage
 .DS_Store
 Thumbs.db
 prisma/generated
+
+infra/vps/wag-and-tails.zip
+
+private-uploads
+apps/api/private-uploads

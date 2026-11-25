@@ -8,6 +8,7 @@ import { DispatchService } from '../bookings/dispatch.service.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
 import { WpBookingsService } from '../wp/wp-bookings.service.js';
 import { WpJobsService } from '../wp/wp-jobs.service.js';
+import { WpStoreService } from '../wp/wp-store.service.js';
 import { escalationDeadline } from '../wp/wp-link.js';
 
 export type { PaymentProvider };
@@ -24,7 +25,8 @@ export class PaymentsService {
     private dispatch: DispatchService,
     private notifications: NotificationsService,
     private wpBookings: WpBookingsService,
-    private wpJobs: WpJobsService
+    private wpJobs: WpJobsService,
+    private wpStore: WpStoreService
   ) {
     this.provider = createPaymentProvider();
   }
@@ -61,6 +63,8 @@ export class PaymentsService {
       const o = await this.prisma.storeOrder.findUnique({ where: { id: orderId! } });
       if (!o || o.userId !== userId) throw new NotFoundException('Order not found');
       if (o.paymentStatus === 'paid') throw new ConflictException('This order is already paid');
+      if (o.paymentMethod === 'cod') throw new BadRequestException('This order is cash on delivery; nothing to pay now');
+      if (o.status === 'cancelled' || o.status === 'refunded') throw new ConflictException('This order was cancelled. Please order again.');
       amount = Number(o.total);
     }
     if (!(amount > 0)) throw new BadRequestException('Nothing to pay');
@@ -118,6 +122,8 @@ export class PaymentsService {
     }
     if (payment.orderId) {
       await this.prisma.storeOrder.update({ where: { id: payment.orderId }, data: { paymentStatus: 'paid' } });
+      // The order lives in WooCommerce: mark it paid there (Processing, stock taken), retried until it lands.
+      await this.wpStore.paid(payment.orderId, providerPaymentId ?? payment.providerPaymentId ?? 'app');
     }
     return payment;
   }

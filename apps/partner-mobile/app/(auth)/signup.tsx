@@ -298,7 +298,7 @@ export default function PartnerSignupScreen() {
               <View style={styles.infoCard}>
                 <Icon name="shield" size={20} color={colors.brandBrown} />
                 <Text style={styles.infoText}>
-                  You will be taken to DigiLocker, the Government of India service, to verify your Aadhaar. When you are done you come straight back here. We never see or store your full Aadhaar number.
+                  You will be taken to DigiLocker, the Government of India service, to verify your Aadhaar. When you are done you come straight back here. After this you will add your Aadhaar number and photos of the card. We keep them safely (encrypted) only to verify you, and only our verification team can see them.
                 </Text>
               </View>
 

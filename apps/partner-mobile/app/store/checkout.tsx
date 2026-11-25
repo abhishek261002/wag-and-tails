@@ -6,6 +6,7 @@ import { Button, Icon, type IconName } from '@wag/ui-mobile';
 import { colors, spacing, radii } from '@wag/design-tokens';
 import { wagApi } from '../../src/lib/api';
 import { goBack } from '../../src/lib/nav';
+import { payWithProvider } from '../../src/lib/razorpay';
 
 const PAYMENT_OPTIONS: { label: string; value: 'upi' | 'card' | 'cod'; icon: IconName }[] = [
   { label: 'UPI', value: 'upi', icon: 'phone' },
@@ -21,6 +22,9 @@ export default function PartnerCheckoutScreen() {
   const [couponCode, setCouponCode] = useState('');
   const [discount, setDiscount] = useState(0);
   const [placing, setPlacing] = useState(false);
+  // The website's shop works out the partner price, shipping and whether cash on delivery is offered.
+  const [quote, setQuote] = useState<any>(null);
+  const [quoteError, setQuoteError] = useState('');
 
   useEffect(() => {
     Promise.all([
@@ -36,8 +40,31 @@ export default function PartnerCheckoutScreen() {
     }).catch(() => {});
   }, []);
 
+  const loadQuote = async (addressId: string | null) => {
+    if (!addressId) return null;
+    try {
+      const q = await wagApi.store.quote(addressId);
+      setQuote(q);
+      setQuoteError('');
+      if (!q.cod && paymentMethod === 'cod') setPaymentMethod('upi');
+      return q;
+    } catch (err: any) {
+      setQuote(null);
+      setQuoteError(err?.message ?? 'Could not work out the total. Please try again.');
+      return null;
+    }
+  };
+
+  useEffect(() => {
+    if (selectedAddressId && cart) void loadQuote(selectedAddressId);
+  }, [selectedAddressId, cart?.items?.length]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const applyCoupon = async () => {
     if (!couponCode.trim()) return;
+    if (quote?.woo) {
+      Alert.alert('No coupons on partner prices', 'Partner prices are already discounted, so coupons cannot be added.');
+      return;
+    }
     try {
       const updated = await wagApi.store.applyCoupon(couponCode);
       setCart(updated);
@@ -48,8 +75,21 @@ export default function PartnerCheckoutScreen() {
     }
   };
 
-  const subtotal = Number(cart?.subtotal ?? 0);
-  const total = Number(cart?.total ?? subtotal - discount);
+  const subtotal = Number(quote?.subtotal ?? cart?.subtotal ?? 0);
+  const shipping = Number(quote?.shipping ?? 0);
+  const total = Number(quote?.total ?? cart?.total ?? subtotal - discount);
+  const paymentOptions = PAYMENT_OPTIONS.filter((o) => o.value !== 'cod' || quote?.cod !== false);
+
+  const payForOrder = async (order: { id: string; orderNumber?: string }) => {
+    const pay = await wagApi.payments.createStoreOrderPayment(order.id);
+    const res = await payWithProvider({
+      keyId: pay.keyId,
+      providerOrderId: pay.providerOrderId,
+      amountInr: Number(pay.payment.amount),
+      description: `Order ${order.orderNumber ?? ''}`.trim(),
+    });
+    await wagApi.payments.confirm(pay.payment.id, { method: paymentMethod === 'card' ? 'card' : 'upi', providerPaymentId: res.providerPaymentId, signature: res.signature });
+  };
 
   const placeOrder = async () => {
     if (!selectedAddressId) {
@@ -58,10 +98,22 @@ export default function PartnerCheckoutScreen() {
     }
     setPlacing(true);
     try {
-      const order = await wagApi.store.checkout(selectedAddressId, paymentMethod, couponCode || undefined);
+      const order = await wagApi.store.checkout(selectedAddressId, paymentMethod, quote?.woo ? undefined : couponCode || undefined, quote?.woo ? total : undefined);
+      if (paymentMethod !== 'cod') {
+        try {
+          await payForOrder(order);
+        } catch (err: any) {
+          Alert.alert('Payment not completed', 'Your order is saved. You can pay for it from the order page.');
+        }
+      }
       router.replace({ pathname: '/store/order/[id]', params: { id: order.id } } as any);
     } catch (err: any) {
-      Alert.alert('Order failed', err?.message ?? 'Please try again');
+      if (err?.statusCode === 409) {
+        await loadQuote(selectedAddressId);
+        Alert.alert('Please check your order', err?.message ?? 'Something changed in your cart. The total has been updated.');
+      } else {
+        Alert.alert('Order failed', err?.message ?? 'Please try again');
+      }
     } finally {
       setPlacing(false);
     }
@@ -132,7 +184,7 @@ export default function PartnerCheckoutScreen() {
 
         <SectionTitle title="Payment Method" />
         <View style={styles.paymentGrid}>
-          {PAYMENT_OPTIONS.map((opt) => (
+          {paymentOptions.map((opt) => (
             <TouchableOpacity
               key={opt.value}
               style={[styles.payBtn, paymentMethod === opt.value && styles.payBtnActive]}
@@ -149,8 +201,9 @@ export default function PartnerCheckoutScreen() {
         <View style={styles.totalBox}>
           <PriceRow label="Subtotal" value={`₹${subtotal}`} />
           {discount > 0 && <PriceRow label="Coupon discount" value={`-₹${discount}`} accent={colors.success} />}
-          <PriceRow label="Shipping" value="Free" accent={colors.success} />
+          <PriceRow label="Shipping" value={shipping === 0 ? 'Free' : `₹${shipping}`} accent={shipping === 0 ? colors.success : undefined} />
           <PriceRow label="Total" value={`₹${total}`} bold />
+          {quoteError ? <Text style={{ color: '#B42318', marginTop: spacing[2] }}>{quoteError}</Text> : null}
         </View>
       </ScrollView>
 

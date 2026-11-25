@@ -71,7 +71,7 @@ export class PartnersService {
     });
     if (!partner) throw new NotFoundException('Partner profile not found');
     const { passwordHash, ...user } = partner.user;
-    const { aadhaarRefHash: _h, aadhaarNumber: _n, ...safe } = partner;
+    const { aadhaarRefHash: _h, aadhaarNumber: _n, aadhaarEnc: _e, aadhaarNumHash: _nh, aadhaarFrontFile: _ff, aadhaarBackFile: _bf, ...safe } = partner;
     return { ...safe, user };
   }
 
@@ -121,7 +121,7 @@ export class PartnersService {
 
     if (Object.keys(data).length === 0) throw new BadRequestException('Nothing to update');
     const updated = await this.prisma.partnerProfile.update({ where: { userId: partnerId }, data });
-    const { aadhaarRefHash: _h, aadhaarNumber: _n, ...safe } = updated;
+    const { aadhaarRefHash: _h, aadhaarNumber: _n, aadhaarEnc: _e, aadhaarNumHash: _nh, aadhaarFrontFile: _ff, aadhaarBackFile: _bf, ...safe } = updated;
     return safe;
   }
 
@@ -764,7 +764,7 @@ export class PartnersService {
     // Never expose the Aadhaar hash or any legacy plaintext number; only the last 4 digits leave the server.
     const safeData = data.map((p) => {
       const { passwordHash, ...user } = p.user;
-      const { aadhaarRefHash: _h, aadhaarNumber: _n, ...safe } = p;
+      const { aadhaarRefHash: _h, aadhaarNumber: _n, aadhaarEnc: _e, aadhaarNumHash: _nh, aadhaarFrontFile: _ff, aadhaarBackFile: _bf, ...safe } = p;
       return { ...safe, user };
     });
 

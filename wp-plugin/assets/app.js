@@ -1309,7 +1309,7 @@ function go(v) {
 function fromHash() {
   let v = location.hash.slice(1);
   if (!v) v = role === 'admin' ? 'admin' : role === 'staff' ? 'staff' : 'home';
-  if ((v === 'admin' && role !== 'admin') || (v === 'staff' && role !== 'staff' && role !== 'admin') || (v === 'account' && role !== 'customer') || (v === 'perf' && role !== 'staff') || (v === 'clients' && role !== 'staff' && role !== 'admin') || (v === 'gate' && role !== 'staff' && role !== 'admin') || (v === 'complaints' && role !== 'staff' && role !== 'admin') || (v === 'complaint' && role !== 'customer')) { if (!role) S.loginAs = (v === 'account' || v === 'complaint') ? 'customer' : v; v = role ? 'home' : 'login'; }
+  if ((v === 'admin' && role !== 'admin') || (v === 'staff' && role !== 'staff' && role !== 'admin') || (v === 'account' && role !== 'customer') || (['partners', 'payouts', 'support'].includes(v) && role !== 'staff' && role !== 'admin') || (v === 'perf' && role !== 'staff') || (v === 'clients' && role !== 'staff' && role !== 'admin') || (v === 'gate' && role !== 'staff' && role !== 'admin') || (v === 'complaints' && role !== 'staff' && role !== 'admin') || (v === 'complaint' && role !== 'customer')) { if (!role) S.loginAs = (v === 'account' || v === 'complaint') ? 'customer' : v; v = role ? 'home' : 'login'; }
   if (!allowed(v)) v = 'home';
   S.view = v;
 }
@@ -1317,7 +1317,7 @@ window.addEventListener('hashchange', () => { fromHash(); render(); window.scrol
 function render() {
   if (MAP) { MAP.remove(); MAP = null; MARK = null; }
   CHQ = [];
-  const bare = ['admin', 'staff', 'perf', 'clients', 'gate', 'complaints'].includes(S.view);
+  const bare = ['admin', 'staff', 'perf', 'clients', 'gate', 'complaints', 'partners', 'payouts', 'support'].includes(S.view);
   const isBook = S.view === 'book' && isService();
   $('#app').className = isBook ? 'with-mbar' : 'with-tabs';
   const gated = role === 'staff' && ATT && ATT.required && !ATT.in;
@@ -2818,6 +2818,280 @@ document.addEventListener('change', e => {
     db.settings[k] = k === 'appsLiveTracking' ? t.value === '1' : k === 'appsPanelUrl' ? t.value.trim() : (t.value === '' ? '' : Number(t.value));
     saveConfig('Saved. The apps pick it up within 5 minutes.');
   }
+});
+
+/* ---------- Partners, payouts, app support, activity (one panel: admin web and staff web retired) ---------- */
+const PST = {pending: ['Waiting', 'warn'], approved: ['Active', 'ok'], suspended: ['Suspended', 'bad'], rejected: ['Rejected', 'neu']};
+const pst = s => { const m = PST[s] || [s, 'neu']; return `<span class="pill ${m[1]}">${esc(m[0])}</span>`; };
+const when = s => s ? new Date(s).toLocaleString('en-IN', {day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit'}) : '';
+const day = s => s ? new Date(s).toLocaleDateString('en-IN', {day: 'numeric', month: 'short', year: 'numeric'}) : '';
+const typeName = t => t === 'team' ? 'My team' : t === 'freelancer' ? 'Freelancer' : 'Not set';
+const isOwner = () => role === 'admin';
+const appsOff = () => APPS_ON ? '' : '<div class="card"><p class="err">The apps are not connected yet (WT_CONNECTOR_URL and WT_CONNECTOR_SECRET in wp-config.php).</p></div>';
+S.pt = S.pt || {status: 'pending', q: '', city: ''};
+S.tk = S.tk || {status: 'open'};
+S.po = S.po || {status: 'due'};
+const cityOpts = (sel) => db.cities.map(c => `<option value="${esc(c.name)}" ${String(sel || '').toLowerCase() === c.name.toLowerCase() ? 'selected' : ''}>${esc(c.name)}</option>`).join('');
+
+function partnersView() {
+  if (!APPS_ON) return appsOff();
+  if (S.partnerId) return partnerDetail(S.partnerId);
+  const f = S.pt, key = `pt:${f.status}:${f.q}:${f.city}`;
+  const head = `<h2>Partners</h2><p class="muted">Groomers and walkers who use the partner app. New sign-ups wait here for approval.</p>
+    <div class="row" style="flex-wrap:wrap">${[['pending','Waiting'],['approved','Active'],['suspended','Suspended'],['rejected','Rejected'],['','All']].map(([k, l]) => `<button class="chip ${f.status === k ? 'on' : ''}" data-act="pt-filter" data-v="${k}">${l}</button>`).join('')}
+    <input id="pt-q" type="search" placeholder="Name or phone" value="${esc(f.q)}" style="width:auto;min-width:180px" aria-label="Search partners"><button class="btn ghost sm" data-act="pt-search">Search</button>
+    ${role === 'admin' ? `<select data-chg="pt-city" aria-label="City" style="width:auto"><option value="">All cities</option>${cityOpts(f.city)}</select>` : ''}</div>`;
+  return head + view(key, () => api('panel/partners', {q: {status: f.status, q: f.q, city: f.city}}), d => {
+    const counts = d.counts || {};
+    const note = counts.pending ? `<p class="note"><b>${counts.pending} waiting for approval.</b></p>` : '';
+    if (!d.list.length) return note + '<div class="card muted">No partners here.</div>';
+    return note + `<div class="tablewrap"><table><thead><tr><th>Partner</th><th>City</th><th>Status</th><th>Type</th><th>Aadhaar</th><th>Rating</th><th>Jobs</th><th>Releases</th><th>Dues</th><th></th></tr></thead><tbody>
+    ${d.list.map(p => `<tr><td><div class="row" style="gap:8px;flex-wrap:nowrap">${p.photo ? `<img src="${esc(p.photo)}" alt="" width="32" height="32" style="border-radius:50%;object-fit:cover">` : ''}<div><b>${esc(p.name || 'No name')}</b>${p.online ? ' <span class="pill ok">Online</span>' : ''}<div class="small muted num">${esc(p.phone)}</div></div></div></td>
+      <td>${esc(p.city || '—')}</td><td>${pst(p.status)}</td><td class="small">${typeName(p.type)}</td><td>${p.aadhaar ? '<span class="pill ok">Added</span>' : '<span class="pill warn">Missing</span>'}</td>
+      <td class="num">${p.reviews ? Number(p.rating).toFixed(1) : '—'}</td><td class="num">${p.jobs}</td><td class="num">${p.releases}</td><td class="num">${p.due > 0 ? money(p.due) : '—'}</td>
+      <td><button class="btn ghost sm" data-act="pt-open" data-id="${esc(p.id)}">Open</button></td></tr>`).join('')}</tbody></table></div>
+    ${d.total > d.list.length ? `<p class="small muted">Showing ${d.list.length} of ${d.total}. Search to narrow down.</p>` : ''}`;
+  });
+}
+
+function partnerDetail(id) {
+  return view('ptd:' + id, () => api('panel/partners/' + id), p => {
+    const k = p.kyc || {}, m = p.money || {}, eff = m.effective || {};
+    const actions = [];
+    if (p.status === 'pending' || p.status === 'rejected') actions.push(`<div class="card stack"><h3>Approve</h3>
+      ${k.numberSaved && k.front && k.back ? '' : '<p class="note">The Aadhaar number and both card photos are still missing. The partner app asks for them; approval is possible once they are added.</p>'}
+      <div class="f2"><div class="field"><label for="pa-city">City (as on the website)</label><select id="pa-city"><option value="">Choose</option>${cityOpts(p.city)}</select></div>
+      <div class="field"><label for="pa-type">Works as</label><select id="pa-type"><option value="">Choose</option><option value="team">My team (salaried)</option><option value="freelancer">Freelancer (commission)</option></select></div></div>
+      <div class="row"><button class="btn" data-act="pt-approve" data-id="${esc(p.id)}">Approve</button></div>
+      ${p.status === 'pending' ? `<div class="field"><label for="pa-reason">Or reject, with a reason the partner will see</label><input id="pa-reason" type="text" maxlength="300"></div><div><button class="btn danger sm" data-act="pt-reject" data-id="${esc(p.id)}" data-confirm>Reject</button></div>` : ''}</div>`);
+    if (p.status === 'approved') actions.push(`<div class="card stack"><h3>Partner settings</h3><div class="f2">
+      <div class="field"><label for="pa-city">City</label><select id="pa-city" data-chg="pt-city-set" data-id="${esc(p.id)}">${cityOpts(p.city)}</select></div>
+      <div class="field"><label for="pa-type">Works as</label><select id="pa-type" data-chg="pt-type-set" data-id="${esc(p.id)}"><option value="team" ${p.type === 'team' ? 'selected' : ''}>My team (salaried)</option><option value="freelancer" ${p.type === 'freelancer' ? 'selected' : ''}>Freelancer (commission)</option></select></div></div>
+      <div class="field"><label for="pa-reason">Suspend (stops new jobs), reason</label><input id="pa-reason" type="text" maxlength="300"></div><div><button class="btn danger sm" data-act="pt-suspend" data-id="${esc(p.id)}" data-confirm>Suspend</button></div></div>`);
+    if (p.status === 'suspended') actions.push(`<div class="card stack"><h3>Suspended</h3><p>${esc(p.suspendReason || '')}</p><div><button class="btn" data-act="pt-reactivate" data-id="${esc(p.id)}" data-confirm>Reactivate</button></div></div>`);
+    const tools = p.tools && p.tools.items && p.tools.items.length ? `<div class="row" style="flex-wrap:wrap;gap:8px">${p.tools.items.map(t => t.kind === 'video' ? `<a class="btn ghost sm" href="${esc(t.url)}" target="_blank" rel="noopener">Video</a>` : `<a href="${esc(t.url)}" target="_blank" rel="noopener"><img src="${esc(t.url)}" alt="Tool photo" width="96" height="96" style="object-fit:cover;border-radius:8px"></a>`).join('')}</div>` : '<p class="muted small">No tool photos yet.</p>';
+    const money1 = `<div class="card stack"><h3>Money</h3>
+      <p>${p.type === 'team' ? 'On <b>My team</b> (salaried): no commission split, jobs are only recorded.' : `Company keeps <b>${eff.commissionPct ?? '—'}%</b>, partner gets <b>${eff.partnerPct ?? '—'}%</b> of each job.`}
+        Owes the company <b>${money(eff.due)}</b> of a ${money(eff.limit)} limit${eff.blocked ? ' · <span class="pill bad">New jobs paused (over the limit)</span>' : eff.warning ? ' · <span class="pill warn">Close to the limit</span>' : ''}.</p>
+      <div class="f2"><div class="field"><label for="pm-pct">Company commission % for this partner (blank = default ${m.defaults ? m.defaults.defaultCommissionPct : ''}%)</label><input id="pm-pct" type="number" min="0" max="90" step="0.5" value="${m.commissionPct ?? ''}"></div>
+      ${isOwner() ? `<div class="field"><label for="pm-limit">Dues limit for this partner (blank = default ${m.defaults ? money(m.defaults.commissionLimit) : ''})</label><input id="pm-limit" type="number" min="1" step="50" value="${m.commissionLimitOverride ?? ''}"></div>` : ''}</div>
+      <div><button class="btn ghost sm" data-act="pt-commission" data-id="${esc(p.id)}">Save commission</button></div>
+      <h4 style="font-family:var(--f-body)">Discounts for this partner</h4>
+      ${(m.discounts || []).length ? `<div class="stack" style="gap:4px">${m.discounts.map(x => `<div class="mini"><div><b>${x.percent}% off commission</b> · ${day(x.startsAt)} to ${day(x.endsAt)}${x.note ? ' · ' + esc(x.note) : ''}</div><div>${x.status === 'active' ? `<button class="btn ghost sm" data-act="pt-disc-stop" data-id="${esc(x.id)}" data-v="${esc(p.id)}" data-confirm>Stop</button>` : `<span class="pill neu">${esc(x.status)}</span>`}</div></div>`).join('')}</div>` : '<p class="small muted">None.</p>'}
+      <div class="f2"><div class="field"><label for="pd-pct">New discount %</label><input id="pd-pct" type="number" min="1" max="${m.defaults ? m.defaults.maxPartnerDiscountPct : 50}"></div><div class="field"><label for="pd-days">For how many days</label><input id="pd-days" type="number" min="1" max="365" value="30"></div></div>
+      <div class="field"><label for="pd-note">Note</label><input id="pd-note" type="text" maxlength="200"></div><div><button class="btn ghost sm" data-act="pt-disc-add" data-id="${esc(p.id)}">Add discount</button></div>
+      ${isOwner() ? `<h4 style="font-family:var(--f-body)">Dues</h4><div class="f2"><div class="field"><label for="pdu-amt">Amount (₹)</label><input id="pdu-amt" type="number" step="1"></div><div class="field"><label for="pdu-note">Note</label><input id="pdu-note" type="text" maxlength="200"></div></div>
+        <div class="row"><button class="btn ghost sm" data-act="pt-dues-paid" data-id="${esc(p.id)}" data-confirm>Record cash/UPI paid to us</button><button class="btn ghost sm" data-act="pt-dues-adj" data-id="${esc(p.id)}" data-confirm>Adjust (+ owes more, − owes less)</button></div>` : ''}
+      ${(m.ledger || []).length ? `<details><summary>Dues history</summary><div class="tablewrap"><table><thead><tr><th>When</th><th>What</th><th>Amount</th></tr></thead><tbody>${m.ledger.map(l => `<tr><td class="small">${when(l.createdAt)}</td><td class="small">${esc(l.kind || l.type || '')}${l.note ? ' · ' + esc(l.note) : ''}</td><td class="num">${money(l.amount)}</td></tr>`).join('')}</tbody></table></div></details>` : ''}</div>`;
+    return `<div class="row between"><button class="btn ghost sm" data-act="pt-back">← All partners</button>${isOwner() ? `<button class="btn ghost sm" data-act="pt-log" data-id="${esc(p.id)}">Activity for this partner</button>` : ''}</div>
+    <div class="card stack"><div class="row" style="gap:14px;flex-wrap:nowrap">${p.photo ? `<img src="${esc(p.photo)}" alt="" width="72" height="72" style="border-radius:50%;object-fit:cover">` : ''}<div><h2 style="margin:0">${esc(p.name || 'No name')}</h2>
+      <div>${pst(p.status)} · ${typeName(p.type)} · ${esc(p.city || 'No city')} · <span class="num">${esc(p.phone)}</span> <a class="linkbtn small" href="https://wa.me/${esc(String(p.phone).replace(/\D/g, ''))}" target="_blank" rel="noopener">WhatsApp</a></div>
+      <div class="small muted">Joined ${day(p.joinedAt)} · ${(p.modes || []).join(', ') || 'no services'} · ${p.stats.jobs} jobs · ${p.stats.reviews ? Number(p.stats.rating).toFixed(1) + ' ★ (' + p.stats.reviews + ')' : 'no ratings'} · ${p.stats.releases} releases</div></div></div>
+      ${p.rejectReason ? `<p class="small">Rejected: ${esc(p.rejectReason)}</p>` : ''}</div>
+    ${actions.join('')}
+    <div class="card stack"><h3>Verification</h3>
+      <p>${k.status === 'verified' ? `<span class="pill ok">DigiLocker verified</span> ${day(k.verifiedAt)}` : '<span class="pill warn">Not verified with DigiLocker</span>'}${k.nameMatch === false ? ' <span class="pill bad">Name differs from Aadhaar</span>' : ''}</p>
+      <div class="f2 small"><div>Aadhaar name: <b>${esc(k.name || '—')}</b></div><div>Date of birth: ${esc(k.dob ? day(k.dob) : '—')} · ${esc(k.gender || '')}</div><div>Aadhaar address: ${esc(k.address || '—')}</div><div>Address given: ${esc(p.address || '—')} · Age ${esc(p.age || '—')}</div></div>
+      <p>Aadhaar: <b class="num">${esc(k.masked || 'Not added')}</b> · photos: front ${k.front ? '✓' : '✗'}, back ${k.back ? '✓' : '✗'}${k.savedAt ? ' · added ' + day(k.savedAt) : ''}</p>
+      <div class="row">${k.numberSaved || k.front || k.back ? `<button class="btn ghost sm" data-act="pt-aadhaar" data-id="${esc(p.id)}">Show Aadhaar number and photos</button><button class="btn danger sm" data-act="pt-aadhaar-del" data-id="${esc(p.id)}" data-confirm>Delete Aadhaar data</button>` : ''}</div>
+      <p class="small muted">Every "Show" is recorded in the activity log with your name. Aadhaar data of rejected partners is deleted automatically after 6 months.</p>
+      <h4 style="font-family:var(--f-body)">Tools</h4>${tools}
+      ${p.bank ? `<p class="small">Bank: ${esc(p.bank.account)} · ${esc(p.bank.ifsc || '')}</p>` : ''}</div>
+    ${money1}
+    <div class="card stack"><h3>Payouts</h3>${p.payouts.length ? `<div class="tablewrap"><table><thead><tr><th>Date</th><th>Job value</th><th>Commission</th><th>To partner</th><th>Status</th></tr></thead><tbody>${p.payouts.map(x => `<tr><td class="small">${day(x.createdAt)}</td><td class="num">${money(x.gross)}</td><td class="num">${money(x.commission)}</td><td class="num">${money(x.net)}</td><td>${esc(x.status)}${x.paidAt ? ' · ' + day(x.paidAt) : ''}</td></tr>`).join('')}</tbody></table></div>` : '<p class="muted small">No payouts yet.</p>'}</div>
+    <div class="card stack"><h3>Recent jobs</h3>${p.jobs.length ? p.jobs.map(j => `<div class="mini"><div><b>${esc(j.packageName || 'Job')}</b> · ${esc(j.petName || '')}<div class="small muted">${when(j.scheduledAt)} · <span class="num">${esc(j.wpRef || '')}</span> · ${esc(j.channel)}</div></div><div>${esc(j.status)} · ${money(j.total)}</div></div>`).join('') : '<p class="muted small">No jobs yet.</p>'}
+      ${p.reviews.latest.length ? `<h4 style="font-family:var(--f-body)">Latest reviews</h4>${p.reviews.latest.map(r => `<p class="small">${'★'.repeat(r.rating)} ${esc(r.comment || '')} <span class="muted">· ${esc(r.reviewerName || '')}</span></p>`).join('')}` : ''}</div>`;
+  });
+}
+
+function payoutsView() {
+  if (!APPS_ON) return appsOff();
+  const f = S.po;
+  const settings = view('pm-set', () => api('panel/money'), s => `<div class="card stack"><h3>Commission rules</h3>
+    <div class="f3"><div class="field"><label for="ms-pct">Default company commission %</label><input id="ms-pct" type="number" min="0" max="90" step="0.5" value="${s.defaultCommissionPct}" ${isOwner() ? '' : 'disabled'}></div>
+    <div class="field"><label for="ms-limit">Dues limit (₹): new jobs pause above it</label><input id="ms-limit" type="number" min="1" step="50" value="${s.commissionLimit}" ${isOwner() ? '' : 'disabled'}></div>
+    <div class="field"><label for="ms-disc">Largest partner discount %</label><input id="ms-disc" type="number" min="0" max="90" value="${s.maxPartnerDiscountPct}" ${isOwner() ? '' : 'disabled'}></div></div>
+    ${isOwner() ? `<div class="row"><button class="btn ghost sm" data-act="ms-save">Save rules</button><button class="btn ghost sm" data-act="ms-reconcile" data-confirm>Recheck all completed jobs</button></div>` : '<p class="small muted">Only the owner can change these.</p>'}</div>`);
+  const st = {due: 'pending', batch: 'approved', paid: 'paid'}[f.status] || '';
+  const list = view('po:' + f.status, () => api('panel/payouts', {q: st ? {status: st} : {}}), d => {
+    let rows = d.list;
+    if (f.status === 'due') rows = rows.filter(x => x.status === 'pending' || x.status === 'requested');
+    const total = rows.reduce((s, x) => s + x.net, 0);
+    const pick = isOwner() && f.status === 'due';
+    return `<div class="card stack"><div class="row between"><h3>${f.status === 'due' ? 'Due to partners' : f.status === 'batch' ? 'In a batch, not yet paid' : f.status === 'paid' ? 'Paid' : 'All payouts'} · ${money(total)}</h3>
+      ${pick && rows.length ? '<button class="btn sm" data-act="po-batch">Put selected in a payout batch</button>' : ''}</div>
+      ${rows.length ? `<div class="tablewrap"><table><thead><tr>${pick ? '<th><input type="checkbox" data-chg="po-all" aria-label="Select all"></th>' : ''}<th>Partner</th><th>City</th><th>Bank</th><th>Job value</th><th>Commission</th><th>To partner</th><th>Status</th><th>Date</th></tr></thead><tbody>
+      ${rows.map(x => `<tr>${pick ? `<td><input type="checkbox" class="po-pick" value="${esc(x.id)}" aria-label="Select"></td>` : ''}<td><button class="linkbtn" data-act="pt-open" data-id="${esc(x.partnerId)}">${esc(x.partner)}</button><div class="small muted num">${esc(x.phone)}</div></td><td>${esc(x.city || '')}</td><td class="small">${esc(x.bank || 'No bank details')}</td><td class="num">${money(x.gross)}</td><td class="num">${money(x.commission)}</td><td class="num"><b>${money(x.net)}</b></td><td>${esc(x.status)}${x.notes ? `<div class="small muted">${esc(x.notes)}</div>` : ''}</td><td class="small">${day(x.createdAt)}</td></tr>`).join('')}</tbody></table></div>` : '<p class="muted">Nothing here.</p>'}</div>
+    ${d.batches.length ? `<div class="card stack"><h3>Payout batches</h3>${d.batches.map(b => `<div class="mini"><div><b>${money(b.total)}</b> · ${b.count} payouts · ${day(b.createdAt)}</div><div>${b.status === 'paid' ? `<span class="pill ok">Paid ${day(b.processedAt)}</span>` : isOwner() ? `<input id="pb-ref-${esc(b.id)}" type="text" placeholder="Bank/UPI reference" style="width:170px" aria-label="Reference"> <button class="btn sm" data-act="po-paid" data-id="${esc(b.id)}" data-confirm>Mark paid</button>` : '<span class="pill warn">Not paid yet</span>'}</div></div>`).join('')}</div>` : ''}`;
+  });
+  return `<h2>Partner payouts</h2><p class="muted">What freelancers have earned from online-paid jobs, and the commission they owe on cash jobs. Pay them by bank or UPI, then record it here.</p>
+    <div class="row">${[['due','Due'],['batch','In a batch'],['paid','Paid'],['all','All']].map(([k, l]) => `<button class="chip ${f.status === k ? 'on' : ''}" data-act="po-filter" data-v="${k}">${l}</button>`).join('')}</div>${list}${settings}`;
+}
+
+const TKS = {open: ['New', 'warn'], in_progress: ['Answered', 'neu'], resolved: ['Resolved', 'ok'], closed: ['Closed', 'neu']};
+function supportView() {
+  if (!APPS_ON) return appsOff();
+  if (S.ticketId) return ticketDetail(S.ticketId);
+  const f = S.tk;
+  return `<h2>App support</h2><p class="muted">Questions customers and partners send from <b>Help</b> in the apps. Replies appear in their app straight away.</p>
+    <div class="row">${[['open','New'],['in_progress','Answered'],['escalated','Escalated'],['resolved','Resolved'],['','All']].map(([k, l]) => `<button class="chip ${f.status === k ? 'on' : ''}" data-act="tk-filter" data-v="${k}">${l}</button>`).join('')}</div>` +
+    view('tk:' + f.status, () => api('panel/tickets', {q: f.status === 'escalated' ? {escalated: 1} : f.status ? {status: f.status} : {}}), d => d.list.length ? `<div class="stack" style="gap:0">${d.list.map(t => `<button class="mini" style="text-align:left;width:100%;background:none;border:0;border-bottom:1px solid var(--line);cursor:pointer" data-act="tk-open" data-id="${esc(t.id)}"><div><b>${esc(t.subject)}</b>${t.escalated ? ' <span class="pill bad">Escalated</span>' : ''}<div class="small muted">${esc(t.from.name || t.from.phone)} · ${t.from.role === 'partner' ? 'Partner' : 'Customer'} · ${when(t.createdAt)}</div></div><div><span class="pill ${(TKS[t.status] || [0, 'neu'])[1]}">${esc((TKS[t.status] || [t.status])[0])}</span></div></button>`).join('')}</div>` : '<div class="card muted">No tickets here.</div>');
+}
+
+function ticketDetail(id) {
+  return view('tkd:' + id, () => api('panel/tickets/' + id), t => `<div><button class="btn ghost sm" data-act="tk-back">← All tickets</button></div>
+    <div class="card stack"><div class="row between"><h3 style="margin:0">${esc(t.subject)}</h3><span class="pill ${(TKS[t.status] || [0, 'neu'])[1]}">${esc((TKS[t.status] || [t.status])[0])}</span></div>
+    <p class="small muted">${esc(t.from.name)} · ${t.from.role === 'partner' ? 'Partner' : 'Customer'} · <span class="num">${esc(t.from.phone)}</span> <a class="linkbtn" href="https://wa.me/${esc(String(t.from.phone).replace(/\D/g, ''))}" target="_blank" rel="noopener">WhatsApp</a> · ${when(t.createdAt)}</p>
+    <p>${esc(t.description)}</p>${t.escalated ? `<p class="note">Escalated: ${esc(t.escalatedReason || '')}</p>` : ''}
+    <div class="stack" style="gap:6px">${t.messages.map(m => `<div class="card" style="padding:10px 14px;${m.role === 'staff' || m.role === 'admin' ? 'margin-left:15%;background:var(--cream,#F4ECE5)' : 'margin-right:15%'}"><div class="small muted">${esc(m.from)} · ${when(m.at)}</div><div>${esc(m.text)}</div>${m.attachment ? `<a href="${esc(m.attachment)}" target="_blank" rel="noopener" class="small">Attachment</a>` : ''}</div>`).join('') || '<p class="small muted">No replies yet.</p>'}</div>
+    <div class="field"><label for="tk-reply">Reply</label><textarea id="tk-reply" rows="3" maxlength="4000"></textarea></div>
+    <div class="row"><button class="btn" data-act="tk-reply" data-id="${esc(t.id)}">Send reply</button>
+      ${t.status !== 'resolved' ? `<button class="btn ghost sm" data-act="tk-status" data-id="${esc(t.id)}" data-v="resolved">Mark resolved</button>` : `<button class="btn ghost sm" data-act="tk-status" data-id="${esc(t.id)}" data-v="open">Reopen</button>`}
+      ${!t.escalated && !isOwner() ? `<button class="btn ghost sm" data-act="tk-escalate" data-id="${esc(t.id)}">Escalate to the owner</button>` : ''}</div></div>`);
+}
+
+function activityView(entityId) {
+  if (!APPS_ON) return appsOff();
+  const NAMES = {'partner.approve': 'Approved partner', 'partner.reject': 'Rejected partner', 'partner.suspend': 'Suspended partner', 'partner.reactivate': 'Reactivated partner', 'partner.type': 'Changed team/freelancer', 'partner.city': 'Changed city', aadhaar_reveal: 'Viewed Aadhaar', aadhaar_delete: 'Deleted Aadhaar data', 'partner.commission.update': 'Changed commission', 'settings.update': 'Changed commission rules', 'payout.batch': 'Created payout batch', 'payout.paid': 'Marked payouts paid', 'ticket.status': 'Changed ticket status', 'ticket.escalate': 'Escalated ticket', 'commission.reconcile': 'Rechecked jobs'};
+  return `<h2>Activity log</h2><p class="muted">Who changed partners, money and Aadhaar access, and when.</p>` + view('act:' + (entityId || ''), () => api('panel/activity', {q: entityId ? {entityId} : {}}), d => d.list.length ? `<div class="tablewrap"><table><thead><tr><th>When</th><th>Who</th><th>What</th><th>Details</th></tr></thead><tbody>${d.list.map(r => `<tr><td class="small">${when(r.at)}</td><td>${esc(r.by)} <span class="small muted">${r.role === 'admin' ? 'owner' : esc(r.role)}</span></td><td>${esc(NAMES[r.action] || r.action)}</td><td class="small">${esc(r.entity)}${r.entityId ? ` · <button class="linkbtn" data-act="pt-open" data-id="${esc(r.entityId)}">${esc(r.entityId.slice(0, 8))}</button>` : ''}${r.changes && Object.keys(r.changes).length ? ' · ' + esc(JSON.stringify(r.changes).slice(0, 160)) : ''}</td></tr>`).join('')}</tbody></table></div>` : '<div class="card muted">Nothing recorded yet.</div>');
+}
+
+ADMIN.partners = partnersView;
+ADMIN.payouts = payoutsView;
+ADMIN.support = supportView;
+ADMIN.activity = () => activityView(S.actEntity);
+(function addTabs() {
+  const i = TABS.findIndex(([k]) => k === 'apps');
+  TABS.splice(i + 1, 0, ['partners', 'Partners'], ['payouts', 'Partner payouts'], ['support', 'App support']);
+  const j = TABS.findIndex(([k]) => k === 'notifs');
+  TABS.splice(j, 0, ['activity', 'Activity log']);
+})();
+const wrapPage = fn => () => (role === 'staff' || role === 'admin') ? `<div class="wrap stack" style="padding-block:24px 56px">${fn()}</div>` : pageLogin();
+PAGES.partners = wrapPage(partnersView);
+PAGES.payouts = wrapPage(payoutsView);
+PAGES.support = wrapPage(supportView);
+const _navItemsPanel = navItems;
+navItems = function () {
+  const items = _navItemsPanel();
+  if (role === 'staff' && APPS_ON) items.splice(1, 0, ['partners', 'Partners'], ['payouts', 'Payouts'], ['support', 'App support']);
+  return items;
+};
+
+/* Dashboard: the apps' numbers on top. */
+const _dashPanel = ADMIN.dashboard;
+ADMIN.dashboard = function () {
+  const base = _dashPanel.call(ADMIN);
+  if (!APPS_ON) return base;
+  const apps = view('pov', () => api('panel/overview'), o => {
+    const items = [
+      ['Partners waiting', o.partners.pending, 'partners', o.partners.pending > 0],
+      ['Partners online now', `${o.partners.online} of ${o.partners.approved}`, 'partners', false],
+      ['App support open', `${o.tickets.open}${o.tickets.escalated ? ' (' + o.tickets.escalated + ' escalated)' : ''}`, 'support', o.tickets.escalated > 0],
+      ['Payouts due', `${money(o.payouts.amount)} (${o.payouts.count})`, 'payouts', false],
+      ['Dues owed by partners', money(o.duesOwed), 'payouts', false],
+      ['Partners without Aadhaar', o.partners.aadhaarMissing, 'partners', o.partners.aadhaarMissing > 0],
+    ];
+    return `<div class="card stack"><h3>Apps</h3><div class="kpis">${items.map(([l, n, tab, hot]) => `<button class="kpi" style="text-align:left;cursor:pointer${hot ? ';border-color:var(--bad,#b42318)' : ''}" data-act="tab" data-v="${tab}"><span class="muted small">${l}</span><b class="num">${esc(n)}</b></button>`).join('')}</div></div>`;
+  });
+  return apps + base;
+};
+
+/* Customers: the app side of a customer (account, pets, app bookings, orders). */
+const _openClientPanel = openClient;
+openClient = async function (phone, isNew) {
+  await _openClientPanel(phone, isNew);
+  if (isNew || !APPS_ON) return;
+  try {
+    const a = await api('panel/customer', {q: {phone}});
+    const f = $('#layer form[data-form=client-save]'); if (!f) return;
+    const box = document.createElement('div'); box.className = 'card stack'; box.style.padding = '10px 14px';
+    box.innerHTML = a.app ? `<b>Uses the app</b> (since ${day(a.since)})<div class="small">${a.pets.length ? 'Pets in the app: ' + a.pets.map(p => esc(p.name) + ' (' + esc(p.breed || p.species) + ')').join(', ') : 'No pets added in the app'} · ${a.bookings} app bookings · ${a.orders} app orders · ${a.insurance} insurance requests · ${a.tickets} support tickets</div>` : '<span class="small muted">Not using the app yet.</span>';
+    f.insertBefore(box, f.children[1] || null);
+  } catch (e) { /* the app side is extra information only */ }
+};
+
+/* Store: the partner price for groomers buying in the partner app. */
+const _storePanel = ADMIN.store;
+ADMIN.store = function () {
+  return _storePanel.call(ADMIN) + `<div class="card stack"><h3>Partner price in the partner app</h3>
+    <p class="small muted">Groomers and walkers buy the same products in the partner app with this discount off the shop price. Their orders arrive in WooCommerce marked "Partner". Coupons cannot be added on top.</p>
+    <div class="field" style="max-width:260px"><label for="st-pdisc">Partner discount %</label><input id="st-pdisc" type="number" min="0" max="90" step="1" value="${esc(db.settings.partnerDiscountPct ?? 0)}" data-chg="apps-set" data-k="partnerDiscountPct"></div></div>`;
+};
+
+/* Apps & partners: the separate partner panel is gone; link to the pages here instead. */
+function systemCard() {
+  if (!APPS_ON || role !== 'admin') return '';
+  return view('sys', () => api('panel/system'), d => {
+    const sy = d.sync || {}, ob = d.outbox || {};
+    const bad = sy.lastError || (ob.failed || []).length;
+    return `<div class="card stack"><h3>Connection to the apps ${bad ? '<span class="pill bad">Needs attention</span>' : '<span class="pill ok">Working</span>'}</h3>
+      <p class="small">Prices, cities and coupons were last copied to the apps ${sy.lastSuccessAt ? when(sy.lastSuccessAt) : 'never'}. Plugin version seen by the backend: ${esc(sy.pluginVersion || 'unknown')}. Changes waiting to reach the website: <b>${ob.pending || 0}</b>.</p>
+      ${sy.lastError ? `<p class="err">Last problem: ${esc(sy.lastError)}</p>` : ''}
+      ${(ob.failed || []).length ? `<div class="stack"><b class="small">Changes that could not be sent (${ob.failed.length})</b>${ob.failed.map(f => `<div class="mini"><div class="small">${esc(f.kind)} · ${esc(f.lastError || '')}</div><button class="btn ghost sm" data-act="sys-retry" data-id="${esc(f.id)}">Try again</button></div>`).join('')}</div>` : ''}
+      <div class="row"><button class="btn ghost sm" data-act="sys-sync">Copy prices to the apps now</button><button class="btn ghost sm" data-act="sys-store">Copy the shop to the apps now</button></div></div>`;
+  });
+}
+const _appsPanel = ADMIN.apps;
+ADMIN.apps = function () {
+  const html = systemCard() + _appsPanel();
+  return html.replace(/<div class="card stack"><h3>Partners, KYC, commission and payouts<\/h3>[\s\S]*?<\/div>\s*<div class="card stack"><h3>Rules the apps follow/, `<div class="card stack"><h3>Partners, payouts and support</h3><p class="muted">Approve partners (with their Aadhaar), set commission, pay partners and answer app support tickets right here.</p><div class="row"><button class="btn" data-act="tab" data-v="partners">Partners</button><button class="btn ghost" data-act="tab" data-v="payouts">Partner payouts</button><button class="btn ghost" data-act="tab" data-v="support">App support</button></div></div>
+  <div class="card stack"><h3>Rules the apps follow`);
+};
+
+async function panelDo(path, body, okMsg, after) {
+  try { const r = await api(path, {method: 'POST', body}); if (okMsg) toast(okMsg); if (after) after(r); return r; } catch (err) { toast(err.message); return null; }
+}
+const valOf = s => { const e = $(s); return e ? e.value.trim() : ''; };
+function aadhaarModal(r) {
+  openModal(`<div class="row between"><h3>Aadhaar</h3><button class="x" data-act="close" aria-label="Close">×</button></div>
+    <p>Number: <b class="num" style="font-size:1.2rem;letter-spacing:.05em">${esc(r.number || 'Not added')}</b></p>
+    <div class="row" style="flex-wrap:wrap;gap:10px">${r.front ? `<figure style="margin:0"><img src="${r.front}" alt="Aadhaar front" style="max-width:100%;width:340px;border-radius:8px"><figcaption class="small muted">Front</figcaption></figure>` : '<p class="small muted">No front photo</p>'}
+    ${r.back ? `<figure style="margin:0"><img src="${r.back}" alt="Aadhaar back" style="max-width:100%;width:340px;border-radius:8px"><figcaption class="small muted">Back</figcaption></figure>` : '<p class="small muted">No back photo</p>'}</div>
+    <p class="small muted">This view was recorded in the activity log. Do not screenshot or share it.</p>`);
+}
+const ptReload = id => { drop('ptd:' + id); drop('pt'); drop('pov'); rerenderKeep(); };
+const _teamClickPanel = teamClick;
+teamClick = async function (a, t, id, v) {
+  switch (a) {
+    case 'pt-filter': S.pt.status = v; rerenderKeep(); return true;
+    case 'pt-search': S.pt.q = valOf('#pt-q'); rerenderKeep(); return true;
+    case 'pt-open': S.partnerId = id; if (role === 'admin' && S.view === 'admin' && S.adminTab !== 'partners') { S.adminTab = 'partners'; } else if (role === 'staff' && S.view !== 'partners') { go('partners'); return true; } drop('ptd:' + id); render(); window.scrollTo(0, 0); return true;
+    case 'pt-back': S.partnerId = null; drop('pt'); rerenderKeep(); return true;
+    case 'pt-log': S.actEntity = id; S.adminTab = 'activity'; drop('act'); render(); return true;
+    case 'pt-approve': t.disabled = true; await panelDo(`panel/partners/${id}/approve`, {city: valOf('#pa-city'), employmentType: valOf('#pa-type')}, 'Approved. The partner has been told.', () => ptReload(id)); t.disabled = false; return true;
+    case 'pt-reject': await panelDo(`panel/partners/${id}/reject`, {reason: valOf('#pa-reason')}, 'Rejected', () => ptReload(id)); return true;
+    case 'pt-suspend': await panelDo(`panel/partners/${id}/suspend`, {reason: valOf('#pa-reason')}, 'Suspended. They get no new jobs.', () => ptReload(id)); return true;
+    case 'pt-reactivate': await panelDo(`panel/partners/${id}/reactivate`, {}, 'Active again', () => ptReload(id)); return true;
+    case 'pt-aadhaar': { t.disabled = true; const r = await panelDo(`panel/partners/${id}/aadhaar-reveal`, {}, ''); t.disabled = false; if (r) aadhaarModal(r); return true; }
+    case 'pt-aadhaar-del': { const reason = window.prompt('Why delete the stored Aadhaar number and photos?'); if (reason) await panelDo(`panel/partners/${id}/aadhaar-delete`, {reason}, 'Aadhaar data deleted', () => ptReload(id)); return true; }
+    case 'pt-commission': { const body = {commissionPct: valOf('#pm-pct') === '' ? null : Number(valOf('#pm-pct'))}; if ($('#pm-limit')) body.commissionLimitOverride = valOf('#pm-limit') === '' ? null : Number(valOf('#pm-limit')); await panelDo(`panel/partners/${id}/commission`, body, 'Commission saved', () => ptReload(id)); return true; }
+    case 'pt-disc-add': { const days = Number(valOf('#pd-days')) || 30, start = new Date(), end = new Date(Date.now() + days * 86400000); await panelDo(`panel/partners/${id}/discount`, {percent: Number(valOf('#pd-pct')), startsAt: start.toISOString(), endsAt: end.toISOString(), note: valOf('#pd-note')}, 'Discount added', () => ptReload(id)); return true; }
+    case 'pt-disc-stop': await panelDo(`panel/discounts/${id}`, {status: 'cancelled'}, 'Discount stopped', () => ptReload(v)); return true;
+    case 'pt-dues-paid': await panelDo(`panel/partners/${id}/dues-offline`, {amount: Number(valOf('#pdu-amt')), note: valOf('#pdu-note')}, 'Payment recorded', () => ptReload(id)); return true;
+    case 'pt-dues-adj': await panelDo(`panel/partners/${id}/dues-adjust`, {amount: Number(valOf('#pdu-amt')), note: valOf('#pdu-note')}, 'Adjusted', () => ptReload(id)); return true;
+    case 'sys-sync': t.disabled = true; await panelDo('panel/system/sync', {}, 'Copied', () => { drop('sys'); rerenderKeep(); }); t.disabled = false; return true;
+    case 'sys-store': t.disabled = true; await panelDo('panel/system/store-sync', {}, 'The shop was copied', () => { drop('sys'); rerenderKeep(); }); t.disabled = false; return true;
+    case 'sys-retry': await panelDo('panel/system/retry', {rowId: id}, 'Sent again', () => { drop('sys'); rerenderKeep(); }); return true;
+    case 'po-filter': S.po.status = v; rerenderKeep(); return true;
+    case 'po-batch': { const ids = [...document.querySelectorAll('.po-pick:checked')].map(x => x.value); if (!ids.length) { toast('Tick the payouts to include first.'); return true; } await panelDo('panel/payouts/batch', {payoutIds: ids}, 'Batch created. Pay it, then mark it paid with the reference.', () => { drop('po'); drop('pov'); rerenderKeep(); }); return true; }
+    case 'po-paid': await panelDo(`panel/payouts/batches/${id}/paid`, {reference: valOf('#pb-ref-' + id)}, 'Marked paid. Partners have been told.', () => { drop('po'); drop('pov'); rerenderKeep(); }); return true;
+    case 'ms-save': await panelDo('panel/money', {defaultCommissionPct: valOf('#ms-pct'), commissionLimit: valOf('#ms-limit'), maxPartnerDiscountPct: valOf('#ms-disc')}, 'Rules saved', () => { drop('pm-set'); rerenderKeep(); }); return true;
+    case 'ms-reconcile': await panelDo('panel/money/reconcile', {}, 'Rechecked', () => { drop('po'); rerenderKeep(); }); return true;
+    case 'tk-filter': S.tk.status = v; rerenderKeep(); return true;
+    case 'tk-open': S.ticketId = id; drop('tkd:' + id); rerenderKeep(); window.scrollTo(0, 0); return true;
+    case 'tk-back': S.ticketId = null; drop('tk'); rerenderKeep(); return true;
+    case 'tk-reply': { const text = valOf('#tk-reply'); if (!text) { toast('Write a reply first.'); return true; } t.disabled = true; await panelDo(`panel/tickets/${id}/reply`, {text}, 'Sent', r => { C['tkd:' + id] = {data: r}; drop('tk'); rerenderKeep(); }); t.disabled = false; return true; }
+    case 'tk-status': await panelDo(`panel/tickets/${id}/status`, {status: v}, 'Updated', r => { C['tkd:' + id] = {data: r}; drop('tk'); drop('pov'); rerenderKeep(); }); return true;
+    case 'tk-escalate': { const reason = window.prompt('What should the owner know?'); if (reason) await panelDo(`panel/tickets/${id}/escalate`, {reason}, 'Escalated', r => { C['tkd:' + id] = {data: r}; drop('tk'); rerenderKeep(); }); return true; }
+  }
+  return _teamClickPanel(a, t, id, v);
+};
+document.addEventListener('change', async e => {
+  const t = e.target; if (!t.dataset) return;
+  if (t.dataset.chg === 'pt-city') { S.pt.city = t.value; rerenderKeep(); }
+  if (t.dataset.chg === 'pt-city-set') await panelDo(`panel/partners/${t.dataset.id}/city`, {city: t.value}, 'City changed', () => ptReload(t.dataset.id));
+  if (t.dataset.chg === 'pt-type-set') await panelDo(`panel/partners/${t.dataset.id}/type`, {employmentType: t.value}, 'Saved', () => ptReload(t.dataset.id));
+  if (t.dataset.chg === 'po-all') document.querySelectorAll('.po-pick').forEach(x => { x.checked = t.checked; });
 });
 
 /* ---------- boot ---------- */

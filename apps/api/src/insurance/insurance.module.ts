@@ -4,6 +4,7 @@ import { InsuranceController } from './insurance.controller.js';
 
 @Module({
   providers: [InsuranceService],
+  exports: [InsuranceService],
   controllers: [InsuranceController],
 })
 export class InsuranceModule {}

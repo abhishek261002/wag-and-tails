@@ -311,6 +311,16 @@ model PartnerProfile {
   // Null for partners approved before this was introduced ("Not set" in the panels).
   employmentType          PartnerEmploymentType? @map("employment_type")
   suspendReason           String?                @map("suspend_reason")
+  rejectReason            String?                @map("reject_reason")
+  rejectedAt              DateTime?              @map("rejected_at")
+  // Full Aadhaar kept for verification (client decision, 25 Nov 2026): AES-256-GCM with AADHAAR_ENC_KEY, never plain.
+  // The card photos are encrypted files in the private folder (STORAGE_PRIVATE_PATH), never under /uploads.
+  aadhaarEnc              String?                @map("aadhaar_enc")
+  // HMAC of the full number (pepper): one Aadhaar number per partner account.
+  aadhaarNumHash          String?                @unique @map("aadhaar_num_hash")
+  aadhaarFrontFile        String?                @map("aadhaar_front_file")
+  aadhaarBackFile         String?                @map("aadhaar_back_file")
+  aadhaarDocsAt           DateTime?              @map("aadhaar_docs_at")
   // Company's commission share of each job, in percent (30 = 70/30 split). Null = platform default.
   commissionPct           Decimal?               @map("commission_pct") @db.Decimal(5, 2)
   // Overrides the platform commission-due limit for this partner. Null = platform default.
@@ -550,6 +560,8 @@ model PetInsuranceRequest {
   consentAt          DateTime               @map("consent_at")
   status             InsuranceRequestStatus @default(new)
   staffNote          String?                @map("staff_note")
+  // The lead in the website's Insurance leads list.
+  wpRef              String?                @map("wp_ref")
   handledBy          String?                @map("handled_by") @db.Uuid
   handledAt          DateTime?              @map("handled_at")
   createdAt          DateTime               @default(now()) @map("created_at")
@@ -1090,6 +1102,8 @@ model Product {
   categoryId      String   @map("category_id") @db.Uuid
   name            String
   slug            String   @unique
+  // WooCommerce product id: the store is the website's WooCommerce shop, copied here for the apps.
+  wcId            Int?     @unique @map("wc_id")
   // Stable key for bulk import/update; optional so manually added products keep working.
   sku             String?  @unique
   description     String?  @db.Text
@@ -1119,6 +1133,7 @@ model ProductVariant {
   productId   String  @map("product_id") @db.Uuid
   name        String
   sku         String  @unique
+  wcId        Int?    @unique @map("wc_id")
   mrp         Decimal @db.Decimal(10, 2)
   retailPrice Decimal @map("retail_price") @db.Decimal(10, 2)
   tradePrice  Decimal @map("trade_price") @db.Decimal(10, 2)
@@ -1190,6 +1205,9 @@ model StoreOrder {
   status         OrderStatus @default(placed)
   notes          String?
   trackingNumber String?     @map("tracking_number")
+  // The same order in WooCommerce (created at checkout, handled in WooCommerce → Orders).
+  wcOrderId      Int?        @unique @map("wc_order_id")
+  wcStatus       String?     @map("wc_status")
   labelUrl       String?     @map("label_url")
   packedAt       DateTime?   @map("packed_at")
   shippedAt      DateTime?   @map("shipped_at")

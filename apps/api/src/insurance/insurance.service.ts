@@ -2,6 +2,8 @@ import { BadRequestException, ConflictException, Injectable, NotFoundException }
 import { Prisma } from '@prisma/client';
 import { z } from 'zod';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { WpOutboxService } from '../wp/wp-outbox.service.js';
+import { toPluginPhone } from '../wp/wp-link.js';
 import { parseOrThrow } from '../pets/pet.schemas.js';
 import { INSURANCE_CALL_TIMES, INSURANCE_COVER_AMOUNTS, INSURANCE_PLAN_TYPES, INSURANCE_STATUSES } from '../common/insurance.js';
 
@@ -37,7 +39,41 @@ const updateSchema = z.object({
 
 @Injectable()
 export class InsuranceService {
-  constructor(private prisma: PrismaService) {}
+  constructor(private prisma: PrismaService, private outbox: WpOutboxService) {}
+
+  /**
+   * The request also goes to the website's Insurance leads list (one list for the client, decided 25 Nov 2026),
+   * through the outbox so it is retried if the website is down. Status changes made there come back (wp-ingest).
+   */
+  private async sendToWebsite(r: Prisma.PetInsuranceRequestGetPayload<object>) {
+    const yes = (b: boolean) => (b ? 'Yes' : 'No');
+    const fields: Record<string, string> = {
+      'Pet name': r.petName,
+      'Pet type': r.petSpecies,
+      Breed: r.petBreed,
+      ...(r.petDateOfBirth ? { 'Date of birth': r.petDateOfBirth.toISOString().slice(0, 10) } : {}),
+      'Owner name': r.ownerName,
+      ...(r.email ? { Email: r.email } : {}),
+      City: r.city,
+      Plan: r.planType,
+      'Cover amount': r.coverAmount,
+      'Pre-existing condition': r.preExisting ? `Yes: ${r.preExistingDetails ?? ''}` : yes(false),
+      'Best time to call': r.preferredCallTime,
+      ...(r.notes ? { Notes: r.notes } : {}),
+    };
+    await this.outbox.enqueue('insurance', `insurance:${r.id}`, { path: 'insurance', body: { appId: r.id, phone: toPluginPhone(r.phone), fields } });
+  }
+
+  /** A status change made in the website's Insurance leads list. */
+  async applyWebsiteLead(lead: { id?: string; appId?: string; status?: string }) {
+    if (!lead?.appId || !lead.id) return false;
+    const status = ({ New: 'new', Contacted: 'contacted', Closed: 'closed' } as Record<string, 'new' | 'contacted' | 'closed'>)[String(lead.status)];
+    const r = await this.prisma.petInsuranceRequest.findUnique({ where: { id: lead.appId } });
+    if (!r) return false;
+    if (r.wpRef === lead.id && (!status || r.status === status)) return false;
+    await this.prisma.petInsuranceRequest.update({ where: { id: r.id }, data: { wpRef: lead.id, ...(status ? { status, handledAt: new Date() } : {}) } });
+    return true;
+  }
 
   /** A customer asks for a quote for one of their pets. One open request per pet; a few per day at most. */
   async create(customerId: string, body: unknown) {
@@ -52,7 +88,7 @@ export class InsuranceService {
     if (today >= MAX_REQUESTS_PER_DAY) throw new BadRequestException('Too many requests today. Please try again tomorrow.');
 
     const phone = dto.phone.startsWith('+91') ? dto.phone : `+91${dto.phone}`;
-    return this.prisma.petInsuranceRequest.create({
+    const created = await this.prisma.petInsuranceRequest.create({
       data: {
         ownerName: dto.ownerName!,
         email: dto.email ?? null,
@@ -73,6 +109,8 @@ export class InsuranceService {
         consentAt: new Date(),
       },
     });
+    await this.sendToWebsite(created).catch(() => undefined);
+    return created;
   }
 
   listMine(customerId: string) {

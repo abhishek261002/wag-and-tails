@@ -125,6 +125,7 @@ function wt_default_config() {
 			'appsNoShowMins'     => 15,
 			'appsReconfirmHours' => 2,
 			'appsLiveTracking'   => true,
+			'partnerDiscountPct' => 0,
 		),
 	);
 }

@@ -1,13 +1,44 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ConflictException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { CouponsService } from '../coupons/coupons.service.js';
+import { WpStoreService } from '../wp/wp-store.service.js';
+
+// When the website is connected (WP_CONNECTOR_*), the store is the website's WooCommerce shop: the products here are
+// a copy of it (wp-store.service), and quotes, coupons and orders are made by WooCommerce. Without the connection the
+// old app-only store below still works (development).
 
 @Injectable()
 export class StoreService {
   constructor(
     private prisma: PrismaService,
-    private couponsService: CouponsService
+    private couponsService: CouponsService,
+    private wpStore: WpStoreService
   ) {}
+
+  /** The address used for a quote when the customer has not picked one yet (their default, else the newest). */
+  private async defaultAddress(userId: string) {
+    const a = await this.prisma.address.findFirst({ where: { userId, isActive: true }, orderBy: [{ isDefault: 'desc' }, { createdAt: 'desc' }] });
+    if (!a) throw new BadRequestException('Add a delivery address first.');
+    return a.id;
+  }
+
+  /** Totals for the checkout screen: WooCommerce's prices, coupon, shipping and whether cash on delivery is offered. */
+  async quote(userId: string, role: string, addressId?: string, couponCode?: string) {
+    if (!this.wpStore.enabled) {
+      const cart = await this.getOrCreateCart(userId);
+      let discount = 0;
+      let couponError = '';
+      if (couponCode) {
+        try {
+          discount = (await this.couponsService.apply(couponCode, 'store', cart.subtotal, userId)).discount;
+        } catch (e) {
+          couponError = (e as Error).message;
+        }
+      }
+      return { subtotal: cart.subtotal, discount, shipping: 0, tax: 0, total: cart.subtotal - discount, coupons: couponCode && !couponError ? [couponCode] : [], couponError, cod: true, woo: false, lines: [] };
+    }
+    return { ...(await this.wpStore.quote(userId, role, addressId ?? (await this.defaultAddress(userId)), couponCode)), woo: true };
+  }
 
   async listCategories() {
     return this.prisma.productCategory.findMany({
@@ -70,7 +101,13 @@ export class StoreService {
       where: { id: productId },
       include: { variants: true },
     });
-    if (!product) throw new NotFoundException('Product not found');
+    if (!product || !product.isActive) throw new NotFoundException('Product not found');
+    if (!Number.isInteger(quantity) || quantity < 1 || quantity > 20) throw new BadRequestException('Quantity must be between 1 and 20');
+    // Every product has at least one variant (sizes, or "Standard"): pick the first in stock when none is given.
+    if (!variantId && product.variants.length) variantId = (product.variants.find((v) => v.stockQty > 0) ?? product.variants[0])!.id;
+    const variant = variantId ? product.variants.find((v) => v.id === variantId) : undefined;
+    if (variantId && !variant) throw new NotFoundException('That option is not available');
+    if (variant && variant.stockQty <= 0) throw new ConflictException('Out of stock');
 
     const unitPrice = isTradeUser
       ? (variantId
@@ -87,10 +124,13 @@ export class StoreService {
       where: { cartId: cart.id, productId, variantId: variantId ?? null },
     });
 
+    if (variant && (existing?.quantity ?? 0) + quantity > variant.stockQty) {
+      throw new ConflictException(`Only ${variant.stockQty} left`);
+    }
     if (existing) {
       await this.prisma.cartItem.update({
         where: { id: existing.id },
-        data: { quantity: existing.quantity + quantity },
+        data: { quantity: Math.min(20, existing.quantity + quantity), unitPrice },
       });
     } else {
       await this.prisma.cartItem.create({
@@ -121,14 +161,24 @@ export class StoreService {
     return this.getOrCreateCart(userId);
   }
 
-  async applyCoupon(userId: string, couponCode: string) {
+  async applyCoupon(userId: string, couponCode: string, role = 'customer') {
+    if (this.wpStore.enabled) {
+      const cart = await this.getOrCreateCart(userId);
+      const q = await this.quote(userId, role, undefined, couponCode);
+      if (q.couponError) throw new BadRequestException(q.couponError);
+      await this.prisma.cart.update({ where: { userId }, data: { couponCode } });
+      return { ...cart, discount: q.discount, shipping: q.shipping, total: q.total, couponCode };
+    }
     const cart = await this.getOrCreateCart(userId);
     const result = await this.couponsService.apply(couponCode, 'store', cart.subtotal, userId);
     await this.prisma.cart.update({ where: { userId }, data: { couponCode } });
     return { ...cart, discount: result.discount, total: cart.subtotal - result.discount, couponCode };
   }
 
-  async checkout(userId: string, addressId: string, paymentMethod: string, couponCode?: string) {
+  async checkout(userId: string, addressId: string, paymentMethod: string, couponCode?: string, role = 'customer', expectedTotal?: number) {
+    if (this.wpStore.enabled) {
+      return this.wpStore.placeOrder(userId, role, addressId, paymentMethod, couponCode, expectedTotal);
+    }
     const cart = await this.getOrCreateCart(userId);
     if (cart.items.length === 0) throw new BadRequestException('Cart is empty');
 

@@ -12,12 +12,14 @@ const SUPPORT_PHONE = '+911234567890';
 export default function PendingApprovalScreen() {
   const { clearTokens } = useAuthStore();
   const [missingPhotos, setMissingPhotos] = useState(0);
+  const [aadhaarMissing, setAadhaarMissing] = useState(false);
 
   // A groomer who has not added enough tool photos cannot be approved: remind them here.
   useFocusEffect(useCallback(() => {
     wagApi.partner.tools()
       .then((t) => setMissingPhotos(t.required ? Math.max(0, t.rules.minPhotos - t.counts.photos) : 0))
       .catch(() => {});
+    wagApi.partner.aadhaarStatus().then((a) => setAadhaarMissing(!a.done)).catch(() => {});
   }, []));
 
   const handleContactSupport = () => {
@@ -44,6 +46,14 @@ export default function PendingApprovalScreen() {
           Thanks for signing up! Our team is reviewing your details. You'll be able to start
           taking jobs as soon as you're approved — this usually takes 1-2 business days.
         </Text>
+
+        {aadhaarMissing && (
+          <View style={[styles.card, styles.warnCard]}>
+            <Text style={styles.cardTitle}>One more step: your Aadhaar details</Text>
+            <Text style={styles.cardText}>We cannot approve your application until you add your Aadhaar number and photos of the front and back of the card.</Text>
+            <Button onPress={() => router.push('/account/aadhaar?onboarding=1' as any)} fullWidth style={{ marginTop: spacing[3] }}>Add Aadhaar details</Button>
+          </View>
+        )}
 
         {missingPhotos > 0 && (
           <View style={[styles.card, styles.warnCard]}>

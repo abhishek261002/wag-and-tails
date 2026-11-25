@@ -16,7 +16,9 @@ async function bootstrap() {
 
   const app = await NestFactory.create<NestFastifyApplication>(
     AppModule,
-    new FastifyAdapter({ logger: false }),
+    // TRUST_PROXY=true when the API sits behind a reverse proxy (Caddy on the VPS). Without it every request looks
+    // like it comes from 127.0.0.1, so all users would share one rate-limit bucket.
+    new FastifyAdapter({ logger: false, trustProxy: (process.env['TRUST_PROXY'] ?? 'false') === 'true' }),
     // rawBody: the WordPress plugin's signed messages are checked against the exact bytes sent (wp.controller.ts).
     { bufferLogs: true, rawBody: true }
   );

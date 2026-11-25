@@ -15,7 +15,7 @@ import { WpError } from './wp-client.service.js';
 
 const seen = new Map<string, number>(); // nonce → expiry (replay protection within the 5-minute window)
 
-function checkSigned(req: any) {
+export function checkSigned(req: any) {
   const secret = process.env['WP_CONNECTOR_SECRET'] ?? '';
   const raw = req.rawBody ? Buffer.from(req.rawBody).toString('utf8') : '';
   const path = String(req.url ?? req.raw?.url ?? '');

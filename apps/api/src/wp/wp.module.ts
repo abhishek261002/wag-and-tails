@@ -9,6 +9,7 @@ import { WpJobsService } from './wp-jobs.service.js';
 import { WpIngestService } from './wp-ingest.service.js';
 import { WpBookingsService } from './wp-bookings.service.js';
 import { WpDeskService } from './wp-desk.service.js';
+import { WpStoreService } from './wp-store.service.js';
 import { WpController } from './wp.controller.js';
 import { WpConnectorController } from './wp-connector.controller.js';
 import { WpCustomerController } from './wp-customer.controller.js';
@@ -19,8 +20,8 @@ import { TrackController } from './track.controller.js';
 @Global()
 @Module({
   imports: [RealtimeModule, NotificationsModule, RoutingModule],
-  providers: [WpClientService, WpConfigSyncService, WpOutboxService, WpJobsService, WpIngestService, WpBookingsService, WpDeskService],
+  providers: [WpClientService, WpConfigSyncService, WpOutboxService, WpJobsService, WpIngestService, WpBookingsService, WpDeskService, WpStoreService],
   controllers: [WpController, WpConnectorController, WpCustomerController, TrackController],
-  exports: [WpClientService, WpConfigSyncService, WpOutboxService, WpJobsService, WpIngestService, WpBookingsService],
+  exports: [WpClientService, WpConfigSyncService, WpOutboxService, WpJobsService, WpIngestService, WpBookingsService, WpStoreService],
 })
 export class WpModule {}

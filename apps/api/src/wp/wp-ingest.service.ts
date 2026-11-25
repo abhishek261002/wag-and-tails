@@ -8,6 +8,7 @@ import { RealtimeGateway } from '../realtime/realtime.gateway.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
 import { WpClientService } from './wp-client.service.js';
 import { WpJobsService } from './wp-jobs.service.js';
+import { WpStoreService } from './wp-store.service.js';
 import { appRules, channelForSource, dateToIst, dobFromAge, escalationDeadline, istToDate, toAppPhone, toPluginPhone } from './wp-link.js';
 
 // B2: every booking made on the website or at the desk becomes a job partners can take, linked by its WT reference.
@@ -74,6 +75,7 @@ export class WpIngestService {
     private prisma: PrismaService,
     private wp: WpClientService,
     private jobs: WpJobsService,
+    private store: WpStoreService,
     private realtime: RealtimeGateway,
     private notifications: NotificationsService,
     private moduleRef: ModuleRef
@@ -86,6 +88,15 @@ export class WpIngestService {
       const res = await this.wp.get<{ booking: PluginBooking }>(`bookings/${encodeURIComponent(ev.ref)}`);
       return this.reconcile(res.booking);
     }
+    // A WooCommerce order made in the app changed (Processing, Completed, Cancelled, ...).
+    if (ev.type === 'order' && ev.ref && /^\d+$/.test(ev.ref)) return this.store.applyOrder(Number(ev.ref));
+    // A product changed: copy the catalogue again shortly.
+    if (ev.type === 'catalog') {
+      this.store.soon();
+      return { queued: 'catalog' };
+    }
+    // An insurance lead changed on the website: the changes feed has it (the poll applies it).
+    if (ev.type === 'insurance') return this.poll();
     if (ev.type === 'tomb' && ev.ref) return { ignored: 'tomb' }; // deletions arrive as op=delete; the poll handles tombs
     return { ignored: ev.type ?? 'unknown' };
   }
@@ -116,6 +127,8 @@ export class WpIngestService {
             if (row.type === 'booking') {
               const r = await this.reconcile({ ...row.data, _rev: row.data?._rev ?? (row as any).rev });
               if (r.action !== 'stale' && r.action !== 'skipped') applied++;
+            } else if (row.type === 'insurance' && row.data?.appId) {
+              if (await (await this.insurance())?.applyWebsiteLead(row.data)) applied++;
             } else if (row.type === 'tomb' && row.data?.of === 'booking' && row.data?.ref) {
               await this.removed(String(row.data.ref), 'Deleted on the website');
             }
@@ -135,6 +148,16 @@ export class WpIngestService {
       this.polling = false;
     }
     return { seen, applied };
+  }
+
+  private async insurance(): Promise<{ applyWebsiteLead(l: unknown): Promise<boolean> } | null> {
+    try {
+      // Lazy: InsuranceModule is not imported here (the WP module is global and must not import it).
+      const { InsuranceService } = await import('../insurance/insurance.service.js');
+      return this.moduleRef.get(InsuranceService, { strict: false }) as any;
+    } catch {
+      return null;
+    }
   }
 
   private mysqlTime(d: Date) {

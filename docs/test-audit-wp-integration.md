@@ -51,3 +51,15 @@ Mistakes in the tests themselves were also found and fixed (they would have hidd
 - **Production-size load**: the load test proves no errors and sensible latency on a laptop, not capacity planning.
 - **Long-running behaviour** (weeks of timers, many thousands of bookings).
 - **Browser compatibility** of the panel beyond Chrome.
+
+## Round 2 (25 Nov 2026): everything in the plugin
+New suites in `apps/api/test/e2e`: `panel.e2e.ts` (36 tests: signed-only access, partners, Aadhaar encryption and "Show" logging, approve/reject/suspend, staff vs owner money limits, payouts, support tickets, activity log, real WordPress role checks) and `store.e2e.ts` (21 tests: WooCommerce catalogue copy, quotes with coupon/shipping/COD, orders and online payment in WooCommerce, stock holds and the last-item race, partner price, late payments, insurance leads both ways). Full run: **141 e2e + 80 apps link + 49 plugin + 30 unit, all passing**; both mobile apps typecheck; the new plugin pages were checked in a headless browser.
+
+Real defects found and fixed in this round:
+1. The partner's own profile response included the new encrypted Aadhaar fields (now stripped everywhere).
+2. A partner could read any store order by its id (only customers were restricted).
+3. App store orders were never paid online: the checkout screens only labelled UPI/Card. Now the order is created in WooCommerce, then paid, with a "Pay now" button on the order page.
+4. Two shoppers could both buy the last item (now one order at a time site-wide, and WooCommerce holds the stock for unpaid orders).
+5. Shipping rules (free above an amount) ignored the cart in WooCommerce's REST context; now calculated with WooCommerce's own cart.
+
+Not covered: phone screens (Aadhaar screen, checkout, order pay-now), real Razorpay, real WhatsApp, the live site.

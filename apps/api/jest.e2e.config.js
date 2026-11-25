@@ -6,6 +6,7 @@ module.exports = {
   rootDir: '.',
   testMatch: ['<rootDir>/test/e2e/**/*.e2e.ts'],
   transform: { '^.+\.ts$': ['ts-jest', { tsconfig: { module: 'CommonJS', esModuleInterop: true, target: 'ES2022', types: ['jest', 'node'] }, diagnostics: false }] },
+  moduleNameMapper: { '^(\\.{1,2}/.*)\\.js$': '$1' },
   testTimeout: 120000,
   maxWorkers: 1,
 };

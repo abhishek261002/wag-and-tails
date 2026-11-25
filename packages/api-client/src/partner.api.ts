@@ -212,6 +212,25 @@ export class PartnerApi {
     return this.client.post('/partner/tools', { url: uploaded.url });
   }
 
+  /** Aadhaar number and card photos kept for verification (never returned by the server, only whether they are there). */
+  aadhaarStatus(): Promise<{ done: boolean; front: boolean; back: boolean; numberSaved: boolean; last4: string | null; savedAt: string | null }> {
+    return this.client.get('/partner/aadhaar');
+  }
+
+  async uploadAadhaarPhoto(side: 'front' | 'back', file: { uri: string; name: string }) {
+    const blob = await (await fetch(file.uri)).blob();
+    const formData = new FormData();
+    formData.append('side', side);
+    formData.append('file', blob, file.name);
+    return this.client.post<{ done: boolean; front: boolean; back: boolean }>('/partner/aadhaar/photo', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    });
+  }
+
+  saveAadhaarNumber(number: string, consent: boolean) {
+    return this.client.post<{ done: boolean }>('/partner/aadhaar', { number: number.replace(/\s+/g, ''), consent });
+  }
+
   removeTool(id: string): Promise<void> {
     return this.client.delete(`/partner/tools/${id}`);
   }
