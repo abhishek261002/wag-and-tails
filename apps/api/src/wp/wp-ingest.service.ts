@@ -66,6 +66,14 @@ export interface PluginBooking {
 
 const num = (v: unknown) => (Number.isFinite(Number(v)) ? Number(v) : 0);
 
+/** True when the website's address text is a different address from every form the app knows for the booking. */
+export function addressChanged(known: string[], incoming: string): boolean {
+  const norm = (x: string) => x.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  const inc = norm(incoming);
+  if (!inc) return false;
+  return !known.map(norm).filter(Boolean).some((k) => inc.startsWith(k.slice(0, 40)) || k.startsWith(inc.slice(0, 40)));
+}
+
 @Injectable()
 export class WpIngestService {
   private readonly logger = new Logger(WpIngestService.name);
@@ -333,7 +341,7 @@ export class WpIngestService {
     if ((rec.aggression ?? null) !== b.petAggression) { data.petAggression = rec.aggression ?? null; changes.push('pet'); }
     const notes = [rec.notes, rec.customNote].filter((s) => typeof s === 'string' && s.trim()).join(' · ') || null;
     if (notes !== b.petCareNotes && b.wpSource !== 'App') { data.petCareNotes = notes; changes.push('notes'); }
-    if (rec.address && !b.addressLine.startsWith(String(rec.address).slice(0, 40))) {
+    if (rec.address && (await this.addressChangedOnDesk(b, String(rec.address)))) {
       const city = rec.city ? await this.prisma.wpCity.findUnique({ where: { id: rec.city } }) : null;
       const addr = await this.ensureAddress(b.customerId, rec, city?.name ?? rec.city ?? '');
       data.address = { connect: { id: addr.id } };
@@ -453,6 +461,17 @@ export class WpIngestService {
         temperament: rec.aggression ?? null,
       },
     });
+  }
+
+  /**
+   * Did the desk really change the address? The app sends the website "line1, line2, city", while the booking keeps a
+   * shorter "line1, city" line, so comparing the website text with that short line always looked like a change: every
+   * first website update of an app booking (a reschedule, say) logged a false "address changed", made a duplicate
+   * "From website" address and told the partner the job was updated. Compare with the linked address as the app wrote it.
+   */
+  private async addressChangedOnDesk(b: Booking, incoming: string): Promise<boolean> {
+    const linked = b.addressId ? await this.prisma.address.findUnique({ where: { id: b.addressId } }) : null;
+    return addressChanged([b.addressLine, linked ? [linked.line1, linked.line2, linked.city].filter(Boolean).join(', ') : ''], incoming);
   }
 
   async ensureAddress(customerId: string, rec: PluginBooking, cityName: string) {

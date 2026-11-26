@@ -13,13 +13,16 @@ const DURATIONS = [30, 45, 60] as const;
 export default function SelectDurationScreen() {
   const { walkDraft, updateWalkDraft } = useBookingStore();
   const [pricing, setPricing] = useState<Record<number, number>>({});
+  const [pricingLoaded, setPricingLoaded] = useState(false);
 
   useEffect(() => {
     wagApi.client.get<any[]>('/walking/pricing').then((data) => {
       const map: Record<number, number> = {};
       data.forEach((p: any) => { map[p.durationMinutes] = Number(p.price); });
       setPricing(map);
-    }).catch(() => {});
+      const priced = DURATIONS.filter((d) => map[d]);
+      if (priced.length && !map[useBookingStore.getState().walkDraft.durationMinutes]) updateWalkDraft({ durationMinutes: priced[0] });
+    }).catch(() => {}).finally(() => setPricingLoaded(true));
   }, []);
 
   const DETAILS: Record<number, string> = {
@@ -41,7 +44,10 @@ export default function SelectDurationScreen() {
       <Text style={styles.sub}>For {walkDraft.pet?.name ?? 'your dog'}</Text>
 
       <View style={styles.content}>
-        {DURATIONS.map((d) => {
+        {pricingLoaded && DURATIONS.filter((d) => pricing[d]).length === 0 && (
+          <Text style={styles.sub}>Walk prices are not available right now. Please try again later.</Text>
+        )}
+        {DURATIONS.filter((d) => !pricingLoaded || pricing[d]).map((d) => {
           const active = walkDraft.durationMinutes === d;
           const price = pricing[d];
           return (
@@ -64,7 +70,7 @@ export default function SelectDurationScreen() {
                 <Text style={styles.cardDesc}>{DETAILS[d]}</Text>
               </View>
               <Text style={[styles.price, active && styles.priceActive]}>
-                {price ? `₹${price}` : '…'}
+                {price ? `₹${price}` : ''}
               </Text>
             </TouchableOpacity>
           );

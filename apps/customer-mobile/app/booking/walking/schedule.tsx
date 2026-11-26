@@ -11,8 +11,10 @@ import { WALKING_SLOT_HOURS } from '@wag/shared-types';
 import { SlotPicker } from '../../../src/components/SlotPicker';
 import { PartnerChoice } from '../../../src/components/PartnerChoice';
 import { goBack } from '../../../src/lib/nav';
+import { useBookingConfig, websiteCity } from '../../../src/lib/website';
 
 export default function WalkScheduleScreen() {
+  const bookingCfg = useBookingConfig();
   const { walkDraft, updateWalkDraft } = useBookingStore();
   const startSearch = useActiveSearchStore((s) => s.start);
   const [addresses, setAddresses] = useState<any[]>([]);
@@ -33,7 +35,16 @@ export default function WalkScheduleScreen() {
     }).catch(() => { setLoadedAddresses(true); });
   }, []));
 
+  // The website switches walking on per city. Say so here, before the customer fills everything in.
+  const chosenAddr = addresses.find((a) => a.id === selectedAddressId);
+  const chosenCity = websiteCity(bookingCfg, chosenAddr?.city);
+  const walkingOff = !!bookingCfg?.connected && !!chosenAddr && !!chosenCity && chosenCity.walking === false;
+
   const handleConfirm = async () => {
+    if (walkingOff) {
+      Alert.alert('Not available yet', `Dog walking is not available in ${chosenAddr?.city} yet. You can still book grooming.`);
+      return;
+    }
     if (!selectedAddressId) {
       Alert.alert('No address', 'Please add a service address first.');
       return;
@@ -189,7 +200,12 @@ export default function WalkScheduleScreen() {
       </ScrollView>
 
       <View style={styles.footer}>
-        <Button onPress={handleConfirm} fullWidth loading={loading}>
+        {walkingOff && (
+          <Text style={{ fontFamily: 'Inter', fontSize: 13, color: colors.error, textAlign: 'center', marginBottom: spacing[2] }}>
+            Dog walking is not available in {chosenAddr?.city} yet.
+          </Text>
+        )}
+        <Button onPress={handleConfirm} fullWidth loading={loading} disabled={walkingOff}>
           {scheduleNow ? 'Find a Walker Now ⚡' : 'Schedule Walk →'}
         </Button>
       </View>

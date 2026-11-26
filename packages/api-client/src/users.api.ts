@@ -1,4 +1,5 @@
 import type { ApiClient } from './client.js';
+import { appendFile } from './multipart.js';
 
 export interface ProfileUpdate {
   firstName?: string;
@@ -29,9 +30,8 @@ export class UsersApi {
    * so it works identically on native and web.
    */
   async uploadAvatar(file: { uri: string; name: string }): Promise<string> {
-    const blob = await (await fetch(file.uri)).blob();
     const formData = new FormData();
-    formData.append('file', blob, file.name);
+    await appendFile(formData, 'file', file);
     formData.append('entity', 'user');
     formData.append('entityId', 'me');
     const uploaded = await this.client.post<{ url: string }>('/files/upload', formData, {

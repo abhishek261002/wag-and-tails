@@ -5,6 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, spacing, typography, radii } from '@wag/design-tokens';
 import { Icon } from '@wag/ui-mobile';
 import { wagApi } from '../../../src/lib/api';
+import { goHome } from '../../../src/lib/nav';
 
 const SEARCH_TIMEOUT = 45; // seconds
 
@@ -66,7 +67,7 @@ export default function SearchingPartnerScreen() {
           try {
             await wagApi.bookings.cancel(bookingId!);
           } catch {}
-          router.replace('/(tabs)/home');
+          goHome();
         },
       },
     ]);
@@ -127,7 +128,7 @@ export default function SearchingPartnerScreen() {
             <TouchableOpacity style={styles.retryBtn} onPress={handleRetry}>
               <Text style={styles.retryText}>Try Again</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.homeBtn} onPress={() => router.replace('/(tabs)/home')}>
+            <TouchableOpacity style={styles.homeBtn} onPress={() => goHome()}>
               <Text style={styles.homeText}>Back to Home</Text>
             </TouchableOpacity>
           </>

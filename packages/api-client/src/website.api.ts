@@ -1,4 +1,5 @@
 import type { ApiClient } from './client';
+import { appendFile } from './multipart.js';
 
 // The client's website (WordPress plugin), reached through our backend: booking setup, prices, points, website
 // booking history and complaints. When the website is not connected these answer { connected: false }.
@@ -49,9 +50,8 @@ export class WebsiteApi {
 
   /** Upload a photo for a complaint; send the returned url in `photos`. */
   async uploadComplaintPhoto(file: { uri: string; name: string; type: string }): Promise<string> {
-    const blob = await (await fetch(file.uri)).blob();
     const formData = new FormData();
-    formData.append('file', blob, file.name);
+    await appendFile(formData, 'file', file);
     formData.append('entity', 'complaint');
     formData.append('entityId', 'app');
     const uploaded = await this.client.post<{ url: string }>('/files/upload', formData, { headers: { 'Content-Type': 'multipart/form-data' } });

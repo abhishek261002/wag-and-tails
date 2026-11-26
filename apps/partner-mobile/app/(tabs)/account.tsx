@@ -53,7 +53,6 @@ export default function PartnerAccountScreen() {
           <RowItem icon="doc" title="Documents & Verification" onPress={() => router.push('/account/documents' as any)} />
           <RowItem icon="shield" title="Aadhaar details" sub="Your Aadhaar number and card photos" onPress={() => router.push('/account/aadhaar' as any)} />
           <RowItem icon="scissors" title="Your tools" sub="Photos and videos of your grooming tools" onPress={() => router.push('/account/tools' as any)} />
-          <RowItem icon="wallet" title="Bank Account" onPress={() => {}} />
           <RowItem icon="star" title="Reviews" onPress={() => router.push('/account/reviews' as any)} />
         </MenuSection>
 

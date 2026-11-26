@@ -43,7 +43,7 @@ function when(b: any): string {
 function partnerLine(b: any): string {
   const p = b.partner?.user?.profile;
   const name = [p?.firstName, p?.lastName].filter(Boolean).join(' ');
-  const code = `#${String(b.id).slice(0, 8).toUpperCase()}`;
+  const code = `#${String(b.id).slice(-8).toUpperCase()}`;
   return name ? `${name} · ${code}` : code;
 }
 

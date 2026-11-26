@@ -6,7 +6,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button, Icon, type IconName } from '@wag/ui-mobile';
 import { colors, spacing, typography, radii } from '@wag/design-tokens';
 import { wagApi } from '../../src/lib/api';
-import { goBack } from '../../src/lib/nav';
+import { goBack, dismissFlow } from '../../src/lib/nav';
 import { payWithProvider } from '../../src/lib/razorpay';
 
 const PAYMENT_OPTIONS: { label: string; value: 'upi' | 'card' | 'cod'; icon: IconName }[] = [
@@ -107,7 +107,8 @@ export default function CheckoutScreen() {
           Alert.alert('Payment not completed', 'Your order is saved. You can pay for it from the order page.');
         }
       }
-      router.replace({ pathname: '/store/order/[id]', params: { id: order.id } } as any);
+      dismissFlow();
+      router.push({ pathname: '/store/order/[id]', params: { id: order.id } } as any);
     } catch (err: any) {
       if (err?.statusCode === 409) {
         // The price or stock changed since the total was shown: show the new total, never charge a surprise.

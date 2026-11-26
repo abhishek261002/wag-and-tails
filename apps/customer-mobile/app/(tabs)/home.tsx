@@ -13,7 +13,6 @@ import { format } from 'date-fns';
 import { HomeNotifications } from '../../src/components/HomeNotifications';
 import { ProductCarousel } from '../../src/components/ProductCarousel';
 import { VaccinationPopup } from '../../src/components/VaccinationPopup';
-import { MOCK_VETS } from '../../src/data/vets';
 import { useActiveServices } from '../../src/hooks/useActiveServices';
 import { ActiveServicesBanner } from '../../src/components/ActiveServicesBanner';
 import { useBookingStore } from '../../src/store/booking.store';
@@ -28,6 +27,7 @@ export default function HomeScreen() {
   const [pastBookings, setPastBookings] = useState<AnyBooking[]>([]);
   const [profile, setProfile] = useState<any>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [loaded, setLoaded] = useState(false);
 
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
@@ -44,6 +44,8 @@ export default function HomeScreen() {
       active.refresh();
     } catch {
       // silent: offline state shown by empty data
+    } finally {
+      setLoaded(true);
     }
   }, [selectedPetId]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -66,7 +68,7 @@ export default function HomeScreen() {
   useEffect(() => { load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const pet = pets.find((p) => p.id === selectedPetId) ?? pets[0] ?? null;
-  const firstName = profile?.profile?.firstName ?? 'there';
+  const firstName = profile?.profile?.firstName ?? (loaded ? 'there' : '');
   const defaultAddress = profile?.addresses?.[0] ?? null;
   const startGroom = () => router.push(pets.length === 0 ? '/pet/add' : '/booking/grooming/select-pet');
   const startWalk = () => router.push(pets.length === 0 ? '/pet/add' : '/booking/walking/select-dog');
@@ -142,7 +144,7 @@ export default function HomeScreen() {
 
         <View style={styles.body}>
           {/* Pending and ongoing services live in the banner docked at the bottom, not as cards here. */}
-          {pets.length === 0 && (
+          {loaded && pets.length === 0 && (
             <Card style={styles.emptyPets} onPress={() => router.push('/pet/add')}>
               <Icon name="paw" size={36} color={colors.brandBrown} />
               <Text style={styles.emptyTitle}>Add your first pet</Text>
@@ -157,23 +159,23 @@ export default function HomeScreen() {
           {/* Book a service */}
           <SectionHead title="Book a service" sub="At your home, 7 days a week" />
           <View style={styles.svcRow}>
-            <TouchableOpacity style={[styles.svcCard, styles.svcGroom]} onPress={startGroom} activeOpacity={0.9} accessibilityRole="button" accessibilityLabel="Book grooming, from ₹999">
+            <TouchableOpacity style={[styles.svcCard, styles.svcGroom]} onPress={startGroom} activeOpacity={0.9} accessibilityRole="button" accessibilityLabel="Book grooming">
               <View style={styles.svcTop}>
                 <Icon name="scissors" size={20} color={colors.white} />
                 <Text style={styles.svcTitle}>Grooming</Text>
               </View>
               <View style={styles.svcCtaRow}>
-                <Text style={styles.svcCta}>From ₹999</Text>
+                <Text style={styles.svcCta}>Book now</Text>
                 <Icon name="chev" size={12} color={colors.white} />
               </View>
             </TouchableOpacity>
-            <TouchableOpacity style={[styles.svcCard, styles.svcWalk]} onPress={startWalk} activeOpacity={0.9} accessibilityRole="button" accessibilityLabel="Book dog walking, from ₹249">
+            <TouchableOpacity style={[styles.svcCard, styles.svcWalk]} onPress={startWalk} activeOpacity={0.9} accessibilityRole="button" accessibilityLabel="Book dog walking">
               <View style={styles.svcTop}>
                 <Icon name="paw" size={20} color={colors.brandBrown} />
                 <Text style={[styles.svcTitle, styles.svcTitleDark]}>Dog walking</Text>
               </View>
               <View style={styles.svcCtaRow}>
-                <Text style={[styles.svcCta, styles.svcCtaDark]}>From ₹249</Text>
+                <Text style={[styles.svcCta, styles.svcCtaDark]}>Book now</Text>
                 <Icon name="chev" size={12} color={colors.brandBrown} />
               </View>
             </TouchableOpacity>
@@ -184,10 +186,10 @@ export default function HomeScreen() {
           {/* Promo banner */}
           <TouchableOpacity style={styles.promo} onPress={() => router.push('/account/offers')} activeOpacity={0.9}>
             <View style={{ flex: 1 }}>
-              <Text style={styles.promoTitle}>20% off your first groom</Text>
-              <Text style={styles.promoSub}>Valid until the end of the month</Text>
+              <Text style={styles.promoTitle}>Offers for you</Text>
+              <Text style={styles.promoSub}>See the coupons you can use on your next booking</Text>
             </View>
-            <View style={styles.promoCode}><Text style={styles.promoCodeText}>FIRST20</Text></View>
+            <View style={styles.promoCode}><Text style={styles.promoCodeText}>View</Text></View>
           </TouchableOpacity>
 
           {/* Pet care: one light-blue card for everything health related (Dr. Woof, insurance, blood tests) */}
@@ -287,12 +289,6 @@ export default function HomeScreen() {
                 <Text style={styles.trustTitle}>Every partner is verified</Text>
                 <Text style={styles.trustSub}>ID checked, police verified and trained on handling anxious dogs.</Text>
               </View>
-            </View>
-            <View style={styles.metrics}>
-              <Metric v="4.9" k="Avg rating" />
-              <Metric v="12k+" k="Grooms done" />
-              <Metric v="98%" k="On time" />
-              <Metric v={String(MOCK_VETS.length)} k="Vets" onPress={() => router.push('/vets' as any)} />
             </View>
           </View>
 

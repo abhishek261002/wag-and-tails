@@ -74,7 +74,7 @@ export default function VaccinesScreen() {
 
   const records = pet?.vaccinations ?? [];
   const summary = pet ? summarizeVaccinations(records, pet.vaccinationStatus) : null;
-  const options = pet ? [...(CORE_VACCINES_BY_SPECIES[pet.species] ?? []), 'Other'] : [];
+  const options = pet ? Array.from(new Set([...(CORE_VACCINES_BY_SPECIES[pet.species] ?? []), 'Other'])) : [];
   const now = Date.now();
 
   return (

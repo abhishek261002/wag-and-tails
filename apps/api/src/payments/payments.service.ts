@@ -177,7 +177,7 @@ export class PaymentsService {
         // changedBy is a UUID column with no "system" actor to attribute
         // this automatic transition to, so it's recorded against the
         // customer whose payment triggered it.
-        statusHistory: { create: { status: 'needs_partner', changedBy: existing.customerId, note: 'Payment confirmed' } },
+        statusHistory: { create: { status: 'needs_partner', changedBy: existing.customerId, note: existing.paymentMethod === 'cash_after_service' ? 'Sent to partners (pay after service)' : 'Payment confirmed' } },
       },
     });
     await this.announceGrooming(bookingId);

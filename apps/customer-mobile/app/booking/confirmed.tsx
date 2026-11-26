@@ -7,6 +7,7 @@ import { colors, spacing, typography, radii } from '@wag/design-tokens';
 import { useLiveRoute } from '../../src/hooks/useLiveRoute';
 import { wagApi } from '../../src/lib/api';
 import { format } from 'date-fns';
+import { goHome } from '../../src/lib/nav';
 
 const WAITING_STATUSES = new Set(['pending_payment', 'confirmed', 'needs_partner', 'searching_partner']);
 const TRACKING_STATUSES = new Set(['assigned', 'accepted', 'partner_on_the_way', 'arrived', 'in_progress']);
@@ -101,7 +102,7 @@ export default function BookingConfirmedScreen() {
             <Icon name="help" size={17} color={colors.brandBrown} />
             <Text style={styles.supportText}>Need help? Contact support</Text>
           </TouchableOpacity>
-          <TouchableOpacity onPress={() => router.replace('/(tabs)/home')} accessibilityRole="button" style={{ marginTop: spacing[3] }}>
+          <TouchableOpacity onPress={() => goHome()} accessibilityRole="button" style={{ marginTop: spacing[3] }}>
             <Text style={styles.homeLink}>Back to Home</Text>
           </TouchableOpacity>
         </View>
@@ -212,7 +213,7 @@ export default function BookingConfirmedScreen() {
           >
             Need help? Contact support
           </Button>
-          <TouchableOpacity onPress={() => router.replace('/(tabs)/home')}>
+          <TouchableOpacity onPress={() => goHome()}>
             <Text style={styles.homeLink}>Back to Home</Text>
           </TouchableOpacity>
         </View>

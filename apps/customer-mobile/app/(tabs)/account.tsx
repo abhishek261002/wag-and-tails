@@ -73,7 +73,6 @@ export default function AccountScreen() {
         <Section title="Your details">
           <RowItem icon="user" title="Personal information" sub="Photo, name, email, date of birth" onPress={() => router.push('/account/profile' as any)} />
           <RowItem icon="pin" title="Saved addresses" value={String(addressCount)} onPress={() => router.push('/account/addresses' as any)} />
-          <RowItem icon="card" title="Payment methods" onPress={() => {}} />
           <RowItem icon="paw" title="My pets" value={String(petCount)} onPress={() => router.push('/(tabs)/pets' as any)} />
         </Section>
 

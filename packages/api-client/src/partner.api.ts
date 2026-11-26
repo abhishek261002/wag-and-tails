@@ -1,5 +1,6 @@
 import type { ApiClient } from './client.js';
 import type { Partner, PartnerJobCard, PartnerEarnings, PayoutRequest, DuesStatus, DuesPayOrder } from '@wag/shared-types';
+import { appendFile } from './multipart.js';
 
 export interface ToolMedia {
   id: string;
@@ -100,11 +101,10 @@ export class PartnerApi {
     return this.client.get('/partner/payouts');
   }
 
-  // Uploads one job photo (fetch-to-blob so it works on native and web) and returns its stored URL.
+  // Uploads one job photo (via appendFile, see multipart.ts) and returns its stored URL.
   async uploadJobPhoto(bookingId: string, file: { uri: string; name: string; type: string }): Promise<string> {
-    const blob = await (await fetch(file.uri)).blob();
     const formData = new FormData();
-    formData.append('file', blob, file.name);
+    await appendFile(formData, 'file', file);
     formData.append('entity', 'booking');
     formData.append('entityId', bookingId);
     const uploaded = await this.client.post<{ url: string; id: string }>('/files/upload', formData, {
@@ -166,10 +166,8 @@ export class PartnerApi {
   // fetch-to-blob recipe as PetsApi.uploadAvatar / MessagingApi.uploadAttachment,
   // works on both native and web.
   async uploadProfilePhoto(userId: string, file: { uri: string; name: string; type: string }): Promise<{ url: string }> {
-    const blob = await (await fetch(file.uri)).blob();
-
     const formData = new FormData();
-    formData.append('file', blob, file.name);
+    await appendFile(formData, 'file', file);
     formData.append('entity', 'partner');
     formData.append('entityId', userId);
 
@@ -201,9 +199,8 @@ export class PartnerApi {
 
   /** Uploads a photo or video, then attaches it to the partner's tools. Sent as a Blob so it works on native and web. */
   async addToolFile(file: { uri: string; name: string }): Promise<ToolMedia> {
-    const blob = await (await fetch(file.uri)).blob();
     const formData = new FormData();
-    formData.append('file', blob, file.name);
+    await appendFile(formData, 'file', file);
     formData.append('entity', 'partner_tool');
     formData.append('entityId', 'me');
     const uploaded = await this.client.post<{ url: string }>('/files/upload', formData, {
@@ -218,10 +215,9 @@ export class PartnerApi {
   }
 
   async uploadAadhaarPhoto(side: 'front' | 'back', file: { uri: string; name: string }) {
-    const blob = await (await fetch(file.uri)).blob();
     const formData = new FormData();
     formData.append('side', side);
-    formData.append('file', blob, file.name);
+    await appendFile(formData, 'file', file);
     return this.client.post<{ done: boolean; front: boolean; back: boolean }>('/partner/aadhaar/photo', formData, {
       headers: { 'Content-Type': 'multipart/form-data' },
     });

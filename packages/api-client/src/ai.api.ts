@@ -1,5 +1,6 @@
 import type { ApiClient } from './client.js';
 import type { AiChatRequest, AiChatResponse, AiChatSession, DrWoofSessionSummary } from '@wag/shared-types';
+import { appendFile } from './multipart.js';
 
 export class AiApi {
   constructor(private client: ApiClient) {}
@@ -29,9 +30,8 @@ export class AiApi {
 
   /** Uploads a photo for a Dr. Woof message and returns its path, to send with `drWoof(..., imageUrl)`. */
   async uploadDrWoofImage(file: { uri: string; name: string; type: string }): Promise<{ url: string }> {
-    const blob = await (await fetch(file.uri)).blob();
     const formData = new FormData();
-    formData.append('file', blob, file.name);
+    await appendFile(formData, 'file', file);
     formData.append('entity', 'dr_woof');
     formData.append('entityId', 'chat');
     const uploaded = await this.client.post<{ url: string }>('/files/upload', formData, { headers: { 'Content-Type': 'multipart/form-data' } });

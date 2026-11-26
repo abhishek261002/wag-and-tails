@@ -3,12 +3,9 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-nati
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Icon } from '@wag/ui-mobile';
 import { colors, spacing, radii } from '@wag/design-tokens';
-import { MOCK_VETS } from '../src/data/vets';
 import { goBack } from '../src/lib/nav';
 
-const initials = (name: string) => name.replace(/^Dr\.\s*/, '').split(' ').map((w) => w[0]).slice(0, 2).join('');
-
-/** "Our vets": the doctors on the panel. Sample profiles for now; booking a consultation comes later. */
+/** "Our vets": placeholder until real doctors are on the panel (no invented profiles are shown). */
 export default function VetsScreen() {
   return (
     <SafeAreaView style={styles.safe}>
@@ -20,24 +17,8 @@ export default function VetsScreen() {
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         <View style={styles.note}>
           <Icon name="info" size={16} color={colors.marigoldDark} />
-          <Text style={styles.noteText}>Vet consultations are coming soon. Meet the doctors joining Wag & Tails.</Text>
+          <Text style={styles.noteText}>Vet consultations are coming soon. We will introduce our doctors here once they join Wag & Tails.</Text>
         </View>
-        {MOCK_VETS.map((v) => (
-          <View key={v.id} style={styles.card} accessibilityLabel={`${v.name}, ${v.speciality}, ${v.experienceYears} years experience, ${v.city}`}>
-            <View style={styles.avatar}><Text style={styles.avatarText}>{initials(v.name)}</Text></View>
-            <View style={{ flex: 1, minWidth: 0 }}>
-              <Text style={styles.name}>{v.name}</Text>
-              <Text style={styles.qual}>{v.qualification}</Text>
-              <Text style={styles.spec}>{v.speciality}</Text>
-              <View style={styles.metaRow}>
-                <View style={styles.chip}><Icon name="star" size={11} color={colors.marigoldDark} /><Text style={styles.chipText}>{v.rating.toFixed(1)}</Text></View>
-                <View style={styles.chip}><Text style={styles.chipText}>{v.experienceYears} yrs</Text></View>
-                <View style={styles.chip}><Icon name="pin" size={11} color={colors.textMuted} /><Text style={styles.chipText}>{v.city}</Text></View>
-              </View>
-              <Text style={styles.lang}>Speaks {v.languages.join(', ')}</Text>
-            </View>
-          </View>
-        ))}
       </ScrollView>
     </SafeAreaView>
   );

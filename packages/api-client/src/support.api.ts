@@ -1,4 +1,5 @@
 import type { ApiClient } from './client.js';
+import { appendFile } from './multipart.js';
 
 export interface SupportTicket {
   id: string;
@@ -66,12 +67,10 @@ export class SupportApi {
     return this.client.post(`/support/tickets/${ticketId}/messages`, data);
   }
 
-  // Same fetch-to-blob recipe as MessagingApi.uploadAttachment.
+  // Same appendFile recipe as MessagingApi.uploadAttachment.
   async uploadAttachment(ticketId: string, file: { uri: string; name: string; type: string }): Promise<{ url: string }> {
-    const blob = await (await fetch(file.uri)).blob();
-
     const formData = new FormData();
-    formData.append('file', blob, file.name);
+    await appendFile(formData, 'file', file);
     formData.append('entity', 'support_ticket');
     formData.append('entityId', ticketId);
 

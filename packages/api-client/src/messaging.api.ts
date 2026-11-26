@@ -1,5 +1,6 @@
 import type { ApiClient } from './client.js';
 import type { Conversation, Message, SendMessageInput } from '@wag/shared-types';
+import { appendFile } from './multipart.js';
 
 export class MessagingApi {
   constructor(private client: ApiClient) {}
@@ -27,16 +28,13 @@ export class MessagingApi {
 
   // Uploads an attachment (image, for now) via the generic /files/upload
   // endpoint and returns its URL — same recipe as PetsApi.uploadAvatar
-  // (fetch-to-blob works on both native and web, unlike RN's
-  // FormData-with-{uri,name,type} shape which only works natively).
+  // (uses appendFile, see multipart.ts).
   async uploadAttachment(
     conversationId: string,
     file: { uri: string; name: string; type: string }
   ): Promise<{ url: string }> {
-    const blob = await (await fetch(file.uri)).blob();
-
     const formData = new FormData();
-    formData.append('file', blob, file.name);
+    await appendFile(formData, 'file', file);
     formData.append('entity', 'conversation');
     formData.append('entityId', conversationId);
 

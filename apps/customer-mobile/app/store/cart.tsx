@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, StyleSheet, FlatList, TouchableOpacity, Alert, Image } from 'react-native';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button, Icon } from '@wag/ui-mobile';
@@ -52,10 +52,14 @@ export default function CartScreen() {
         contentContainerStyle={styles.list}
         renderItem={({ item }) => (
           <View style={styles.cartItem}>
-            <View style={styles.itemImage}><Icon name="bag" size={28} color={colors.textDisabled} /></View>
+            <View style={styles.itemImage}>
+              {item.imageUrl
+                ? <Image source={{ uri: item.imageUrl }} style={{ width: 60, height: 60, borderRadius: radii.lg }} />
+                : <Icon name="bag" size={28} color={colors.textDisabled} />}
+            </View>
             <View style={styles.itemInfo}>
-              <Text style={styles.itemName} numberOfLines={2}>{item.product?.name ?? 'Product'}</Text>
-              {item.variant?.name && <Text style={styles.itemVariant}>{item.variant.name}</Text>}
+              <Text style={styles.itemName} numberOfLines={2}>{item.productName ?? item.product?.name ?? 'Product'}</Text>
+              {(item.variantName ?? item.variant?.name) && <Text style={styles.itemVariant}>{item.variantName ?? item.variant?.name}</Text>}
               <Text style={styles.itemPrice}>₹{Number(item.unitPrice)}</Text>
             </View>
             <View style={styles.qtyRow}>

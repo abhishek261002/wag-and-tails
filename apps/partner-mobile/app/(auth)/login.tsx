@@ -92,13 +92,6 @@ export default function PartnerLoginScreen() {
             <Text style={styles.link} onPress={() => router.push('/(auth)/signup')}>Sign up</Text>
           </Text>
 
-          {/* Dev hint */}
-          <View style={styles.devBox}>
-            <Text style={styles.devTitle}>Test accounts</Text>
-            <Text style={styles.devText}>ritika.sharma@wagpartner.in / Partner@123 (grooming)</Text>
-            <Text style={styles.devText}>karan.joshi@wagpartner.in / Partner@123 (walking)</Text>
-            <Text style={styles.devText}>aman.verma@wagpartner.in / Partner@123 (both)</Text>
-          </View>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>

@@ -6,6 +6,7 @@ import { Button, Icon, type IconName } from '@wag/ui-mobile';
 import { colors, spacing, typography, radii } from '@wag/design-tokens';
 import { wagApi } from '../../../src/lib/api';
 import { format } from 'date-fns';
+import { goHome } from '../../../src/lib/nav';
 
 export default function WalkSummaryScreen() {
   const { id: bookingId } = useLocalSearchParams<{ id: string }>();
@@ -26,7 +27,7 @@ export default function WalkSummaryScreen() {
     try {
       await wagApi.client.post(`/bookings/${bookingId}/review`, { rating, comment, tip });
       Alert.alert('Thank you!', 'Your review has been submitted.', [
-        { text: 'OK', onPress: () => router.replace('/(tabs)/home') },
+        { text: 'OK', onPress: () => goHome() },
       ]);
     } catch (err: any) {
       Alert.alert('Error', err?.message ?? 'Could not submit review');
@@ -121,7 +122,7 @@ export default function WalkSummaryScreen() {
           Submit Review & Pay{tip ? ` (+₹${tip} tip)` : ''}
         </Button>
 
-        <TouchableOpacity style={styles.skipBtn} onPress={() => router.replace('/(tabs)/home')}>
+        <TouchableOpacity style={styles.skipBtn} onPress={() => goHome()}>
           <Text style={styles.skipText}>Skip for now</Text>
         </TouchableOpacity>
       </ScrollView>

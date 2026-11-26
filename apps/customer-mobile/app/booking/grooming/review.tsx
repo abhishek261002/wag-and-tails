@@ -10,7 +10,7 @@ import { format } from 'date-fns';
 import { PartnerChoice } from '../../../src/components/PartnerChoice';
 import { payWithProvider } from '../../../src/lib/razorpay';
 import { AvailableCoupons } from '../../../src/components/AvailableCoupons';
-import { goBack } from '../../../src/lib/nav';
+import { goBack, goHome, dismissFlow } from '../../../src/lib/nav';
 import { useBookingConfig, errorCode, errorMessage } from '../../../src/lib/website';
 import type { WebsiteQuote } from '@wag/api-client';
 
@@ -147,8 +147,8 @@ export default function ReviewGroomingBookingScreen() {
         if (remaining > 0) await new Promise((r) => setTimeout(r, remaining));
       }
       resetGroomingDraft();
-      if (findInstantly) router.replace('/(tabs)/home' as any);
-      else router.replace({ pathname: '/booking/confirmed', params: { id: booking.id } });
+      if (findInstantly) goHome();
+      else { dismissFlow(); router.push({ pathname: '/booking/confirmed', params: { id: booking.id } }); }
     } catch (err: any) {
       const data = err?.response?.data;
       if (errorCode(err) === 'SLOT_TAKEN') {

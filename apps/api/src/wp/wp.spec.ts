@@ -166,3 +166,19 @@ describe('wp-link', () => {
     expect(dobFromAge('', 'years', now)).toBeNull();
   });
 });
+
+import { addressChanged } from './wp-ingest.service.js';
+
+describe('addressChanged (desk address edit detection)', () => {
+  const known = ['QA Flat 12, Lucknow', 'QA Flat 12, Gomti Nagar, Lucknow'];
+  it('does not flag the website echo of an address the app itself sent', () => {
+    expect(addressChanged(known, 'QA Flat 12, Gomti Nagar, Lucknow')).toBe(false);
+    expect(addressChanged(known, 'qa flat 12,  gomti nagar,  LUCKNOW')).toBe(false);
+  });
+  it('flags a genuinely different address typed on the desk', () => {
+    expect(addressChanged(known, 'Plot 9, Aliganj, Lucknow')).toBe(true);
+  });
+  it('ignores an empty website address', () => {
+    expect(addressChanged(known, '')).toBe(false);
+  });
+});
