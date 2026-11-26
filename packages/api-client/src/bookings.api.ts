@@ -113,6 +113,16 @@ export class BookingsApi {
     return this.client.patch(`/bookings/${bookingId}/reschedule`, { scheduledAt, reason });
   }
 
+  /** The customer's review of a completed booking, or null if not rated yet. */
+  getReview(bookingId: string): Promise<{ rating: number; comment: string | null; createdAt: string } | null> {
+    return this.client.get(`/bookings/${bookingId}/review`);
+  }
+
+  /** Rate the partner (1 to 5) once the booking is completed. One review per booking. */
+  addReview(bookingId: string, review: { rating: number; comment?: string }): Promise<{ rating: number; comment: string | null; createdAt: string }> {
+    return this.client.post(`/bookings/${bookingId}/review`, review);
+  }
+
   cancel(bookingId: string, reason?: string): Promise<void> {
     return this.client.patch(`/bookings/${bookingId}/cancel`, { reason });
   }

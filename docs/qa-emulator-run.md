@@ -169,3 +169,59 @@ Partner: login error for wrong credentials, sign-up form and validation, DigiLoc
 - Plugin pages (section C) and the partner/customer chat, push notifications and live walk tracking.
 - Anything after a photo upload (blocked by B15 on this build).
 - Payments with a real provider, real SMS, real DigiLocker.
+
+
+## Round 2: new builds (26 Nov, evening)
+
+Installed the rebuilt customer and partner APKs on the emulator (both made after the first round of fixes).
+
+### Confirmed fixed on the new builds
+- **B15 photo upload:** customer profile photo uploaded; the backend has `/uploads/user_me_...jpg` (the old build gave "Network Error").
+- **K1 DigiLocker return:** the `wagandtailspartner://kyc?...` link now lands on the "Become a partner" screen, no "Unmatched Route".
+- **K2:** the "Test accounts" box is gone from the partner login.
+- **B9:** the customer Home no longer flashes "Add your first pet" while loading.
+- Partner: approved partner logs in, goes online, sees the booking (after a pull to refresh), claims it. The payout panel shows total 900, platform fee 20% (180), earnings 720. Correct.
+
+### New bugs found in round 2
+| # | Where | What happens | Severity | Status |
+|---|---|---|---|---|
+| B16 | Partner Jobs | Rating is hard-coded "4.8" for every partner, even one with no reviews. | High (false number) | fixed in code: real average, "New" if no reviews |
+| B20 | Partner job screen | The customer's "Note for groomer" and the notes saved on the pet profile never appear. The backend sends both; the screen only read an old snapshot field. | **High** | fixed in code |
+| B21 | Partner, after "I'm on my way" | Screen crash "Something went wrong". Cause: map error "`id` cannot be changed" when the real route replaces the dashed estimate line. Also affects the customer's live tracking map. | **Critical** | fixed in code (layer keys in `LiveMapView.tsx`) |
+| B22 | Both apps, every map | Map tiles return HTTP 401: Ola needs `api_key` on every request but its style only has it on the first one. The blank map in the address picker (earlier called M1, "maybe the emulator") was this. Checked against Ola: no key = 401, with key = 200. | **Critical** | fixed in code (`mapsKey.ts`, request transform) |
+| B17 | Partner Jobs | Pressing Online does not refresh the open-jobs list: it says "0 near you" until you pull down. | Medium | open |
+| B18 | Partner Jobs | "Today's schedule" also lists jobs on later days (a Saturday job showed under Today). | Low | open |
+| B19 | Partner Jobs | Placeholder text on the login screen is the demo email ritika@wagpartner.in; sign-up placeholders look like real data (Ritika Sharma, +919900001111, 28). | Low | open |
+| B2b | Booking address | The earlier false "address changed" bug had already stored "Lucknow, Lucknow" on this test booking. The backend fix stops new ones, it does not repair old rows. | Info | n/a for new data |
+
+### Still to verify after the next build
+Everything after "I'm on my way": navigate screen with map, arrived, start code, end code, collect cash, complete, earnings; customer live tracking; the real address map; partner Aadhaar/tool photo uploads; partner sign-up end to end; partner store; messaging.
+
+
+## Round 3: development build + live code (27 Nov, night)
+
+Switched to development builds: the apps load their code live from the PC, so fixes are tested in seconds without a rebuild.
+
+### Confirmed on the emulator
+- **B22 map tiles:** real Ola street maps now draw in the customer address picker and the partner job screen.
+- **B21 crash:** "I'm on my way" and the job map no longer crash.
+- **B20 notes:** the groomer sees "Note from the customer" and the pet's care notes.
+- **B16 rating:** shows "New" for a partner with no reviews.
+- **B2 booking number:** list and detail show the same number (#E2C96D7F).
+- **B15 uploads in the partner app:** before-photo and after-photo upload fine.
+- **The whole partner job runs end to end:** accept, on the way, arrived, before-photo, start code (wrong code is refused), after-photo, collect cash (confirm dialog), end code, slide to complete. The customer gets "Payment received", the booking becomes completed, the partner's Earnings show collected 900 / yours 720 / company 180 / commission due 180 against a limit of 1500.
+
+### New bugs found and fixed in round 3
+| # | Where | What happens | Severity | Status |
+|---|---|---|---|---|
+| B23 | `SlideToComplete` (partner) | **A partner could never finish a job.** The slider is created once and kept the first-render values of `disabled` (true, the end code is empty then) and of the "complete" action. Sliding did nothing. | **Critical** | fixed, verified |
+| B24 | `SlideToComplete` | The fill bar animated `width` with the native driver: "Style property 'width' is not supported by native animated module". Could crash the screen when a job is completed in a release build. Also the slider stayed stuck on "Done" after a wrong code. | High | fixed, verified |
+| B25 | Customer "Rate & Review" | The button opened `/booking/rate`, a screen that did not exist (it loaded forever as a booking called "rate"). The backend also had **no way to create a review**: customers could never rate a partner, partner ratings and the partner Reviews screen could never fill. | **Critical** | built: screen `booking/rate.tsx`, `POST/GET /bookings/:id/review`, rating recalculated from all reviews. Screen verified; **submit needs the backend deploy** |
+| B26 | Customer booking detail | A partner with no reviews showed "5 ★" (database default). Now "New", or "4.8 ★ (12)". | Medium | fixed |
+| B27 | Partner job error text | Every failure to complete said "Incorrect code" (even network errors). | Low | fixed |
+
+### Still open
+- B17 (Online does not refresh the list), B18 and B24b: a completed job stays under "Today's schedule" / "Jobs left" until refreshed; "Today's schedule" also lists later days.
+- **Push notifications are not configured**: both apps log "Unable to get Firebase Messaging instance". Needs a Firebase project and a `google-services.json` for each app before launch. Job offers rely on push.
+- After-photos are kept only on the phone until the job is completed; leaving the job screen loses them.
+- B12 support phone number, B14 "police verified" wording, GEMINI key (done by user), D1/D2 website data.

@@ -82,6 +82,22 @@ export class BookingsController {
     return this.bookingsService.reschedule(id, user.sub, body.scheduledAt, body.reason);
   }
 
+  @Get(':id/review')
+  @Roles('customer')
+  getReview(@Param('id') id: string, @CurrentUser() user: { sub: string }) {
+    return this.bookingsService.getReview(id, user.sub);
+  }
+
+  @Post(':id/review')
+  @Roles('customer')
+  addReview(
+    @Param('id') id: string,
+    @CurrentUser() user: { sub: string },
+    @Body() body: { rating?: number; comment?: string }
+  ) {
+    return this.bookingsService.addReview(id, user.sub, body);
+  }
+
   @Patch(':id/cancel')
   @Roles('customer', 'staff', 'admin')
   @HttpCode(HttpStatus.NO_CONTENT)

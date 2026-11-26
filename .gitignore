@@ -18,3 +18,7 @@ infra/vps/wag-and-tails.zip
 
 private-uploads
 apps/api/private-uploads
+
+# Downloaded test builds
+apps_build_apk/
+*.apk

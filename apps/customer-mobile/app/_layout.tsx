@@ -11,10 +11,11 @@ import { useAuthStore } from '../src/store/auth.store';
 import { SearchBanner } from '../src/components/SearchBanner';
 import { usePushSetup } from '../src/lib/push';
 import { colors } from '@wag/design-tokens';
-import { configureMaps } from '@wag/ui-mobile';
+import { configureMaps, applyOlaRequestKey } from '@wag/ui-mobile';
 
 // Ola Maps key for map tiles (a public, restricted key); without it maps fall back to OpenStreetMap tiles.
 configureMaps({ apiKey: process.env.EXPO_PUBLIC_OLA_MAPS_API_KEY || null });
+applyOlaRequestKey();
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 

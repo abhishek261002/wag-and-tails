@@ -104,6 +104,14 @@ export default function JobsScreen() {
       .catch(() => {});
   }, []);
 
+  // The real average from customer reviews; a partner with none yet sees "New", not an invented number.
+  const [ratingText, setRatingText] = useState('New');
+  useEffect(() => {
+    wagApi.partner.getReviews()
+      .then((r) => setRatingText(r.count > 0 ? r.avg.toFixed(1) : 'New'))
+      .catch(() => {});
+  }, []);
+
   // Uber-style incoming-job popup: while online, a live socket connection
   // listens for jobs the backend is actively dispatching to this partner
   // (job:available for grooming, walk:request_sent for walking) and surfaces
@@ -300,7 +308,7 @@ export default function JobsScreen() {
               <View style={styles.metrics}>
                 <Metric v={`₹${todayEarnings}`} k="Today" />
                 <Metric v={String(myJobs.length)} k="Jobs left" />
-                <Metric v="4.8" k="Rating" />
+                <Metric v={ratingText} k="Rating" />
               </View>
 
               {/* Open jobs */}

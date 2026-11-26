@@ -237,7 +237,7 @@ export default function JobDetailScreen() {
         { text: 'OK', onPress: () => router.replace('/(tabs)/jobs') },
       ]);
     } catch (err: any) {
-      Alert.alert('Incorrect code', err?.message ?? 'Ask the customer for the code again.');
+      Alert.alert('Could not complete the job', err?.message ?? 'Check the code with the customer and try again.');
     } finally {
       setCompleting(false);
     }
@@ -330,6 +330,27 @@ export default function JobDetailScreen() {
                 <Text style={styles.careNoteTitle}>Care Notes (read carefully)</Text>
               </View>
               <Text style={styles.careNoteText}>{booking.petCareNotes}</Text>
+            </View>
+          )}
+          {/* What the customer wrote for the groomer when booking, and the notes saved on the pet's profile. */}
+          {!!(booking as any).notes && (
+            <View style={styles.careNote}>
+              <View style={styles.careNoteTitleRow}>
+                <Icon name="doc" size={13} color={colors.warning} />
+                <Text style={styles.careNoteTitle}>Note from the customer</Text>
+              </View>
+              <Text style={styles.careNoteText}>{(booking as any).notes}</Text>
+            </View>
+          )}
+          {Array.isArray((booking.pet as any)?.careNotes) && (booking.pet as any).careNotes.length > 0 && (
+            <View style={styles.careNote}>
+              <View style={styles.careNoteTitleRow}>
+                <Icon name="doc" size={13} color={colors.warning} />
+                <Text style={styles.careNoteTitle}>Care notes for {booking.petName}</Text>
+              </View>
+              {(booking.pet as any).careNotes.map((n: any) => (
+                <Text key={n.id} style={styles.careNoteText}>• {n.note}</Text>
+              ))}
             </View>
           )}
           {booking.pet?.allergies && (

@@ -107,12 +107,14 @@ export function LiveMapView({ partner, destination, height = 240, route, etaSeco
           initialViewState={{ center: initialCenter ? [initialCenter.lng, initialCenter.lat] : DEFAULT_CENTER, zoom: 13 }}
         />
         {line && (
+          // Each layer has its own key: MapLibre re-keys children by position, so without keys the dashed estimate layer was
+          // reused for the real route and crashed with "`id` cannot be changed" the moment the route arrived.
           // MapLibre injects a `source` prop into every direct child, so these must be the layers themselves:
           // a Fragment (or any wrapper) would receive the prop and React rejects it.
           <GeoJSONSource id="wag-route" data={line as any}>
-            {hasRoute && <Layer type="line" id="wag-route-casing" paint={{ 'line-color': '#FFFFFF', 'line-width': 9 }} layout={{ 'line-cap': 'round', 'line-join': 'round' }} />}
-            {hasRoute && <Layer type="line" id="wag-route-line" paint={{ 'line-color': '#2563EB', 'line-width': 5 }} layout={{ 'line-cap': 'round', 'line-join': 'round' }} />}
-            {!hasRoute && <Layer type="line" id="wag-route-estimate" paint={{ 'line-color': '#8B5E34', 'line-width': 3, 'line-dasharray': [2, 1.5] }} />}
+            {hasRoute && <Layer key="casing" type="line" id="wag-route-casing" paint={{ 'line-color': '#FFFFFF', 'line-width': 9 }} layout={{ 'line-cap': 'round', 'line-join': 'round' }} />}
+            {hasRoute && <Layer key="line" type="line" id="wag-route-line" paint={{ 'line-color': '#2563EB', 'line-width': 5 }} layout={{ 'line-cap': 'round', 'line-join': 'round' }} />}
+            {!hasRoute && <Layer key="estimate" type="line" id="wag-route-estimate" paint={{ 'line-color': '#8B5E34', 'line-width': 3, 'line-dasharray': [2, 1.5] }} />}
           </GeoJSONSource>
         )}
         {destination && (

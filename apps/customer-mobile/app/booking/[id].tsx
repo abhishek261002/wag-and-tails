@@ -236,7 +236,7 @@ export default function BookingDetailScreen() {
         {partnerName && (
           <Section title="Your Partner">
             <Row label="Name" value={partnerName} />
-            {booking.partner?.rating && <Row label="Rating" value={`${booking.partner.rating} ★`} />}
+            {booking.partner?.rating != null && <Row label="Rating" value={(booking.partner.reviewCount ?? 0) > 0 ? `${Number(booking.partner.rating).toFixed(1)} ★ (${booking.partner.reviewCount})` : 'New'} />}
             <Row label="Jobs done" value={`${booking.partner.completedJobs ?? 0} jobs`} />
           </Section>
         )}

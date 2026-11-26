@@ -24,6 +24,7 @@ export { ICON_PATHS, ICON_NAMES } from './iconPaths';
 export { LiveMapView, etaLabel } from './LiveMapView';
 export type { LiveMapViewProps, LiveMapMarker } from './LiveMapView.types';
 export { configureMaps, getOlaMapsApiKey, getMapStyle } from './mapsConfig';
+export { applyOlaRequestKey } from './mapsKey';
 export type { MapsConfig } from './mapsConfig';
 export { DateField, formatDisplayDate } from './DateField';
 export type { DateFieldProps } from './DateField';

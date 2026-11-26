@@ -657,6 +657,51 @@ export class BookingsService {
     });
   }
 
+  /** The customer's own review of a booking, or null if they have not rated it yet. */
+  async getReview(bookingId: string, customerId: string) {
+    const booking = await this.prisma.booking.findFirst({ where: { id: bookingId, customerId }, select: { id: true } });
+    if (!booking) throw new NotFoundException('Booking not found');
+    const r = await this.prisma.review.findUnique({ where: { bookingId } });
+    return r ? { rating: r.rating, comment: r.comment, createdAt: r.createdAt } : null;
+  }
+
+  /**
+   * The customer rates the partner once a booking is completed (1 to 5 stars, optional comment). One review per
+   * booking. The partner's average rating and review count are recalculated from all their reviews, so they can
+   * never drift from the real ones.
+   */
+  async addReview(bookingId: string, customerId: string, input: { rating?: unknown; comment?: unknown }) {
+    const rating = Number(input?.rating);
+    if (!Number.isInteger(rating) || rating < 1 || rating > 5) throw new BadRequestException('Rating must be a whole number from 1 to 5');
+    const comment = typeof input?.comment === 'string' ? input.comment.trim().slice(0, 500) : '';
+
+    const booking = await this.prisma.booking.findFirst({ where: { id: bookingId, customerId } });
+    if (!booking) throw new NotFoundException('Booking not found');
+    if (booking.status !== 'completed') throw new ConflictException('You can rate a booking once it is completed.');
+    const partnerId = booking.partnerId;
+    if (!partnerId) throw new UnprocessableEntityException('This booking had no partner to rate.');
+
+    const prof = await this.prisma.userProfile.findUnique({ where: { userId: customerId }, select: { firstName: true, lastName: true } });
+    const reviewerName = [prof?.firstName, prof?.lastName?.charAt(0) ? `${prof.lastName.charAt(0)}.` : ''].filter(Boolean).join(' ') || 'Customer';
+
+    try {
+      return await this.prisma.$transaction(async (tx) => {
+        const review = await tx.review.create({
+          data: { bookingId, reviewerId: customerId, reviewerName, revieweeId: partnerId, revieweeType: 'partner', rating, comment: comment || null },
+        });
+        const agg = await tx.review.aggregate({ where: { revieweeId: partnerId, revieweeType: 'partner' }, _avg: { rating: true }, _count: { _all: true } });
+        await tx.partnerProfile.update({
+          where: { userId: partnerId },
+          data: { rating: Math.round((agg._avg.rating ?? rating) * 100) / 100, reviewCount: agg._count._all },
+        });
+        return { rating: review.rating, comment: review.comment, createdAt: review.createdAt };
+      });
+    } catch (e: any) {
+      if (e?.code === 'P2002') throw new ConflictException('You have already rated this booking.');
+      throw e;
+    }
+  }
+
   async cancel(bookingId: string, requesterId: string, requesterRole: string, reason?: string) {
     const booking = await this.prisma.booking.findUniqueOrThrow({ where: { id: bookingId } });
 

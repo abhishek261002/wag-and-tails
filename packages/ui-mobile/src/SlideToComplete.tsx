@@ -16,7 +16,7 @@ const MAX_TRANSLATE = TRACK_WIDTH - THUMB_SIZE - 8;
 
 export interface SlideToCompleteProps {
   label?: string;
-  onComplete: () => void;
+  onComplete: () => void | Promise<unknown>;
   disabled?: boolean;
 }
 
@@ -25,12 +25,23 @@ export function SlideToComplete({
   onComplete,
   disabled = false,
 }: SlideToCompleteProps) {
+  // JS-driven on purpose: the fill bar animates `width`, which the native animation driver cannot do, and one
+  // Animated.Value cannot be both. Using the native driver here threw "Style property 'width' is not supported".
   const translateX = useRef(new Animated.Value(0)).current;
   const [completed, setCompleted] = useState(false);
 
+  // The PanResponder below is created once, so anything it reads must come from refs. Reading the props directly froze
+  // them at the first render: on the job screen that is before the end code is typed (disabled = true, an old
+  // onComplete), so the slider never worked and a partner could not finish a job.
+  const disabledRef = useRef(disabled);
+  const completedRef = useRef(false);
+  const onCompleteRef = useRef(onComplete);
+  disabledRef.current = disabled;
+  onCompleteRef.current = onComplete;
+
   const panResponder = useRef(
     PanResponder.create({
-      onStartShouldSetPanResponder: () => !disabled && !completed,
+      onStartShouldSetPanResponder: () => !disabledRef.current && !completedRef.current,
       onPanResponderMove: (_, gestureState) => {
         const x = Math.max(0, Math.min(gestureState.dx, MAX_TRANSLATE));
         translateX.setValue(x);
@@ -40,16 +51,22 @@ export function SlideToComplete({
           Animated.timing(translateX, {
             toValue: MAX_TRANSLATE,
             duration: 150,
-            useNativeDriver: true,
+            useNativeDriver: false,
           }).start(() => {
+            completedRef.current = true;
             setCompleted(true);
             Vibration.vibrate(50);
-            onComplete();
+            // Let the thumb go back once the attempt is over, so a wrong code can be corrected and slid again.
+            Promise.resolve(onCompleteRef.current()).finally(() => {
+              completedRef.current = false;
+              setCompleted(false);
+              Animated.spring(translateX, { toValue: 0, useNativeDriver: false }).start();
+            });
           });
         } else {
           Animated.spring(translateX, {
             toValue: 0,
-            useNativeDriver: true,
+            useNativeDriver: false,
           }).start();
         }
       },
