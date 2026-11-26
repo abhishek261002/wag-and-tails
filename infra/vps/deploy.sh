@@ -4,6 +4,8 @@
 # Run it as root or as the 'wag' user; it switches to 'wag' itself.
 set -euo pipefail
 
+# Leave /root first: an SSH login starts there, 'wag' cannot read it, and find/tar in backup.sh then fail.
+cd /opt/wag
 if [ "$(id -un)" != "wag" ]; then exec sudo -u wag bash "$0" "$@"; fi
 
 REPO="${WAG_REPO:-git@github.com:abhishek261002/wag-and-tails.git}"
