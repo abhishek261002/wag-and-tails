@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert } from 'react-native';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button, Icon, type IconName } from '@wag/ui-mobile';
 import { colors, spacing, radii } from '@wag/design-tokens';
@@ -26,7 +26,8 @@ export default function PartnerCheckoutScreen() {
   const [quote, setQuote] = useState<any>(null);
   const [quoteError, setQuoteError] = useState('');
 
-  useEffect(() => {
+  // Reload when the screen comes back into view, so an address added on the next screen appears straight away.
+  useFocusEffect(useCallback(() => {
     Promise.all([
       wagApi.store.getCart(),
       wagApi.client.get<any>('/users/me'),
@@ -35,10 +36,13 @@ export default function PartnerCheckoutScreen() {
       setDiscount(Number((c as any)?.discount ?? 0));
       const addrs = u?.addresses ?? [];
       setAddresses(addrs);
-      const def = addrs.find((a: any) => a.isDefault) ?? addrs[0];
-      if (def) setSelectedAddressId(def.id);
+      setSelectedAddressId((cur) => {
+        if (cur && addrs.some((a: any) => a.id === cur)) return cur;
+        const def = addrs.find((a: any) => a.isDefault) ?? addrs[0];
+        return def ? def.id : null;
+      });
     }).catch(() => {});
-  }, []);
+  }, []));
 
   const loadQuote = async (addressId: string | null) => {
     if (!addressId) return null;
@@ -150,8 +154,8 @@ export default function PartnerCheckoutScreen() {
           );
         })}
         {addresses.length === 0 && (
-          <TouchableOpacity style={styles.addAddrBtn} onPress={() => Alert.alert('Add an address', 'Add a delivery address from your account first.')}>
-            <Text style={styles.addAddrText}>+ No saved address — add one first</Text>
+          <TouchableOpacity style={styles.addAddrBtn} onPress={() => router.push('/account/address-new' as any)}>
+            <Text style={styles.addAddrText}>+ Add a delivery address</Text>
           </TouchableOpacity>
         )}
 

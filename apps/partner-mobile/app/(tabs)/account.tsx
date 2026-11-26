@@ -36,7 +36,11 @@ export default function PartnerAccountScreen() {
           <Text style={styles.name}>{name}</Text>
           <View style={styles.heroStatRow}>
             <Icon name="star" size={13} color={colors.marigoldDark} variant="fill" />
-            <Text style={styles.rating}>{profile?.rating ?? '5.0'} · {profile?.reviewCount ?? 0} reviews</Text>
+            <Text style={styles.rating}>
+              {(profile?.reviewCount ?? 0) > 0
+                ? `${Number(profile.rating).toFixed(1)} · ${profile.reviewCount} ${profile.reviewCount === 1 ? 'review' : 'reviews'}`
+                : 'New · no reviews yet'}
+            </Text>
           </View>
           <View style={styles.heroStatRow}>
             <Icon name="check" size={13} color={colors.success} />

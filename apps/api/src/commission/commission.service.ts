@@ -261,6 +261,11 @@ export class CommissionService {
     });
     if (claimed.count === 0) return null;
 
+    // Count the finished job on the partner's profile (it showed "0 jobs completed" forever). The claim above happens
+    // once per booking, so this is exactly once; it is undone below if the claim has to be released for a retry.
+    const jobPartner = (await this.prisma.booking.findUnique({ where: { id: bookingId }, select: { partnerId: true } }))?.partnerId;
+    if (jobPartner) await this.prisma.partnerProfile.update({ where: { userId: jobPartner }, data: { completedJobs: { increment: 1 } } }).catch(() => {});
+
     try {
       const booking = await this.prisma.booking.findUniqueOrThrow({ where: { id: bookingId } });
       const partnerId = booking.partnerId!;
@@ -342,6 +347,7 @@ export class CommissionService {
       // Release the claim so the reconcile job can retry; nothing was posted (or the unique keys keep it idempotent).
       this.logger.error(`settle(${bookingId}) failed: ${(err as Error).message}`);
       await this.prisma.booking.update({ where: { id: bookingId }, data: { settledAt: null } }).catch(() => {});
+      if (jobPartner) await this.prisma.partnerProfile.update({ where: { userId: jobPartner }, data: { completedJobs: { decrement: 1 } } }).catch(() => {});
       throw err;
     }
   }

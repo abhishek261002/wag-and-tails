@@ -225,3 +225,22 @@ Switched to development builds: the apps load their code live from the PC, so fi
 - **Push notifications are not configured**: both apps log "Unable to get Firebase Messaging instance". Needs a Firebase project and a `google-services.json` for each app before launch. Job offers rely on push.
 - After-photos are kept only on the phone until the job is completed; leaving the job screen loses them.
 - B12 support phone number, B14 "police verified" wording, GEMINI key (done by user), D1/D2 website data.
+
+
+## Round 4: after the backend deploy (27 Nov, night)
+
+### Confirmed
+- **Customer review works end to end (B25):** 5 stars + comment sent from the app; saved; the partner's rating became 5.0 with 1 review; a second review of the same booking is refused (409); rating 9 is refused (400). The partner's Jobs screen shows 5.0, Account > Reviews shows the comment.
+- **Partner Jobs list (B17/B18):** the finished job leaves "Jobs left" (now 0), the list is renamed "Your jobs", and it reloads when you return to the screen and when you go online.
+- **Partner store order #WC830** placed with a delivery address added in the app.
+
+### New bugs found and fixed in round 4
+| # | Where | What happens | Severity | Status |
+|---|---|---|---|---|
+| B28 | Backend, completed-jobs counter | Nothing ever counted finished jobs: partner "0 jobs completed" forever (also on the customer's booking page, the "choose a partner" sort and the plugin Partners list). | Medium | fixed in `commission.service.ts` (counted once per job, undone if the settle claim is released). **Needs the backend deploy.** Existing partners stay at their old number. |
+| B29 | Partner Account / Reviews wording | "1 reviews"; a new partner showed a default "5.0". | Low | fixed |
+| B30 | Partner store checkout | **A partner could never place a store order.** The "add an address" button only showed a message pointing to a screen that did not exist. | **High** | fixed: the address (map pin) screen was added to the partner app and the checkout reloads after saving |
+
+### Open / for the client
+- Partner discount % in the plugin is 0, so partner prices equal normal prices (shop shows "Trade Pricing" with the same number).
+- Push notifications (Firebase) still not configured.

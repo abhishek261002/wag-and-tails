@@ -29,7 +29,7 @@ export default function ReviewsScreen() {
         <View style={styles.statsCard}>
           <Text style={styles.avgRating}>{stats.avg.toFixed(1)}</Text>
           <Text style={styles.stars}>{'★'.repeat(Math.round(stats.avg))}</Text>
-          <Text style={styles.reviewCount}>{stats.count} reviews</Text>
+          <Text style={styles.reviewCount}>{stats.count} {stats.count === 1 ? 'review' : 'reviews'}</Text>
         </View>
       )}
       <FlatList

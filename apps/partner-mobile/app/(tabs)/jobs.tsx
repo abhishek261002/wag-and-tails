@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback, useRef } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl, Alert, AppState,
 } from 'react-native';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { PetAvatar, Button, Icon, type IconName } from '@wag/ui-mobile';
 import { colors, spacing, radii } from '@wag/design-tokens';
@@ -92,6 +92,8 @@ export default function JobsScreen() {
   }, [mode]);
 
   useEffect(() => { load(); }, [load]);
+  // Also reload every time the screen comes back into view (after finishing a job, say), not only on first open.
+  useFocusEffect(useCallback(() => { load(); }, [load]));
 
   // `isOnline` is local-only UI state (never persisted), so a fresh app
   // launch always starts it at `false` regardless of what the backend
@@ -210,6 +212,7 @@ export default function JobsScreen() {
     try {
       await wagApi.partner.setOnline(!isOnline);
       setOnline(!isOnline);
+      load();
     } catch {
       Alert.alert('Error', 'Could not update status. Check your connection.');
     } finally {
@@ -238,6 +241,8 @@ export default function JobsScreen() {
     }
   };
 
+  // Finished jobs stay in myJobs only so today's earnings can add them up; they are not 'left'.
+  const activeJobs = myJobs.filter((j) => j.status !== 'completed' && j.status !== 'cancelled');
   const todayEarnings = myJobs
     .filter((j) => j.status === 'completed')
     .reduce((s, j) => s + j.partnerPayout, 0);
@@ -307,7 +312,7 @@ export default function JobsScreen() {
               {/* metrics row */}
               <View style={styles.metrics}>
                 <Metric v={`₹${todayEarnings}`} k="Today" />
-                <Metric v={String(myJobs.length)} k="Jobs left" />
+                <Metric v={String(activeJobs.length)} k="Jobs left" />
                 <Metric v={ratingText} k="Rating" />
               </View>
 
@@ -333,11 +338,11 @@ export default function JobsScreen() {
               )}
 
               {/* Today's schedule */}
-              <SectionHead title="Today's schedule" sub={`${myJobs.length} assigned`} />
-              {myJobs.length === 0 ? (
-                <Empty icon="cal" title="Nothing scheduled today" sub="Claim an open job to fill your day." />
+              <SectionHead title="Your jobs" sub={`${activeJobs.length} assigned`} />
+              {activeJobs.length === 0 ? (
+                <Empty icon="cal" title="No jobs assigned" sub="Claim an open job to see it here." />
               ) : (
-                myJobs.map((job) => <AssignedJobCard key={job.bookingId} job={job} />)
+                activeJobs.map((job) => <AssignedJobCard key={job.bookingId} job={job} />)
               )}
             </View>
       </ScrollView>
