@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Linking, Image, TextInput, KeyboardAvoidingView } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Button, Card, SlideToComplete, LiveMapView, Icon } from '@wag/ui-mobile';
+import { Button, Card, SlideToComplete, LiveMapView, Icon, useElapsedSeconds } from '@wag/ui-mobile';
 import { colors, spacing, typography, radii } from '@wag/design-tokens';
 import { wagApi, resolveMediaUrl } from '../../src/lib/api';
 import { CollectPaymentCard } from '../../src/components/CollectPaymentCard';
@@ -211,6 +211,10 @@ export default function JobDetailScreen() {
     !!booking && ['assigned', 'accepted', 'partner_on_the_way', 'arrived', 'in_progress'].includes(booking.status)
   );
 
+  // Counts from the server's start time, so reopening the job does not restart it. The customer only sees the
+  // end code once the planned walk time is over.
+  const walkSeconds = useElapsedSeconds(booking?.sessionStartedAt, booking?.type === 'walking' && booking?.status === 'in_progress');
+
   // At least one after-photo is required regardless of checklist — the
   // server enforces this too (see PartnersService.completeJob), which now
   // also requires the end OTP the customer reads out once they have it.
@@ -263,6 +267,8 @@ export default function JobDetailScreen() {
 
   const status = booking.status;
   const isGrooming = booking.type === 'grooming';
+  const walkMinutes: number = booking.durationMinutes ?? 30;
+  const clock = (s: number) => `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
 
   return (
     <SafeAreaView style={styles.safe}><KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
@@ -293,6 +299,17 @@ export default function JobDetailScreen() {
             <Text style={[styles.reconfirmTitle, { color: colors.error }]}>Waiting for the desk</Text>
             <Text style={[styles.reconfirmText, { color: colors.error }]}>You reported: {booking.staffFlag === 'stopped' ? 'job stopped' : 'customer not available'}{booking.staffFlagNote ? ` (${booking.staffFlagNote})` : ''}. The desk will call you.</Text>
           </View>
+        ) : null}
+
+        {!isGrooming && status === 'in_progress' && booking.sessionStartedAt ? (
+          <Card style={styles.section}>
+            <View style={styles.sectionTitleRow}>
+              <Icon name="clock" size={15} color={colors.textPrimary} />
+              <Text style={styles.sectionTitle}>{walkSeconds >= walkMinutes * 60 ? 'Planned walk time reached' : 'Walk time'}</Text>
+            </View>
+            <Text style={styles.walkClock}>{clock(walkSeconds)}</Text>
+            <Text style={styles.walkClockSub}>of {walkMinutes} min planned</Text>
+          </Card>
         ) : null}
 
         {/* Pet summary */}
@@ -564,7 +581,11 @@ export default function JobDetailScreen() {
               ) : (
                 <View style={styles.otpCard}>
                   <Text style={styles.otpTitle}>Ask the customer for their end code</Text>
-                  <Text style={styles.otpSubtitle}>They see a 4-digit code now that grooming is done. Enter it to finish.</Text>
+                  <Text style={styles.otpSubtitle}>
+                    {isGrooming
+                      ? 'They see a 4-digit code now that grooming is done. Enter it to finish.'
+                      : `They see a 4-digit code once the ${walkMinutes} minutes of the walk are over. Enter it to finish.`}
+                  </Text>
                   <TextInput
                     style={styles.otpInput}
                     value={endOtpInput}
@@ -692,6 +713,8 @@ const styles = StyleSheet.create({
     fontWeight: '800', letterSpacing: 8, textAlign: 'center', color: colors.textPrimary,
     fontFamily: 'Inter', backgroundColor: colors.white,
   },
+  walkClock: { fontFamily: 'Inter', fontSize: 36, fontWeight: '800', color: colors.brandBrown, textAlign: 'center' },
+  walkClockSub: { fontFamily: 'Inter', fontSize: 13, color: colors.textMuted, textAlign: 'center' },
   sourceLine: { fontFamily: 'Inter', fontSize: 12, fontWeight: '600', color: colors.textMuted, marginBottom: spacing[2] },
   reconfirm: { marginHorizontal: spacing[4], marginBottom: spacing[3], backgroundColor: colors.warningLight, borderRadius: radii.xl, padding: spacing[4] },
   reconfirmTitle: { fontFamily: 'Inter', fontSize: 15, fontWeight: '800', color: colors.warning },

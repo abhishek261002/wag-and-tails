@@ -120,12 +120,16 @@ export default function BookingConfirmedScreen() {
         </View>
 
         <Text style={styles.headline}>
-          {isTracking ? 'Partner Assigned!' : 'Booking Confirmed!'}
+          {booking?.status === 'in_progress'
+            ? (booking.type === 'walking' ? 'Walk in progress' : 'Grooming in progress')
+            : isTracking ? 'Partner Assigned!' : 'Booking Confirmed!'}
         </Text>
         <Text style={styles.sub}>
-          {isTracking
-            ? `Your ${booking?.type === 'walking' ? 'walker' : 'groomer'} is getting ready for ${booking?.petName ?? 'your pet'}.`
-            : `Your booking for ${booking?.petName ?? 'your pet'} has been confirmed.`}
+          {booking?.status === 'in_progress'
+            ? `Your ${booking.type === 'walking' ? 'walker' : 'groomer'} is with ${booking.petName ?? 'your pet'} now.`
+            : isTracking
+              ? `Your ${booking?.type === 'walking' ? 'walker' : 'groomer'} is getting ready for ${booking?.petName ?? 'your pet'}.`
+              : `Your booking for ${booking?.petName ?? 'your pet'} has been confirmed.`}
         </Text>
 
         {isTracking && booking?.startOtp && (

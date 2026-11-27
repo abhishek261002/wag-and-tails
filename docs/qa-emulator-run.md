@@ -435,3 +435,17 @@ Checked in the customer development build against the live server with our own b
 Not checked on a device: the walk timer and the walk end code after the full walk duration (both apps type-check).
 
 Test data added: #A80C648D (completed) and one cancelled unclaimed Lucknow booking (#15D72ADA). The QA Groomer's service city is now Kanpur. Booking #F9395975 was made by a person testing and was only viewed.
+
+## Round 13: quick APKs made on this PC (27 Nov, evening)
+
+Method: today's preview APKs (commit b3daaf5) with only `assets/index.android.bundle` replaced by the current app code, then signed with this PC's Android debug key. Output: `apps_build_apk/quick/customer-latest.apk` and `partner-latest.apk`. Because the signing key differs from Expo's, the old app must be uninstalled once. For testing and client review only, not for the Play Store. Native changes since b3daaf5 are not included (the new notification icon).
+
+| # | Where | What happens | Severity | Status |
+|---|---|---|---|---|
+| B62 | Partner "Walk Job" screen (the one opened from Jobs/Schedule) | No walk timer. B61 had only fixed `walk/[id]`, which opens only from a walk "starting soon" notification. | **High** | fixed: timer from the server's start time |
+| B63 | Partner "Walk Job" screen | End-code text said "grooming is done" on walks. | Low | fixed in code; text not seen on screen by us |
+| B64 | Customer "Track" during a job | Said "Partner Assigned! ... getting ready" after the job had started. | Medium | fixed: "Walk in progress" / "Grooming in progress" |
+
+Checked on the emulator with the quick APKs and our own 30-minute walk #DAE28B99: customer sign-in, Bookings, start-code card (viewed on another tester's booking), Track during the walk, both timers (also after force-closing), end code appearing by itself at 30 minutes on the tracking screen and on the details page (matched the server), partner recording cash. No app crashes in the logs checked. The emulator camera froze at the after-photo; the user added the photo and finished the walk from their own app, and the server shows it completed and paid.
+
+Not checked: the duplicate job alert and walk notification tap in these APKs.
