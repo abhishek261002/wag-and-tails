@@ -365,3 +365,24 @@ The live site runs plugin **1.16.0**; this repo has **1.15.0** (built from 1.14.
 - Expected on the local site only: app screens say the apps server cannot be reached (it was not running), and two WhatsApp screens ask for a Business Account ID.
 - Not run: the 80-check apps integration test (needs the app server and a local database). Not yet installed on /yamato.
 - Upload file: infra/vps/wag-and-tails.zip (rebuild with `py -3 infra/vps/build-plugin-zip.py`).
+
+## Round 9: end-to-end on /yamato with plugin 1.17.0 (27 Nov, afternoon)
+
+- /yamato runs 1.17.0: its app.js is identical to the repo, 126 routes, careers jobs back, unsigned app-connection requests get 401, PRA600 refused.
+- Driven through the live app server with the QA accounts (API level, not by tapping the apps).
+
+| Journey | Result |
+|---|---|
+| 1. Book, groomer accepts then drops, customer cancels | 14/14. Website took the slot and freed it after the cancel. Dropped job not offered back. |
+| 2. Full grooming job | 24/24. Chat, live status, photos, start/end codes, cash, earnings, review, website awarded 81 points for WT-5LLRHMZ. |
+| 3. Store and website data | 11/11. COD order #WC836, changed-price refusal, points, website bookings, complaints, Dr. Woof. Insurance request listed. |
+| 4. Full dog walk (walking on in Lucknow, QA Walker approved) | 24/24. Prices 199/349, dispatch, accept, codes, live location, UPI, photo, earnings, review. The "another account" dispatch check only used a non-customer account. |
+
+| # | Where | What happens | Severity | Status |
+|---|---|---|---|---|
+| B52 | Customer, after-walk screen | "Submit Review & Pay (+Rs 100 tip)": the server ignores tips, so nothing was charged or stored. | **High** | tip section removed; button says "Submit review"; seen on the emulator |
+| B53 | Customer, after-walk screen | "Route 1.8 km" was typed into the code; photo area was a fixed placeholder. | High (false data) | distance removed; shows the walk's real photos |
+
+Not covered: plugin admin screens on /yamato (no admin login), push notifications, real phone, real SMS / payments / DigiLocker, tapping through the walk screens in both apps.
+
+Extra test data: WT-5L9LTVW and WT-5LKAAO4 (cancelled), WT-5LLRHMZ (completed), walk FCC5604D (completed), order #WC836. QA Walker approved; walking switched on for Lucknow on /yamato.

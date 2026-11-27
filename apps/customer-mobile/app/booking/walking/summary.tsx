@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput, Alert, KeyboardAvoidingView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, TextInput, Alert, KeyboardAvoidingView, Image } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button, Icon, type IconName } from '@wag/ui-mobile';
 import { colors, spacing, typography, radii } from '@wag/design-tokens';
-import { wagApi } from '../../../src/lib/api';
+import { wagApi, resolveMediaUrl } from '../../../src/lib/api';
 import { format } from 'date-fns';
 import { goHome } from '../../../src/lib/nav';
 
@@ -13,19 +13,16 @@ export default function WalkSummaryScreen() {
   const [booking, setBooking] = useState<any>(null);
   const [rating, setRating] = useState(5);
   const [comment, setComment] = useState('');
-  const [tip, setTip] = useState<number | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     if (bookingId) wagApi.bookings.get(bookingId).then(setBooking).catch(() => {});
   }, [bookingId]);
 
-  const TIP_OPTIONS = [0, 25, 50, 100];
-
   const handleSubmit = async () => {
     setSubmitting(true);
     try {
-      await wagApi.client.post(`/bookings/${bookingId}/review`, { rating, comment, tip });
+      await wagApi.bookings.addReview(bookingId!, { rating, comment });
       Alert.alert('Thank you!', 'Your review has been submitted.', [
         { text: 'OK', onPress: () => goHome() },
       ]);
@@ -39,6 +36,7 @@ export default function WalkSummaryScreen() {
   const partnerName = booking?.partner?.user?.profile
     ? `${booking.partner.user.profile.firstName} ${booking.partner.user.profile.lastName}`
     : 'Your Walker';
+  const photos: string[] = booking?.afterPhotos ?? [];
 
   return (
     <SafeAreaView style={styles.safe}><KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
@@ -58,22 +56,24 @@ export default function WalkSummaryScreen() {
         {booking && (
           <View style={styles.statsRow}>
             <StatBox icon="clock" label="Duration" value={`${booking.durationMinutes} min`} />
-            <StatBox icon="pin" label="Route" value="1.8 km" />
             <StatBox icon="card" label="Total" value={`₹${booking.total}`} />
           </View>
         )}
 
-        {/* Photos from walk */}
-        <View style={styles.section}>
-          <View style={styles.sectionTitleRow}>
-            <Icon name="cam" size={15} color={colors.textPrimary} />
-            <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>Walk Photos</Text>
+        {/* Photos the walker took */}
+        {photos.length > 0 && (
+          <View style={styles.section}>
+            <View style={styles.sectionTitleRow}>
+              <Icon name="cam" size={15} color={colors.textPrimary} />
+              <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>Walk Photos</Text>
+            </View>
+            <View style={styles.photoRow}>
+              {photos.map((url) => (
+                <Image key={url} source={{ uri: resolveMediaUrl(url) ?? undefined }} style={styles.photo} accessibilityLabel="Photo from the walk" />
+              ))}
+            </View>
           </View>
-          <View style={styles.photosPlaceholder}>
-            <Icon name="cam" size={32} color={colors.textDisabled} />
-            <Text style={styles.photosText}>Photos will appear here once the walker uploads them</Text>
-          </View>
-        </View>
+        )}
 
         {/* Rating */}
         <View style={styles.section}>
@@ -98,28 +98,8 @@ export default function WalkSummaryScreen() {
           />
         </View>
 
-        {/* Tip */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Add a Tip</Text>
-          <View style={styles.tipRow}>
-            {TIP_OPTIONS.map((t) => (
-              <TouchableOpacity
-                key={t}
-                style={[styles.tipBtn, tip === t && styles.tipBtnActive]}
-                onPress={() => setTip(tip === t ? null : t)}
-                accessibilityRole="radio"
-                accessibilityState={{ selected: tip === t }}
-              >
-                <Text style={[styles.tipText, tip === t && styles.tipTextActive]}>
-                  {t === 0 ? 'Skip' : `₹${t}`}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
-
         <Button onPress={handleSubmit} fullWidth loading={submitting} style={styles.submitBtn}>
-          Submit Review & Pay{tip ? ` (+₹${tip} tip)` : ''}
+          Submit review
         </Button>
 
         <TouchableOpacity style={styles.skipBtn} onPress={() => goHome()}>
@@ -154,17 +134,12 @@ const styles = StyleSheet.create({
   section: { marginBottom: spacing[5] },
   sectionTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: spacing[3] },
   sectionTitle: { fontFamily: 'Inter', fontSize: 15, fontWeight: '800', color: colors.textPrimary, marginBottom: spacing[3] },
-  photosPlaceholder: { height: 120, backgroundColor: colors.white, borderRadius: radii.xl, borderWidth: 1, borderColor: colors.borderLight, alignItems: 'center', justifyContent: 'center' },
-  photosText: { fontFamily: 'Inter', fontSize: 13, color: colors.textMuted, textAlign: 'center', marginTop: spacing[2], paddingHorizontal: spacing[4] },
+  photoRow: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing[2] },
+  photo: { width: 96, height: 96, borderRadius: radii.lg, backgroundColor: colors.white },
   starsRow: { flexDirection: 'row', gap: spacing[2], marginBottom: spacing[3] },
   star: { fontSize: 36, color: colors.borderMedium },
   starActive: { color: colors.marigold },
   reviewInput: { backgroundColor: colors.white, borderRadius: radii.xl, borderWidth: 1.5, borderColor: colors.borderLight, padding: spacing[4], fontFamily: 'Inter', fontSize: 14, color: colors.textPrimary, minHeight: 80 },
-  tipRow: { flexDirection: 'row', gap: spacing[3] },
-  tipBtn: { flex: 1, paddingVertical: spacing[3], borderRadius: radii.lg, borderWidth: 1.5, borderColor: colors.borderLight, alignItems: 'center', backgroundColor: colors.white },
-  tipBtnActive: { backgroundColor: colors.brandBrown, borderColor: colors.brandBrown },
-  tipText: { fontFamily: 'Inter', fontSize: 14, fontWeight: '700', color: colors.textSecondary },
-  tipTextActive: { color: colors.white },
   submitBtn: { marginBottom: spacing[3] },
   skipBtn: { alignItems: 'center', paddingVertical: spacing[2] },
   skipText: { fontFamily: 'Inter', fontSize: 14, color: colors.textMuted },
