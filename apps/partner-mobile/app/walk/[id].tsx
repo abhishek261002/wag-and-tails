@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, TextInput, Image } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, TextInput, Image, KeyboardAvoidingView } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button, SlideToComplete, LiveMapView, Icon } from '@wag/ui-mobile';
@@ -8,7 +8,7 @@ import { wagApi, resolveMediaUrl } from '../../src/lib/api';
 import { CollectPaymentCard } from '../../src/components/CollectPaymentCard';
 import * as ImagePicker from 'expo-image-picker';
 import { useJobLocationBroadcast } from '../../src/hooks/useJobLocationBroadcast';
-import { goBack } from '../../src/lib/nav';
+import { goBack, goTab } from '../../src/lib/nav';
 
 export default function WalkDetailScreen() {
   const { id: bookingId } = useLocalSearchParams<{ id: string }>();
@@ -128,7 +128,7 @@ export default function WalkDetailScreen() {
         afterPhotos: uploaded,
       });
       Alert.alert('Walk complete!', 'Great job! The customer has been notified.', [
-        { text: 'OK', onPress: () => router.replace('/(tabs)/jobs') },
+        { text: 'OK', onPress: () => goTab('/(tabs)/jobs') },
       ]);
     } catch (err: any) {
       Alert.alert('Incorrect code', err?.message ?? 'Ask the customer for the code again.');
@@ -148,7 +148,7 @@ export default function WalkDetailScreen() {
   const canComplete = timerDone && photos.length > 0;
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={styles.safe}><KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
       <View style={styles.topBar}>
         <TouchableOpacity onPress={() => goBack()} accessibilityLabel="Go back">
           <Text style={styles.back}>← Back</Text>
@@ -157,7 +157,7 @@ export default function WalkDetailScreen() {
         <View style={{ width: 50 }} />
       </View>
 
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>
         {/* Pet summary */}
         <View style={styles.petCard}>
           <View style={styles.petIconBox}>
@@ -323,7 +323,7 @@ export default function WalkDetailScreen() {
           )}
         </View>
       </ScrollView>
-    </SafeAreaView>
+    </KeyboardAvoidingView></SafeAreaView>
   );
 }
 

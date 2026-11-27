@@ -1,4 +1,5 @@
-import { useEffect } from 'react';
+import { useEffect, useSyncExternalStore } from 'react';
+import { connectivity } from '@wag/api-client';
 import { AppErrorBoundary } from '../src/components/AppErrorBoundary';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
@@ -10,7 +11,7 @@ import { PlusJakartaSans_700Bold, PlusJakartaSans_800ExtraBold } from '@expo-goo
 import { useAuthStore } from '../src/store/auth.store';
 import { usePushSetup } from '../src/lib/push';
 import { colors } from '@wag/design-tokens';
-import { configureMaps, applyOlaRequestKey } from '@wag/ui-mobile';
+import { configureMaps, applyOlaRequestKey, OfflineNotice } from '@wag/ui-mobile';
 
 // Ola Maps key for map tiles (a public, restricted key); without it maps fall back to OpenStreetMap tiles.
 configureMaps({ apiKey: process.env.EXPO_PUBLIC_OLA_MAPS_API_KEY || null });
@@ -24,6 +25,7 @@ export { AppErrorBoundary as ErrorBoundary };
 export default function RootLayout() {
   const { loadFromStorage } = useAuthStore();
   usePushSetup();
+  const offline = useSyncExternalStore(connectivity.subscribe, connectivity.isOffline);
   // Without these, every `fontFamily: 'Inter'` in this app silently fell
   // back to the system font — the partner app was the only surface never
   // loading the brand faces.
@@ -57,6 +59,7 @@ export default function RootLayout() {
           <Stack.Screen name="walk/[id]" />
           <Stack.Screen name="navigate/[id]" options={{ gestureEnabled: false }} />
         </Stack>
+        <OfflineNotice visible={offline} />
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );

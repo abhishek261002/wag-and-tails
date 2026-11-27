@@ -10,6 +10,7 @@ import { ModuleRef } from '@nestjs/core';
 import { RoutingService } from '../routing/routing.service.js';
 import { encodePolyline } from '../common/navigation.js';
 import { PrismaService } from '../prisma/prisma.service.js';
+import { customerHistory } from './customer-history.js';
 import { DispatchService, dispatchState, directRequestTtlMinutes } from './dispatch.service.js';
 import { isLocationFilteringEnabled } from '../common/feature-flags.js';
 import { normalizeCity } from '../common/city.js';
@@ -403,7 +404,9 @@ export class BookingsService {
     }
 
     const safe = stripBookingPasswordHashes(booking);
-    return { ...(requesterRole === 'customer' ? stripInternalForCustomer(customerSafePartner(safe)) : safe), dispatch: await this.dispatchInfo(booking) };
+    if (requesterRole !== 'customer') return { ...safe, dispatch: await this.dispatchInfo(booking) };
+    const forCustomer = stripInternalForCustomer(customerSafePartner(safe));
+    return { ...forCustomer, statusHistory: customerHistory(booking.statusHistory), dispatch: await this.dispatchInfo(booking) };
   }
 
   private async dispatchInfo(b: { assignmentMode: 'any' | 'specific'; requestedPartnerId: string | null; requestExpiresAt: Date | null; requestOutcome: string | null }) {
@@ -741,11 +744,15 @@ export class BookingsService {
     }
   }
 
-  async getHistory(bookingId: string) {
-    return this.prisma.bookingStatusHistory.findMany({
-      where: { bookingId },
-      orderBy: { changedAt: 'desc' },
-    });
+  async getHistory(bookingId: string, requesterId: string, requesterRole: string) {
+    // Same rule as the booking itself: without it any signed-in customer or partner could read any booking's timeline.
+    const booking = await this.prisma.booking.findUnique({ where: { id: bookingId }, select: { customerId: true, partnerId: true } });
+    if (!booking) throw new NotFoundException('Booking not found');
+    if ((requesterRole === 'customer' && booking.customerId !== requesterId) || (requesterRole === 'partner' && booking.partnerId !== requesterId)) {
+      throw new ForbiddenException('Access denied');
+    }
+    const rows = await this.prisma.bookingStatusHistory.findMany({ where: { bookingId }, orderBy: { changedAt: 'desc' } });
+    return requesterRole === 'customer' ? customerHistory(rows) : rows;
   }
 
   // Staff-only: assign partner to booking using state machine

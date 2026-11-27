@@ -18,7 +18,8 @@ export class WalkingController {
 
   @Post(':bookingId/search-partners')
   @Roles('customer')
-  searchPartners(@Param('bookingId') bookingId: string) {
+  async searchPartners(@Param('bookingId') bookingId: string, @CurrentUser() user: { sub: string }) {
+    await this.walkingService.assertCustomerOwns(bookingId, user.sub);
     return this.walkingService.searchNearbyPartners(bookingId);
   }
 
@@ -41,8 +42,9 @@ export class WalkingController {
   @Roles('partner')
   addLocationPoint(
     @Param('sessionId') sessionId: string,
+    @CurrentUser() user: { sub: string },
     @Body() body: { lat: number; lng: number }
   ) {
-    return this.walkingService.addLocationPoint(sessionId, body.lat, body.lng);
+    return this.walkingService.addLocationPoint(sessionId, user.sub, body.lat, body.lng);
   }
 }

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, ActivityIndicator, Switch } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, ActivityIndicator, Switch, KeyboardAvoidingView } from 'react-native';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button, Input, Icon, type IconName } from '@wag/ui-mobile';
@@ -171,7 +171,7 @@ export default function ReviewGroomingBookingScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={styles.safe}><KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
       <View style={styles.topBar}>
         <TouchableOpacity onPress={() => goBack()}>
           <Text style={styles.backText}>← Back</Text>
@@ -180,7 +180,7 @@ export default function ReviewGroomingBookingScreen() {
         <View style={{ width: 50 }} />
       </View>
 
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         {/* Pet & Package summary */}
         <Section title="Summary">
           <Row label="Pet" value={groomingDraft.pet?.name ?? '—'} />
@@ -338,7 +338,7 @@ export default function ReviewGroomingBookingScreen() {
           <Text style={styles.overlayText}>Finding a partner for you…</Text>
         </View>
       )}
-    </SafeAreaView>
+    </KeyboardAvoidingView></SafeAreaView>
   );
 }
 

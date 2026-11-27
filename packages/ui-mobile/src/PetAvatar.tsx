@@ -2,7 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import { View, Image, Text, StyleSheet, Animated, Easing, ViewStyle } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
 import { colors } from '@wag/design-tokens';
-import { DogFace, pickDogArt } from './dogArt';
+import { CatFace, DogFace, pickDogArt } from './dogArt';
 
 /**
  * The pet avatar ring — the signature element carried through every
@@ -15,6 +15,8 @@ export type AvatarRingState = 'idle' | 'active' | 'inProgress' | 'walking' | 'se
 
 export interface PetAvatarProps {
   name: string;
+  /** 'cat' draws the cat face when there is no photo; anything else draws the dog. */
+  species?: string | null;
   imageUrl?: string | null;
   size?: number;
   ringState?: AvatarRingState;
@@ -28,6 +30,7 @@ const CIRCUMFERENCE = 2 * Math.PI * TRACK_R;
 
 export function PetAvatar({
   name,
+  species,
   imageUrl,
   size = 56,
   ringState = 'idle',
@@ -149,6 +152,8 @@ export function PetAvatar({
             style={{ width: innerSize, height: innerSize }}
             accessibilityLabel={`${name}'s photo`}
           />
+        ) : species === 'cat' ? (
+          <CatFace art={art} gradId={gradId} />
         ) : (
           <DogFace art={art} gradId={gradId} />
         )}

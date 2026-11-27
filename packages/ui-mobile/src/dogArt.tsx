@@ -90,3 +90,38 @@ export function DogFace({ art, gradId }: { art: DogArt; gradId: string }) {
     </Svg>
   );
 }
+
+/** The cat counterpart of DogFace: same palettes and viewBox, with pointed ears, a small nose and whiskers. */
+export function CatFace({ art, gradId }: { art: DogArt; gradId: string }) {
+  return (
+    <Svg viewBox="0 0 100 100" width="100%" height="100%">
+      <Defs>
+        <LinearGradient id={gradId} x1="0" y1="0" x2="1" y2="1">
+          <Stop offset="0" stopColor={art.bg1} />
+          <Stop offset="1" stopColor={art.bg2} />
+        </LinearGradient>
+      </Defs>
+      <Rect width={100} height={100} fill={`url(#${gradId})`} />
+      <Path d="M24 48 22 15l27 17Z" fill={art.coat} />
+      <Path d="M76 48 78 15 51 32Z" fill={art.coat} />
+      <Path d="M28 40 27 23l14 9Z" fill={art.coatDark} opacity={0.6} />
+      <Path d="M72 40 73 23l-14 9Z" fill={art.coatDark} opacity={0.6} />
+      <Ellipse cx={50} cy={57} rx={29} ry={26} fill={art.coat} />
+      <Path d="M43 32.5v8M50 31.5v10M57 32.5v8" stroke={art.coatDark} strokeWidth={2.6} strokeLinecap="round" />
+      <Ellipse cx={50} cy={68} rx={13} ry={9} fill={art.muzzle} />
+      <Path d="M46 62h8l-4 4.5Z" fill="#26170F" />
+      <Path
+        d="M50 66v3m0 0c-1.8 2.4-5 2.2-6-.4M50 69c1.8 2.4 5 2.2 6-.4"
+        stroke="#26170F"
+        strokeWidth={1.8}
+        strokeLinecap="round"
+        fill="none"
+      />
+      <Path d="M35 66 17 63M35 70l-17 3M65 66l18-3M65 70l17 3" stroke="#26170F" strokeWidth={1.2} strokeLinecap="round" opacity={0.55} />
+      <Ellipse cx={39} cy={53} rx={4.5} ry={5.2} fill="#26170F" />
+      <Ellipse cx={61} cy={53} rx={4.5} ry={5.2} fill="#26170F" />
+      <Circle cx={40.7} cy={51.1} r={1.6} fill="#fff" />
+      <Circle cx={62.7} cy={51.1} r={1.6} fill="#fff" />
+    </Svg>
+  );
+}

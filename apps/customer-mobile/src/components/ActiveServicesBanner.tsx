@@ -126,7 +126,7 @@ export function ActiveServicesBanner({ services, petPhotos }: Props) {
               accessibilityRole="button"
               accessibilityLabel={`${service} for ${b.petName}, ${st.label}. Open`}
             >
-              <PetAvatar name={b.petName ?? '?'} imageUrl={resolveMediaUrl(petPhotos[b.petId] ?? null)} size={42} ringState={st.tone === 'live' ? 'active' : 'idle'} />
+              <PetAvatar species={(b as any).petSpecies} name={b.petName ?? '?'} imageUrl={resolveMediaUrl(petPhotos[b.petId] ?? null)} size={42} ringState={st.tone === 'live' ? 'active' : 'idle'} />
               <View style={styles.text}>
                 <Text style={styles.title} numberOfLines={1}>{service} · {b.petName}</Text>
                 <Text style={styles.sub} numberOfLines={1}>{detail(b)}</Text>

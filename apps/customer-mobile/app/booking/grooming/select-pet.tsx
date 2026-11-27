@@ -58,7 +58,7 @@ export default function SelectPetScreen() {
             accessibilityRole="button"
             accessibilityLabel={`Select ${pet.name}`}
           >
-            <PetAvatar name={pet.name} imageUrl={resolveMediaUrl(pet.avatarUrl)} size={56} ringState="idle" />
+            <PetAvatar species={pet.species} name={pet.name} imageUrl={resolveMediaUrl(pet.avatarUrl)} size={56} ringState="idle" />
             <View style={styles.petInfo}>
               <Text style={styles.petName}>{pet.name}</Text>
               <Text style={styles.petBreed}>{pet.breed} · {pet.size}</Text>

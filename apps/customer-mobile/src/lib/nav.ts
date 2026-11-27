@@ -22,8 +22,15 @@ export function dismissFlow() {
   }
 }
 
-/** Leave a finished flow and land on the home tab with a clean history. */
-export function goHome() {
+/**
+ * Leave a finished flow and land on a tab with a clean history. A bare router.replace('/(tabs)/...') from a screen
+ * above the tab bar stacks a second tab bar on the old one, and Android Back then shows the old screens again.
+ */
+export function goTab(tab: string) {
   dismissFlow();
-  router.replace('/(tabs)/home' as any);
+  router.replace(tab as any);
+}
+
+export function goHome() {
+  goTab('/(tabs)/home');
 }

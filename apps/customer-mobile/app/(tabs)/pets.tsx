@@ -50,7 +50,7 @@ export default function PetsScreen() {
         <View style={styles.header}>
           <View style={{ flex: 1 }}>
             <Text style={styles.title}>Pets</Text>
-            <Text style={styles.sub}>{pets === null ? ' ' : count === 0 ? 'No pets yet' : `${count} in your family`}</Text>
+            <Text style={styles.sub}>{pets === null || (failed && count === 0) ? ' ' : count === 0 ? 'No pets yet' : `${count} in your family`}</Text>
           </View>
           <TouchableOpacity style={styles.plus} onPress={() => router.push('/pet/add')} accessibilityLabel="Add a pet">
             <Icon name="plus" size={20} color={colors.textPrimary} />
@@ -77,7 +77,7 @@ export default function PetsScreen() {
               accessibilityRole="button"
               accessibilityLabel={`${p.name}, ${meta}`}
             >
-              <PetAvatar name={p.name} imageUrl={resolveMediaUrl(p.avatarUrl)} size={58} ringState="idle" />
+              <PetAvatar species={p.species} name={p.name} imageUrl={resolveMediaUrl(p.avatarUrl)} size={58} ringState="idle" />
               <View style={{ flex: 1, minWidth: 0 }}>
                 <Text style={styles.name} numberOfLines={1}>{p.name}</Text>
                 <Text style={styles.meta} numberOfLines={1}>{meta}</Text>

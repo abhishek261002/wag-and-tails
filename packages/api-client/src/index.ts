@@ -63,3 +63,5 @@ export function createWagApiClient(config: ApiClientConfig) {
 }
 
 export type WagApiClient = ReturnType<typeof createWagApiClient>;
+export { appendFile } from './multipart';
+export { connectivity } from './connectivity';

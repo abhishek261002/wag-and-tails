@@ -45,8 +45,8 @@ export class BookingsController {
 
   @Get(':id/history')
   @Roles('customer', 'partner', 'staff', 'admin')
-  getHistory(@Param('id') id: string) {
-    return this.bookingsService.getHistory(id);
+  getHistory(@Param('id') id: string, @CurrentUser() user: { sub: string; role: string }) {
+    return this.bookingsService.getHistory(id, user.sub, user.role);
   }
 
   @Post('grooming')

@@ -165,7 +165,7 @@ export default function BookingsScreen() {
             <TouchableOpacity style={styles.card} onPress={() => open(b)} activeOpacity={0.9} accessibilityRole="button" accessibilityLabel={`${service} for ${b.petName}, ${pill.label}`}>
               <View style={styles.cardTop}>
                 <View style={live ? styles.liveRing : undefined}>
-                  <PetAvatar name={b.petName} imageUrl={resolveMediaUrl(petPhotos[b.petId] ?? null)} size={48} ringState={live ? 'active' : 'idle'} />
+                  <PetAvatar species={(b as any).petSpecies} name={b.petName} imageUrl={resolveMediaUrl(petPhotos[b.petId] ?? null)} size={48} ringState={live ? 'active' : 'idle'} />
                 </View>
                 <View style={{ flex: 1, minWidth: 0 }}>
                   <View style={styles.titleRow}>

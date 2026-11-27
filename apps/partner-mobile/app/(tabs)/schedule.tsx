@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity } from 'react-native';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Card, Badge, Icon } from '@wag/ui-mobile';
 import { colors, spacing, typography, radii } from '@wag/design-tokens';
@@ -8,13 +8,19 @@ import { wagApi } from '../../src/lib/api';
 import { format, isToday, isTomorrow } from 'date-fns';
 
 export default function ScheduleScreen() {
-  const [jobs, setJobs] = useState<any[]>([]);
+  // null until the server answers, so a failed or slow request is never shown as "no jobs".
+  const [jobs, setJobs] = useState<any[] | null>(null);
+  const [failed, setFailed] = useState(false);
 
-  useEffect(() => {
-    wagApi.partner.getMyJobs().then((data) => setJobs(data as any[])).catch(() => {});
+  const load = useCallback(() => {
+    setFailed(false);
+    wagApi.partner.getMyJobs().then((data) => setJobs(data as any[])).catch(() => setFailed(true));
   }, []);
 
-  const groupedJobs = jobs.reduce((acc: Record<string, any[]>, job) => {
+  // Reload each time the tab is opened: a job may have been accepted, moved or finished since.
+  useFocusEffect(useCallback(() => { load(); }, [load]));
+
+  const groupedJobs = (jobs ?? []).reduce((acc: Record<string, any[]>, job) => {
     const date = job.scheduledAt ? new Date(job.scheduledAt).toDateString() : 'Unscheduled';
     if (!acc[date]) acc[date] = [];
     acc[date]!.push(job);
@@ -37,7 +43,11 @@ export default function ScheduleScreen() {
         <Text style={styles.title}>Schedule</Text>
       </View>
 
-      {sections.length === 0 ? (
+      {jobs === null ? (
+        <TouchableOpacity style={styles.empty} onPress={load} disabled={!failed} accessibilityRole="button">
+          <Text style={styles.emptyText}>{failed ? 'Could not load your schedule. Tap to try again.' : 'Loading...'}</Text>
+        </TouchableOpacity>
+      ) : sections.length === 0 ? (
         <View style={styles.empty}>
           <Icon name="cal" size={36} color={colors.textDisabled} />
           <Text style={styles.emptyText}>No scheduled jobs yet</Text>

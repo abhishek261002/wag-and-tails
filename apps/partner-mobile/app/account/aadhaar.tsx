@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Image, TextInput, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Image, TextInput, ActivityIndicator, KeyboardAvoidingView } from 'react-native';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
@@ -80,7 +80,7 @@ export default function AadhaarScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={styles.safe}><KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
       <View style={styles.topBar}>
         <TouchableOpacity onPress={() => goBack()} accessibilityLabel="Go back"><Text style={styles.back}>← Back</Text></TouchableOpacity>
         <Text style={styles.title}>Aadhaar details</Text>
@@ -125,7 +125,7 @@ export default function AadhaarScreen() {
         {error ? <Text style={styles.error} accessibilityRole="alert">{error}</Text> : null}
         {!status?.done ? <Button onPress={save} fullWidth loading={busy === 'save'} disabled={busy !== null}>Save Aadhaar details</Button> : null}
       </ScrollView>
-    </SafeAreaView>
+    </KeyboardAvoidingView></SafeAreaView>
   );
 }
 

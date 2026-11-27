@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'rea
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, spacing, radii } from '@wag/design-tokens';
 import { Icon } from '@wag/ui-mobile';
+import { appendFile } from '@wag/api-client';
 import { wagApi } from '../../src/lib/api';
 import * as ImagePicker from 'expo-image-picker';
 import { goBack } from '../../src/lib/nav';
@@ -28,12 +29,8 @@ export default function DocumentsScreen() {
 
     setUploading(docType);
     try {
-      // fetch-to-blob works on both native and web, unlike appending a
-      // plain {uri, type, name} object to FormData (RN-only — see
-      // PetsApi.uploadAvatar for the same fix applied there).
-      const blob = await (await fetch(res.assets[0].uri)).blob();
       const formData = new FormData();
-      formData.append('file', blob, `${docType}.jpg`);
+      await appendFile(formData, 'file', { uri: res.assets[0].uri, name: `${docType}.jpg`, type: 'image/jpeg' });
       formData.append('entity', 'partner_document');
       formData.append('entityId', docType);
       const uploaded = await wagApi.client.post<{ url: string }>('/files/upload', formData, {

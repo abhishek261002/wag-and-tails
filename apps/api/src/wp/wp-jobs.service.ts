@@ -21,6 +21,9 @@ export function publicTrackUrl(token: string | null | undefined): string | null 
   return `${base}/api/v1/track/${token}`;
 }
 
+/** History note of a job the partner gave up. Open jobs and claiming use it to leave that partner out. */
+export const RELEASED_NOTE = 'Released by the partner:';
+
 @Injectable()
 export class WpJobsService {
   private readonly logger = new Logger(WpJobsService.name);
@@ -293,7 +296,7 @@ export class WpJobsService {
     });
     if (!res.count) return false;
     await this.prisma.bookingStatusHistory.create({
-      data: { bookingId, status: 'needs_partner', changedBy: actorId ?? partnerId, note: `Partner removed: ${note}` },
+      data: { bookingId, status: 'needs_partner', changedBy: actorId ?? partnerId, note: `${flag === 'released' ? RELEASED_NOTE : 'Partner removed:'} ${note}` },
     });
     // A partner discount may have lowered the price; the next partner prices the job again from the original.
     const b = await this.prisma.booking.findUniqueOrThrow({ where: { id: bookingId } });

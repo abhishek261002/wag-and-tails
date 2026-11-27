@@ -6,7 +6,7 @@ import { Card, Badge, Icon } from '@wag/ui-mobile';
 import { colors, spacing, typography, radii } from '@wag/design-tokens';
 import { wagApi } from '../../src/lib/api';
 import { format } from 'date-fns';
-import { goBack } from '../../src/lib/nav';
+import { goBack, goTab } from '../../src/lib/nav';
 
 const STATUS_VARIANT: Record<string, 'success' | 'warning' | 'error' | 'info'> = {
   placed: 'info',
@@ -74,7 +74,7 @@ export default function OrdersScreen() {
             <View style={styles.empty}>
               <Icon name="bag" size={44} color={colors.textDisabled} />
               <Text style={styles.emptyText}>No orders yet</Text>
-              <TouchableOpacity onPress={() => router.replace('/(tabs)/store' as any)}>
+              <TouchableOpacity onPress={() => goTab('/(tabs)/store')}>
                 <Text style={styles.shopLink}>Shop now</Text>
               </TouchableOpacity>
             </View>

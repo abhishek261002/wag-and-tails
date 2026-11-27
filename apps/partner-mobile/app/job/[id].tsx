@@ -1,8 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  Alert, Linking, Image, TextInput,
-} from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Linking, Image, TextInput, KeyboardAvoidingView } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button, Card, SlideToComplete, LiveMapView, Icon } from '@wag/ui-mobile';
@@ -11,7 +8,7 @@ import { wagApi, resolveMediaUrl } from '../../src/lib/api';
 import { CollectPaymentCard } from '../../src/components/CollectPaymentCard';
 import * as ImagePicker from 'expo-image-picker';
 import { useJobLocationBroadcast } from '../../src/hooks/useJobLocationBroadcast';
-import { goBack } from '../../src/lib/nav';
+import { goBack, goTab } from '../../src/lib/nav';
 
 export default function JobDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -78,7 +75,7 @@ export default function JobDetailScreen() {
       if (problem === 'release') {
         await wagApi.partner.releaseJob(id, reason.trim());
         Alert.alert('Job released', 'It has been offered to other partners and the desk has been told.', [
-          { text: 'OK', onPress: () => router.replace('/(tabs)/jobs') },
+          { text: 'OK', onPress: () => goTab('/(tabs)/jobs') },
         ]);
       } else {
         await wagApi.partner.stopJob(id, reason.trim());
@@ -234,7 +231,7 @@ export default function JobDetailScreen() {
         afterPhotos: uploaded,
       });
       Alert.alert('Job Complete!', 'Great work! The customer has been notified.', [
-        { text: 'OK', onPress: () => router.replace('/(tabs)/jobs') },
+        { text: 'OK', onPress: () => goTab('/(tabs)/jobs') },
       ]);
     } catch (err: any) {
       Alert.alert('Could not complete the job', err?.message ?? 'Check the code with the customer and try again.');
@@ -256,11 +253,11 @@ export default function JobDetailScreen() {
 
   if (!booking) {
     return (
-      <SafeAreaView style={styles.safe}>
+      <SafeAreaView style={styles.safe}><KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
           <Text style={{ color: colors.textMuted, fontFamily: 'Inter' }}>Loading job...</Text>
         </View>
-      </SafeAreaView>
+      </KeyboardAvoidingView></SafeAreaView>
     );
   }
 
@@ -268,7 +265,7 @@ export default function JobDetailScreen() {
   const isGrooming = booking.type === 'grooming';
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={styles.safe}><KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
       <View style={styles.topBar}>
         <TouchableOpacity onPress={() => goBack()}>
           <Text style={styles.back}>← Back</Text>
@@ -277,7 +274,7 @@ export default function JobDetailScreen() {
         <View style={{ width: 50 }} />
       </View>
 
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         {booking.reconfirmBy && ['assigned', 'accepted'].includes(status) ? (
           <View style={styles.reconfirm}>
             <Text style={styles.reconfirmTitle}>This booking was moved</Text>
@@ -630,7 +627,7 @@ export default function JobDetailScreen() {
           )}
         </View>
       </ScrollView>
-    </SafeAreaView>
+    </KeyboardAvoidingView></SafeAreaView>
   );
 }
 

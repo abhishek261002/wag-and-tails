@@ -11,7 +11,7 @@ import { Icon, PetAvatar } from '@wag/ui-mobile';
 import { colors, spacing, radii } from '@wag/design-tokens';
 import { wagApi, resolveMediaUrl } from '../../src/lib/api';
 import { useAuthStore } from '../../src/store/auth.store';
-import { goBack } from '../../src/lib/nav';
+import { goBack, goTab } from '../../src/lib/nav';
 
 const cap = (s: string | null | undefined) => (s ? s.charAt(0).toUpperCase() + s.slice(1).replace(/_/g, ' ') : '—');
 const fmtDate = (d: string | null | undefined) => (d ? format(new Date(d), 'd MMM yyyy') : '—');
@@ -72,7 +72,7 @@ export default function PetDetailScreen() {
       {
         text: 'Remove', style: 'destructive',
         onPress: async () => {
-          try { await wagApi.pets.delete(pet.id); router.replace('/(tabs)/pets' as any); }
+          try { await wagApi.pets.delete(pet.id); goTab('/(tabs)/pets'); }
           catch (err: any) { Alert.alert('Could not remove', err?.message ?? 'Please try again.'); }
         },
       },
@@ -90,7 +90,7 @@ export default function PetDetailScreen() {
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.marigold} />}>
         {/* Hero */}
         <View style={styles.hero}>
-          <PetAvatar name={pet.name} imageUrl={resolveMediaUrl(pet.avatarUrl)} size={112} ringState="idle" />
+          <PetAvatar species={pet.species} name={pet.name} imageUrl={resolveMediaUrl(pet.avatarUrl)} size={112} ringState="idle" />
           <Text style={styles.petName}>{pet.name}</Text>
           <Text style={styles.petMeta}>{[pet.breed, age, cap(pet.sex), pet.weightKg ? `${pet.weightKg} kg` : null].filter(Boolean).join(' · ')}</Text>
         </View>

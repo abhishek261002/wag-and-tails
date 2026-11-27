@@ -270,3 +270,58 @@ Switched to development builds: the apps load their code live from the PC, so fi
 
 ### QA test data on the VPS/staging to delete before go-live
 Customer +919000000101 (QABuddy, 2 bookings WT-45Y215U and WT-4MSACRA, store orders #WC828 #WC830 #WC832, ticket, complaint CM-4N4MZVN, insurance lead), partners qa.groomer1@example.com and qa.walker2@example.com.
+
+
+## Round 6: remaining flows, security sweep, offline (27 Nov, day)
+
+### Verified working on the emulator
+- Cash booking timeline reads "Sent to partners (pay after service)" on the live server (B3 confirmed).
+- Partner screens load without errors: schedule, working hours, service city, documents, tools, store orders, support, terms.
+- Partner "I can't do this job": the booking goes back to "needs partner" and the release is counted.
+- Customer cancel booking, profile email edit.
+- Add a cat: breed list, cat vaccines, 15 kg weight limit, no Walk button, grooming flow up to packages, remove pet.
+- Offline: notice appears, Store, Pets and Bookings offer a retry, the notice clears by itself on reconnect.
+- Backend unit tests: 36 of 36 pass. Both apps and the API typecheck.
+
+### Security holes found and fixed (all backend, need the deploy)
+| # | Where | What happens | Severity | Status |
+|---|---|---|---|---|
+| S1 | `GET /bookings/:id/history` | Any logged-in user could read any booking's timeline. Reproduced with two QA accounts. | **Critical** | fixed, needs deploy |
+| S2 | `POST /messaging/conversations` | Any logged-in user could open any booking's chat. A newly assigned partner could not chat, and the removed one stayed in it. | **Critical** | fixed, needs deploy |
+| S3 | Walk partner search | Another customer's walk could be sent to partners. | High | fixed, needs deploy |
+| S4 | Walk location update | GPS points could be written into another partner's walk. | High | fixed, needs deploy |
+| S5 | Customer booking timeline | Showed the partner's name and private reason for releasing a job. | High (privacy) | fixed, needs deploy |
+
+### Other bugs found and fixed in round 6
+| # | Where | What happens | Severity | Status |
+|---|---|---|---|---|
+| B35 | Partner, Account > Documents | This upload still failed on Android (it did not use the shared upload fix). Nobody can view these uploads anywhere, and the screen said "Aadhaar not submitted" when it was submitted. | High | upload fixed; menu row hidden |
+| B36 | Both apps, 10 more screens | The keyboard covered the text box (job release reason, checkout, complaints, support and others). | High | fixed |
+| B37 | Open jobs | A released job was offered back to the partner who released it. | Medium | fixed, needs deploy. The live popup can still appear, but claiming is refused. |
+| B38 | Both apps, no internet | Nothing said the phone was offline. Offers showed "No active offers", Home told an existing customer to "Add your first pet", Pets said "No pets yet". | High | fixed |
+| B39 | Customer, after adding or removing a pet and other finished steps; partner after finishing or releasing a job | Android Back opened a second, old copy of the tabs. | Medium | fixed |
+| B40 | Pet pictures | A cat without a photo showed a dog drawing. | Medium | fixed (partner "your jobs" cards need the deploy) |
+| B41 | Customer Home | Did not reload when you came back to it: a removed pet stayed on screen. | Medium | fixed |
+| B42 | Grooming packages | "View more (1 services)". | Low | fixed |
+
+### Still open
+- Push notifications (Firebase) are not set up. This blocks launch.
+- On a slow connection some inner screens (addresses, booking pet picker, orders, reviews) briefly show an empty list before the data arrives.
+- Dr. Woof: the server was still replying "isn't connected yet" when last asked (command given to update the server settings).
+- Ask the client: cats are offered the same grooming packages and prices as dogs. Is that intended?
+- Walker flows: waiting for "QA Walker" approval and walking switched on for a city in the plugin.
+- Plugin pages: need the staging admin login.
+- Not confirmed: that the customer's cancellation reached the website booking desk.
+
+### Extra test data
+Booking WT-5EA9LDW (released, then cancelled). The test cat "QAMia" was removed in the app. The customer's email is now qa.customer@example.com.
+
+## Round 6b: partner app re-check
+| # | Where | What happens | Severity | Status |
+|---|---|---|---|---|
+| B43 | Partner Earnings, no internet or failed load | Every amount showed ₹0, which reads as lost money. | High | fixed, verified offline and after reconnecting |
+| B44 | Partner Earnings and Schedule | Loaded once and did not update until the app restarted. | Medium | fixed |
+| B45 | Partner Jobs, Grooming tab | The selected tab's icon was brown on brown (invisible). | Low | fixed, verified |
+| B46 | Partner Earnings labels | "Total Earned ₹0" sat under "Your share ₹1440"; these boxes only cover money the company pays out. | Medium | relabelled "Paid out", "Payout pending", "Company owes you (online payments)" |
+
+Verified: the partner app loads with all round 6 changes, shows the offline notice and clears it on reconnect.

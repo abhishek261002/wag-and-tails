@@ -84,7 +84,7 @@ export function LiveBookingCard({ booking: b, arrivalAt, petPhoto, showEyebrow =
       </View>
 
       <View style={styles.row}>
-        <PetAvatar name={b.petName ?? '?'} imageUrl={resolveMediaUrl(petPhoto ?? null)} size={52} ringState={onTheWay ? 'active' : 'idle'} />
+        <PetAvatar species={(b as any).petSpecies} name={b.petName ?? '?'} imageUrl={resolveMediaUrl(petPhoto ?? null)} size={52} ringState={onTheWay ? 'active' : 'idle'} />
         <View style={{ flex: 1, minWidth: 0 }}>
           <Text style={styles.title} numberOfLines={1}>{service} · {b.petName}</Text>
           <Text style={styles.sub} numberOfLines={2}>{sub}</Text>

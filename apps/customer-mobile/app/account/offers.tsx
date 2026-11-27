@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, spacing, radii } from '@wag/design-tokens';
@@ -8,11 +8,16 @@ import { format } from 'date-fns';
 import { goBack } from '../../src/lib/nav';
 
 export default function OffersScreen() {
-  const [coupons, setCoupons] = useState<any[]>([]);
+  // null until the server answers, so a failed or slow request is never shown as "no offers".
+  const [coupons, setCoupons] = useState<any[] | null>(null);
+  const [failed, setFailed] = useState(false);
 
-  useEffect(() => {
-    wagApi.client.get<any[]>('/coupons/active').then(setCoupons).catch(() => {});
+  const load = useCallback(() => {
+    setFailed(false);
+    wagApi.client.get<any[]>('/coupons/active').then(setCoupons).catch(() => setFailed(true));
   }, []);
+
+  useEffect(() => { load(); }, [load]);
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -25,7 +30,7 @@ export default function OffersScreen() {
       </View>
 
       <FlatList
-        data={coupons}
+        data={coupons ?? []}
         keyExtractor={(c) => c.id}
         contentContainerStyle={styles.list}
         renderItem={({ item: coupon }) => (
@@ -46,11 +51,17 @@ export default function OffersScreen() {
           </View>
         )}
         ListEmptyComponent={
-          <View style={styles.empty}>
-            <Icon name="gift" size={44} color={colors.textDisabled} />
-            <Text style={styles.emptyText}>No active offers right now</Text>
-            <Text style={styles.emptySub}>Check back soon for exciting deals!</Text>
-          </View>
+          failed ? (
+            <TouchableOpacity style={styles.empty} onPress={load} accessibilityRole="button">
+              <Text style={styles.emptyText}>Could not load offers. Tap to try again.</Text>
+            </TouchableOpacity>
+          ) : coupons === null ? null : (
+            <View style={styles.empty}>
+              <Icon name="gift" size={44} color={colors.textDisabled} />
+              <Text style={styles.emptyText}>No active offers right now</Text>
+              <Text style={styles.emptySub}>Check back soon for exciting deals!</Text>
+            </View>
+          )
         }
       />
     </SafeAreaView>

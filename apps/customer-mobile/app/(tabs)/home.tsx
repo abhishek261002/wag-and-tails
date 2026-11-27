@@ -1,9 +1,10 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useSyncExternalStore } from 'react';
+import { connectivity } from '@wag/api-client';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   RefreshControl, Alert,
 } from 'react-native';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { PetAvatar, Card, Icon } from '@wag/ui-mobile';
 import { colors, spacing, radii } from '@wag/design-tokens';
@@ -28,6 +29,9 @@ export default function HomeScreen() {
   const [profile, setProfile] = useState<any>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  // True only once the server has actually answered: an empty list then really means "no pets yet".
+  const [petsKnown, setPetsKnown] = useState(false);
+  const offline = useSyncExternalStore(connectivity.subscribe, connectivity.isOffline);
 
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
@@ -39,15 +43,17 @@ export default function HomeScreen() {
         wagApi.client.get('/users/me').catch(() => null),
       ]);
       setPets(petsData);
+      setPetsKnown(true);
       setProfile(me);
-      if (!selectedPetId && petsData.length > 0) setSelectedPetId(petsData[0]!.id);
+      // Keep the chosen pet while it still exists; a removed pet hands the selection to the first one left.
+      setSelectedPetId((cur) => (petsData.some((p) => p.id === cur) ? cur : petsData[0]?.id ?? null));
       active.refresh();
     } catch {
-      // silent: offline state shown by empty data
+      // The app-wide offline notice explains a missing connection.
     } finally {
       setLoaded(true);
     }
-  }, [selectedPetId]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Past services for whichever pet is selected ("Book again").
   useEffect(() => {
@@ -65,13 +71,20 @@ export default function HomeScreen() {
     setRefreshing(false);
   }, [load]);
 
-  useEffect(() => { load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  // Reload whenever Home comes into view: a pet or address may have been added, edited or removed elsewhere.
+  useFocusEffect(useCallback(() => { load(); }, [load]));
+
+  // Fill the screen in by itself once the connection returns.
+  useEffect(() => {
+    if (!offline && loaded && !petsKnown) load();
+  }, [offline]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const pet = pets.find((p) => p.id === selectedPetId) ?? pets[0] ?? null;
-  const firstName = profile?.profile?.firstName ?? (loaded ? 'there' : '');
+  const firstName = profile?.profile?.firstName ?? (petsKnown ? 'there' : '');
   const defaultAddress = profile?.addresses?.[0] ?? null;
-  const startGroom = () => router.push(pets.length === 0 ? '/pet/add' : '/booking/grooming/select-pet');
-  const startWalk = () => router.push(pets.length === 0 ? '/pet/add' : '/booking/walking/select-dog');
+  const noPets = petsKnown && pets.length === 0;
+  const startGroom = () => router.push(noPets ? '/pet/add' : '/booking/grooming/select-pet');
+  const startWalk = () => router.push(noPets ? '/pet/add' : '/booking/walking/select-dog');
 
   // Start a new booking from a past one: same pet, same package (or walk length), then pick a time.
   const rebook = async (b: any) => {
@@ -129,7 +142,7 @@ export default function HomeScreen() {
                 const ringState = liveForPet ? (liveForPet.type === 'walking' ? 'walking' : 'active') : 'idle';
                 return (
                   <TouchableOpacity key={p.id} style={styles.petItem} onPress={() => setSelectedPetId(p.id)}>
-                    <PetAvatar name={p.name} imageUrl={resolveMediaUrl(p.avatarUrl)} size={62} ringState={ringState as any} />
+                    <PetAvatar species={p.species} name={p.name} imageUrl={resolveMediaUrl(p.avatarUrl)} size={62} ringState={ringState as any} />
                     <Text style={[styles.petLabel, p.id === selectedPetId && styles.petLabelActive]} numberOfLines={1}>{p.name}</Text>
                   </TouchableOpacity>
                 );
@@ -144,7 +157,7 @@ export default function HomeScreen() {
 
         <View style={styles.body}>
           {/* Pending and ongoing services live in the banner docked at the bottom, not as cards here. */}
-          {loaded && pets.length === 0 && (
+          {noPets && (
             <Card style={styles.emptyPets} onPress={() => router.push('/pet/add')}>
               <Icon name="paw" size={36} color={colors.brandBrown} />
               <Text style={styles.emptyTitle}>Add your first pet</Text>
@@ -263,7 +276,7 @@ export default function HomeScreen() {
                     activeOpacity={0.85}
                   >
                     <View style={styles.rebookTop}>
-                      <PetAvatar name={b.petName} imageUrl={resolveMediaUrl(pet.avatarUrl)} size={44} />
+                      <PetAvatar species={pet.species} name={b.petName} imageUrl={resolveMediaUrl(pet.avatarUrl)} size={44} />
                       <View style={{ flex: 1, minWidth: 0 }}>
                         <Text style={styles.rebookTitle} numberOfLines={1}>{b.type === 'grooming' ? (b as any).packageName ?? 'Grooming' : `${(b as any).durationMinutes ?? 30} min walk`}</Text>
                         <Text style={styles.rebookSub} numberOfLines={1}>{b.petName} · {format(new Date((b as any).scheduledAt ?? (b as any).createdAt), 'dd MMM')}</Text>

@@ -5,7 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button, Icon } from '@wag/ui-mobile';
 import { colors, spacing, radii } from '@wag/design-tokens';
 import { wagApi } from '../../src/lib/api';
-import { goBack } from '../../src/lib/nav';
+import { goBack, goTab } from '../../src/lib/nav';
 
 export default function PartnerCartScreen() {
   const [cart, setCart] = useState<any>(null);
@@ -68,7 +68,7 @@ export default function PartnerCartScreen() {
             <View style={styles.empty}>
               <Icon name="bag" size={44} color={colors.textDisabled} />
               <Text style={styles.emptyText}>Your cart is empty</Text>
-              <TouchableOpacity onPress={() => router.replace('/(tabs)/store' as any)}>
+              <TouchableOpacity onPress={() => goTab('/(tabs)/store')}>
                 <Text style={styles.shopLink}>Browse products</Text>
               </TouchableOpacity>
             </View>

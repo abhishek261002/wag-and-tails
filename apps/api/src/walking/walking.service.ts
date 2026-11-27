@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ConflictException, ForbiddenException } from '@nestjs/common';
+import { Injectable, NotFoundException, ConflictException, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service.js';
 import { MapsLocationService } from '../maps-location/maps-location.service.js';
 import { NotificationsService } from '../notifications/notifications.service.js';
@@ -157,7 +157,17 @@ export class WalkingService {
     return updated;
   }
 
-  async addLocationPoint(sessionId: string, lat: number, lng: number) {
+  /** The "search again" button may only act on the caller's own walk. */
+  async assertCustomerOwns(bookingId: string, customerId: string) {
+    const own = await this.prisma.booking.findFirst({ where: { id: bookingId, customerId }, select: { id: true } });
+    if (!own) throw new NotFoundException('Booking not found');
+  }
+
+  async addLocationPoint(sessionId: string, partnerId: string, lat: number, lng: number) {
+    // Only the walker of this live walk may add points to its track.
+    const session = await this.prisma.walkSession.findFirst({ where: { id: sessionId, partnerId, endedAt: null }, select: { id: true } });
+    if (!session) throw new NotFoundException('No live walk of yours with this id');
+    if (!Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) throw new BadRequestException('Invalid location');
     return this.prisma.walkLocationPoint.create({
       data: { sessionId, lat, lng, recordedAt: new Date() },
     });

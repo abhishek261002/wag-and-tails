@@ -18,7 +18,7 @@ import { isLocationFilteringEnabled } from '../common/feature-flags.js';
 import { normalizeCity } from '../common/city.js';
 import { BUSINESS_CONFIG } from '../common/config.js';
 import { BookingType, PartnerEmploymentType, PartnerStatus, PetSpecies, Prisma } from '@prisma/client';
-import { WpJobsService } from '../wp/wp-jobs.service.js';
+import { WpJobsService, RELEASED_NOTE } from '../wp/wp-jobs.service.js';
 import { WpBookingsService } from '../wp/wp-bookings.service.js';
 import { appRules } from '../wp/wp-link.js';
 
@@ -207,6 +207,8 @@ export class PartnersService {
         scheduledAt: { gte: new Date() },
         // Jobs a customer reserved for another partner are invisible to everyone else.
         ...claimableBy(partnerId),
+        // A job this partner released goes to the others, not back to them (the desk can still assign them by hand).
+        AND: [{ statusHistory: { none: { changedBy: partnerId, note: { startsWith: RELEASED_NOTE } } } }],
       },
       include: {
         pet: true,
@@ -305,6 +307,8 @@ export class PartnersService {
     if (booking.assignmentMode === 'specific' && booking.requestedPartnerId !== partnerId) {
       throw new ConflictException({ code: 'JOB_RESERVED', message: 'The customer chose another partner for this job' });
     }
+    const gaveUp = await this.prisma.bookingStatusHistory.findFirst({ where: { bookingId, changedBy: partnerId, note: { startsWith: RELEASED_NOTE } }, select: { id: true } });
+    if (gaveUp) throw new ConflictException({ code: 'JOB_RELEASED', message: 'You released this job, so it is offered to other partners' });
     if (!(partner.petSpecies as string[]).includes(booking.petSpecies)) {
       throw new ForbiddenException(`You do not take ${booking.petSpecies} bookings`);
     }
@@ -411,6 +415,7 @@ export class PartnersService {
       bookingId: b.id,
       type: b.type,
       petName: b.petName,
+      petSpecies: b.petSpecies,
       petBreed: b.petBreed,
       petSize: b.petSize,
       petWeightKg: b.pet?.weightKg ?? null,

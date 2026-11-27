@@ -1,4 +1,5 @@
 import axios, { AxiosInstance, AxiosRequestConfig, AxiosResponse } from 'axios';
+import { connectivity } from './connectivity';
 
 export interface ApiClientConfig {
   baseURL: string;
@@ -62,8 +63,14 @@ export class ApiClient {
 
     // Response interceptor: handle 401 and refresh token
     this.http.interceptors.response.use(
-      (res) => res,
+      (res) => {
+        connectivity.reached();
+        return res;
+      },
       async (error) => {
+        if (error.response) connectivity.reached();
+        else if (!axios.isCancel(error)) connectivity.unreachable(`${this.config.baseURL}/health`);
+
         const originalRequest = error.config as AxiosRequestConfig & { _retry?: boolean };
 
         if (error.response?.status === 401 && !originalRequest._retry) {

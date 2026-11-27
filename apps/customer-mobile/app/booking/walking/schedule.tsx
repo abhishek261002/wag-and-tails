@@ -10,7 +10,7 @@ import { wagApi } from '../../../src/lib/api';
 import { WALKING_SLOT_HOURS } from '@wag/shared-types';
 import { SlotPicker } from '../../../src/components/SlotPicker';
 import { PartnerChoice } from '../../../src/components/PartnerChoice';
-import { goBack } from '../../../src/lib/nav';
+import { goBack, goTab } from '../../../src/lib/nav';
 import { useBookingConfig, websiteCity } from '../../../src/lib/website';
 
 export default function WalkScheduleScreen() {
@@ -97,7 +97,7 @@ export default function WalkScheduleScreen() {
         // layout) tracks this in the background so the customer can keep
         // using the app while a walker is found.
         startSearch({ bookingId: booking.id, petName: walkDraft.pet?.name ?? 'your dog' });
-        router.replace('/(tabs)/home');
+        goTab('/(tabs)/home');
       } else {
         router.replace({ pathname: '/booking/confirmed', params: { id: booking.id } } as any);
       }

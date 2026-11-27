@@ -278,7 +278,7 @@ export default function JobsScreen() {
                     <Icon
                       name={m === 'grooming' ? 'scissors' : 'route'}
                       size={16}
-                      color={mode === m ? colors.brandBrown : colors.textMuted}
+                      color={mode === m ? colors.white : colors.textMuted}
                     />
                     <Text style={[styles.roleBtnText, mode === m && styles.roleBtnTextActive]}>
                       {m === 'grooming' ? 'Grooming' : 'Walking'}
@@ -409,7 +409,7 @@ function OpenJobCard({ job, claiming, onClaim, onDecline }: { job: PartnerJobCar
   return (
     <View style={styles.jobcard}>
       <View style={styles.jobcardTop}>
-        <PetAvatar name={job.petName} size={50} ringState="idle" />
+        <PetAvatar species={(job as any).petSpecies} name={job.petName} size={50} ringState="idle" />
         <View style={{ flex: 1, minWidth: 0 }}>
           <View style={styles.jobcardTitleRow}>
             <Text style={styles.jobcardName} numberOfLines={1}>{job.packageName ?? job.petBreed}</Text>
@@ -454,7 +454,7 @@ function AssignedJobCard({ job }: { job: PartnerJobCard }) {
       onPress={() => router.push({ pathname: '/job/[id]', params: { id: job.bookingId } })}
     >
       <View style={styles.jobcardTop}>
-        <PetAvatar name={job.petName} size={48} ringState={job.status === 'in_progress' ? 'active' : 'idle'} />
+        <PetAvatar species={(job as any).petSpecies} name={job.petName} size={48} ringState={job.status === 'in_progress' ? 'active' : 'idle'} />
         <View style={{ flex: 1, minWidth: 0 }}>
           <View style={styles.jobcardTitleRow}>
             <Text style={styles.jobcardName} numberOfLines={1}>{job.packageName ?? `${job.durationMinutes ?? ''} min walk`}</Text>

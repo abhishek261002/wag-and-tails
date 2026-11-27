@@ -54,7 +54,8 @@ export default function PartnerAccountScreen() {
         </MenuSection>
 
         <MenuSection title="Account">
-          <RowItem icon="doc" title="Documents & Verification" onPress={() => router.push('/account/documents' as any)} />
+          {/* "Documents & Verification" is hidden: nobody can see those uploads (the website plugin, the only panel, has no
+              page for them), so it promised a review that could not happen. Aadhaar and tools below are what is checked. */}
           <RowItem icon="shield" title="Aadhaar details" sub="Your Aadhaar number and card photos" onPress={() => router.push('/account/aadhaar' as any)} />
           <RowItem icon="scissors" title="Your tools" sub="Photos and videos of your grooming tools" onPress={() => router.push('/account/tools' as any)} />
           <RowItem icon="star" title="Reviews" onPress={() => router.push('/account/reviews' as any)} />

@@ -133,7 +133,7 @@ export default function SelectPackageScreen() {
                       accessibilityState={{ expanded: isExpanded }}
                       accessibilityLabel={`${isExpanded ? 'View less' : 'View more'} about the ${pkg.name} package`}
                     >
-                      <Text style={styles.viewMore}>{isExpanded ? 'View less ▲' : `View more (${services.length} services) ▼`}</Text>
+                      <Text style={styles.viewMore}>{isExpanded ? 'View less ▲' : `View more (${services.length} ${services.length === 1 ? 'service' : 'services'}) ▼`}</Text>
                     </TouchableOpacity>
                   )}
                 </View>

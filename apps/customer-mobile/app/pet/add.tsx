@@ -4,7 +4,6 @@ import {
   Alert, KeyboardAvoidingView, Platform, Image,
 } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
-import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button, Input, DateField, Icon, OptionPicker } from '@wag/ui-mobile';
 import { colors, spacing, typography, radii } from '@wag/design-tokens';
@@ -20,7 +19,7 @@ import {
   type CoatType,
 } from '@wag/shared-types';
 import { wagApi } from '../../src/lib/api';
-import { goBack as safeBack } from '../../src/lib/nav';
+import { goBack as safeBack, goTab } from '../../src/lib/nav';
 
 type PetSex = 'male' | 'female';
 
@@ -175,7 +174,7 @@ export default function AddPetScreen() {
         }
       }
 
-      router.replace('/(tabs)/home');
+      goTab('/(tabs)/home');
     } catch (err: any) {
       Alert.alert('Failed', err?.response?.data?.message ?? err?.message ?? 'Could not add pet');
     } finally {

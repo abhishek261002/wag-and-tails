@@ -28,5 +28,7 @@ export { applyOlaRequestKey } from './mapsKey';
 export type { MapsConfig } from './mapsConfig';
 export { DateField, formatDisplayDate } from './DateField';
 export type { DateFieldProps } from './DateField';
+export { OfflineNotice } from './OfflineNotice';
+export type { OfflineNoticeProps } from './OfflineNotice';
 export { OptionPicker } from './OptionPicker';
 export type { OptionPickerProps } from './OptionPicker';

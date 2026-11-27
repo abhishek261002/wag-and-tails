@@ -12,7 +12,7 @@ import {
 import type { MyInsuranceRequest } from '@wag/api-client';
 import { wagApi, resolveMediaUrl } from '../src/lib/api';
 import { cleanPhone } from '../src/lib/phone';
-import { goBack } from '../src/lib/nav';
+import { goBack, goTab } from '../src/lib/nav';
 
 type Errors = Partial<Record<'pet' | 'ownerName' | 'phone' | 'email' | 'city' | 'preExistingDetails' | 'consent', string>>;
 const NAME_RE = /^[\p{L}][\p{L}\p{M} .'\-]*$/u;
@@ -110,7 +110,7 @@ export default function InsuranceScreen() {
           <View style={styles.doneIcon}><Icon name="check" size={34} color={colors.white} /></View>
           <Text style={styles.doneTitle}>Request received</Text>
           <Text style={styles.doneBody}>Our insurance team will call you about cover for {done}, usually within one working day.</Text>
-          <Button onPress={() => router.replace('/(tabs)/home')} fullWidth style={{ marginTop: spacing[6] }}>Back to home</Button>
+          <Button onPress={() => goTab('/(tabs)/home')} fullWidth style={{ marginTop: spacing[6] }}>Back to home</Button>
         </View>
       </SafeAreaView>
     );
@@ -154,7 +154,7 @@ export default function InsuranceScreen() {
                     accessibilityState={{ selected: on, disabled: !!open }}
                     accessibilityLabel={`${p.name}${open ? ', already requested' : ''}`}
                   >
-                    <PetAvatar name={p.name} imageUrl={resolveMediaUrl(p.avatarUrl)} size={44} />
+                    <PetAvatar species={p.species} name={p.name} imageUrl={resolveMediaUrl(p.avatarUrl)} size={44} />
                     <Text style={[styles.petName, on && styles.petNameOn]} numberOfLines={1}>{p.name}</Text>
                     {!!open && <Text style={styles.petTag}>Requested</Text>}
                   </TouchableOpacity>

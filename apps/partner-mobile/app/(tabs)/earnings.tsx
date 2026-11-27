@@ -1,5 +1,6 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
+import React, { useCallback, useState } from 'react';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, ActivityIndicator } from 'react-native';
+import { useFocusEffect } from 'expo-router';
 import type { PartnerEarnings } from '@wag/shared-types';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button, Card, Icon, type IconName } from '@wag/ui-mobile';
@@ -10,10 +11,15 @@ import { DuesBanner } from '../../src/components/DuesBanner';
 export default function EarningsScreen() {
   const [earnings, setEarnings] = useState<PartnerEarnings | null>(null);
   const [requesting, setRequesting] = useState(false);
+  const [failed, setFailed] = useState(false);
 
-  useEffect(() => {
-    wagApi.partner.getEarnings().then(setEarnings).catch(() => {});
+  const load = useCallback(() => {
+    setFailed(false);
+    wagApi.partner.getEarnings().then(setEarnings).catch(() => setFailed(true));
   }, []);
+
+  // Tab screens stay mounted, so reload each time this one is opened: a job may have been finished since.
+  useFocusEffect(useCallback(() => { load(); }, [load]));
 
   const handleRequestPayout = async () => {
     if (!earnings?.pending || earnings.pending <= 0) {
@@ -32,7 +38,7 @@ export default function EarningsScreen() {
             try {
               await wagApi.partner.requestPayout(earnings.pending);
               Alert.alert('Payout requested!', 'You\'ll receive payment within 2-3 business days.');
-              wagApi.partner.getEarnings().then(setEarnings).catch(() => {});
+              load();
             } catch (err: any) {
               Alert.alert('Failed', err?.message ?? 'Please try again.');
             } finally {
@@ -50,7 +56,19 @@ export default function EarningsScreen() {
         <Text style={styles.title}>Earnings</Text>
 
         {/* Commission owed to the company for jobs paid directly to you */}
-        <DuesBanner variant="card" onChanged={() => wagApi.partner.getEarnings().then(setEarnings).catch(() => {})} />
+        <DuesBanner variant="card" onChanged={load} />
+
+        {/* Never show ₹0 for money that has not loaded: a partner would read it as lost earnings. */}
+        {!earnings ? (
+          failed ? (
+            <TouchableOpacity style={styles.empty} onPress={load} accessibilityRole="button">
+              <Text style={styles.emptyText}>Could not load your earnings. Tap to try again.</Text>
+            </TouchableOpacity>
+          ) : (
+            <ActivityIndicator style={{ marginTop: spacing[10] }} color={colors.brandBrown} />
+          )
+        ) : (
+          <>
 
         {/* Split of everything completed, at each job's own ratio */}
         <Card style={styles.splitCard}>
@@ -74,12 +92,12 @@ export default function EarningsScreen() {
 
         {/* Summary cards */}
         <View style={styles.kpiRow}>
-          <KpiCard label="Total Earned" value={`₹${earnings?.total ?? 0}`} icon="wallet" />
-          <KpiCard label="Pending" value={`₹${earnings?.pending ?? 0}`} icon="clock" accent={colors.warning} />
+          <KpiCard label="Paid out" value={`₹${earnings?.total ?? 0}`} icon="wallet" />
+          <KpiCard label="Payout pending" value={`₹${earnings?.pending ?? 0}`} icon="clock" accent={colors.warning} />
         </View>
 
         <Card style={styles.payoutCard}>
-          <Text style={styles.payoutTitle}>Available for withdrawal</Text>
+          <Text style={styles.payoutTitle}>Company owes you (online payments)</Text>
           <Text style={styles.payoutAmount}>₹{earnings?.pending ?? 0}</Text>
           <Button
             onPress={handleRequestPayout}
@@ -120,7 +138,7 @@ export default function EarningsScreen() {
             <Text style={styles.emptyText}>No payouts yet</Text>
           </View>
         ) : (
-          earnings!.payouts.map((p) => (
+          earnings.payouts.map((p) => (
             <Card key={p.id} style={styles.payoutRow}>
               <View style={styles.payoutLeft}>
                 <Text style={styles.payoutNet}>₹{p.netAmount}</Text>
@@ -133,6 +151,8 @@ export default function EarningsScreen() {
               </View>
             </Card>
           ))
+        )}
+          </>
         )}
       </ScrollView>
     </SafeAreaView>

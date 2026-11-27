@@ -72,7 +72,7 @@ export function VaccinationPopup({ pets }: { pets: Pet[] }) {
               const overdue = v.state === 'overdue';
               return (
                 <TouchableOpacity key={p.id} style={styles.row} onPress={() => openPet(p)} accessibilityRole="button" accessibilityLabel={`${p.name}: ${v.label}. Open vaccination records`}>
-                  <PetAvatar name={p.name} imageUrl={resolveMediaUrl(p.avatarUrl)} size={38} />
+                  <PetAvatar species={p.species} name={p.name} imageUrl={resolveMediaUrl(p.avatarUrl)} size={38} />
                   <View style={{ flex: 1, minWidth: 0 }}>
                     <Text style={styles.petName} numberOfLines={1}>{p.name}</Text>
                     <Text style={[styles.petSub, overdue && styles.petSubWarn]} numberOfLines={1}>
