@@ -59,7 +59,7 @@ export default function AddPetNoteScreen() {
   };
 
   return (
-    <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+    <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
       <SafeAreaView style={styles.safe}>
         <View style={styles.topBar}>
           <TouchableOpacity onPress={() => goBack()} accessibilityLabel="Go back">

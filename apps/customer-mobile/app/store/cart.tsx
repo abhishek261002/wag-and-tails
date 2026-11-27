@@ -89,7 +89,7 @@ export default function CartScreen() {
       {cart?.items?.length > 0 && (
         <View style={styles.footer}>
           <View style={styles.totalRow}>
-            <Text style={styles.totalLabel}>Subtotal ({cart.items.length} items)</Text>
+            <Text style={styles.totalLabel}>Subtotal ({cart.items.reduce((n: number, i: any) => n + (i.quantity ?? 1), 0)} {cart.items.reduce((n: number, i: any) => n + (i.quantity ?? 1), 0) === 1 ? 'item' : 'items'})</Text>
             <Text style={styles.totalValue}>₹{subtotal}</Text>
           </View>
           <Button onPress={() => router.push('/store/checkout' as any)} fullWidth>

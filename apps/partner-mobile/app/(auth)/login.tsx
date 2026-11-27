@@ -45,7 +45,7 @@ export default function PartnerLoginScreen() {
 
   return (
     <SafeAreaView style={styles.safe}>
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
         <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
           {/* Brand */}
           <View style={styles.brand}>

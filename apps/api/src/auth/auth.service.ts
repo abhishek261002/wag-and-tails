@@ -127,6 +127,11 @@ export class AuthService {
   }) {
     const kyc = await this.kycService.resolveVerifiedToken(data.kycToken);
 
+    // Customers always sign in with "+91" and ten digits. A partner typing just the ten digits (or 91...) must end up
+    // with the same stored form, or the same person could register twice and the website would not match the number.
+    const digits = String(data.phone ?? '').replace(/[\s()-]/g, '');
+    data.phone = /^\d{10}$/.test(digits) ? `+91${digits}` : /^91\d{10}$/.test(digits) ? `+${digits}` : digits;
+
     const email = data.email.trim().toLowerCase();
     const existing = await this.prisma.user.findFirst({
       where: { OR: [{ phone: data.phone }, { email }] },

@@ -133,7 +133,7 @@ export default function InsuranceScreen() {
           <Button onPress={() => router.push('/pet/add')} fullWidth style={{ marginTop: spacing[6] }}>Add a pet</Button>
         </View>
       ) : (
-        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
           <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
             <View style={styles.hero}>
               <Icon name="shield" size={22} color={colors.success} />

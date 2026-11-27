@@ -173,7 +173,7 @@ export default function DrWoofScreen() {
 
   return (
     <SafeAreaView style={styles.safe}>
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
         <View style={styles.header}>
           <TouchableOpacity onPress={() => goBack()} accessibilityLabel="Go back" style={styles.iconBtn}>
             <Icon name="back" size={22} color={colors.brandBrown} />

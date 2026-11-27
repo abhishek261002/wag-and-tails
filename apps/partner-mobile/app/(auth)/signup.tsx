@@ -190,7 +190,7 @@ export default function PartnerSignupScreen() {
 
   return (
     <SafeAreaView style={styles.safe}>
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
         <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
           <View style={styles.topBar}>
             <TouchableOpacity onPress={goBack} accessibilityLabel="Go back" style={styles.backRow}>

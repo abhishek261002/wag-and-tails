@@ -244,3 +244,29 @@ Switched to development builds: the apps load their code live from the PC, so fi
 ### Open / for the client
 - Partner discount % in the plugin is 0, so partner prices equal normal prices (shop shows "Trade Pricing" with the same number).
 - Push notifications (Firebase) still not configured.
+
+
+## Round 5: full sweep (27 Nov, early morning)
+
+### Verified working on the emulator (new code, live)
+- **Partner sign-up end to end:** form, DigiLocker (goes out and comes back with the form intact, "Aadhaar verified as QA Walker XXXX 1234"), submit, pending screen, Aadhaar front and back photo upload, number with checksum, consent, saved. (K1 and B15 fully confirmed.)
+- **Customer:** support ticket (create, reply, photo attachment), pet insurance request, complaint (CM-4N4MZVN), store cart with real names, COD order #WC832, UPI order #WC828, dog-walk screens (no unpriced option; "not available in Lucknow yet" shown up front), second grooming booking, Back no longer re-enters the booking steps (B8), live tracking with route and ETA, two-way chat with the partner, reward points (180 after two grooms).
+- **Backend:** completed-jobs counter now counts (1 after the next job; 2 jobs in earnings); earnings 2 jobs / 1800 / 1440 / 360 due.
+
+### New bugs found and fixed in round 5
+| # | Where | What happens | Severity | Status |
+|---|---|---|---|---|
+| B31 | Both apps, 19 screens | On Android the keyboard covered the text box in tickets, chats, Dr. Woof, forms (only iPhone had keyboard handling). | **High** | fixed (padding on every platform) |
+| B32 | Customer + partner chat and ticket screens | Photos sent in a chat or ticket showed as an empty block (relative `/uploads/..` link was not resolved). | High | fixed |
+| B33 | Backend partner registration | A partner typing 10 digits was stored differently from customers' "+91...": duplicate accounts possible and the website could not match the number. | Medium | fixed (needs deploy) |
+| B34 | Both carts | "Subtotal (1 items)" for 2 units. | Low | fixed |
+
+### Needs the client / you
+- **Dr. Woof** still says "isn't connected yet": the Gemini key is not on the VPS (copy command not run yet).
+- **Approve "QA Walker"** (qa.walker2@example.com) in the plugin to test the walker side.
+- In-app notification list holds only payment notices; "assigned / on the way / completed" rely on push (Firebase) and the website's WhatsApp templates.
+- Partner discount % = 0 in the plugin; PRA coupons visible to everyone; support phone number; "police verified" claim.
+- Plugin panel pages not checked (need the staging admin login).
+
+### QA test data on the VPS/staging to delete before go-live
+Customer +919000000101 (QABuddy, 2 bookings WT-45Y215U and WT-4MSACRA, store orders #WC828 #WC830 #WC832, ticket, complaint CM-4N4MZVN, insurance lead), partners qa.groomer1@example.com and qa.walker2@example.com.

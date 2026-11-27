@@ -109,7 +109,7 @@ export default function OtpScreen() {
 
   return (
     <SafeAreaView style={styles.safe}>
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
         <View style={styles.container}>
           <TouchableOpacity onPress={() => goBack('/(auth)/login')} style={styles.backBtn}>
             <Text style={styles.backText}>← Back</Text>

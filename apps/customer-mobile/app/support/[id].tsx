@@ -8,7 +8,7 @@ import { useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, spacing, radii } from '@wag/design-tokens';
 import { Icon, Badge } from '@wag/ui-mobile';
-import { wagApi } from '../../src/lib/api';
+import { wagApi, resolveMediaUrl } from '../../src/lib/api';
 import { useAuthStore } from '../../src/store/auth.store';
 import { goBack } from '../../src/lib/nav';
 
@@ -122,7 +122,7 @@ export default function SupportTicketScreen() {
         {ticket && <Badge variant={STATUS_VARIANT[ticket.status] ?? 'default'} label={ticket.status.replace(/_/g, ' ')} />}
       </View>
 
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={90}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding" keyboardVerticalOffset={90}>
         <FlatList
           ref={listRef}
           data={messages}
@@ -138,7 +138,7 @@ export default function SupportTicketScreen() {
               <View style={[styles.bubble, isMe ? styles.bubbleMe : styles.bubbleThem]}>
                 {!isMe && <Text style={styles.senderName}>{msg.senderName}</Text>}
                 {msg.attachmentType === 'image' && msg.attachmentUrl ? (
-                  <Image source={{ uri: msg.attachmentUrl }} style={styles.attachmentImage} />
+                  <Image source={{ uri: resolveMediaUrl(msg.attachmentUrl) }} style={styles.attachmentImage} />
                 ) : (
                   <Text style={[styles.msgText, isMe ? styles.msgTextMe : {}]}>{msg.content}</Text>
                 )}

@@ -98,7 +98,7 @@ export default function ProfileScreen() {
 
   return (
     <SafeAreaView style={styles.safe}>
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
         <View style={styles.topBar}>
           <TouchableOpacity style={styles.backBtn} onPress={() => goBack('/(tabs)/account')} accessibilityLabel="Go back">
             <Icon name="back" size={18} color={colors.textPrimary} />

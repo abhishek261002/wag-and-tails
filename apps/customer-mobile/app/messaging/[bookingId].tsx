@@ -9,7 +9,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, spacing, radii } from '@wag/design-tokens';
 import { mergeMessages } from '@wag/shared-types';
 import { Icon } from '@wag/ui-mobile';
-import { wagApi } from '../../src/lib/api';
+import { wagApi, resolveMediaUrl } from '../../src/lib/api';
 import { useAuthStore } from '../../src/store/auth.store';
 import { goBack } from '../../src/lib/nav';
 
@@ -130,7 +130,7 @@ export default function MessagingScreen() {
 
       <KeyboardAvoidingView
         style={{ flex: 1 }}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior="padding"
         keyboardVerticalOffset={90}
       >
         <FlatList
@@ -145,7 +145,7 @@ export default function MessagingScreen() {
               <View style={[styles.bubble, isMe ? styles.bubbleMe : styles.bubbleThem]}>
                 {!isMe && <Text style={styles.senderName}>{msg.senderName}</Text>}
                 {msg.attachmentType === 'image' && msg.attachmentUrl ? (
-                  <Image source={{ uri: msg.attachmentUrl }} style={styles.attachmentImage} />
+                  <Image source={{ uri: resolveMediaUrl(msg.attachmentUrl) }} style={styles.attachmentImage} />
                 ) : (
                   <Text style={[styles.msgText, isMe ? styles.msgTextMe : {}]}>{msg.content}</Text>
                 )}

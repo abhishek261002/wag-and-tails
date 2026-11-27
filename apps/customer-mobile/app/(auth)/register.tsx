@@ -166,7 +166,7 @@ export default function RegisterScreen() {
 
   return (
     <SafeAreaView style={styles.safe}>
-      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
         <View style={styles.topBar}>
           <TouchableOpacity onPress={() => (step === 1 ? setStep(0) : goBack('/(auth)/login'))} accessibilityLabel="Go back" style={styles.backBtn}>
             <Icon name="back" size={20} color={colors.brandBrown} />

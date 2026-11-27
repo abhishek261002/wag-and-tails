@@ -167,7 +167,7 @@ export default function AddAddressScreen() {
   if (step === 'details') {
     return (
       <SafeAreaView style={styles.safe}>
-        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior="padding">
           <View style={styles.topBar}>
             <TouchableOpacity onPress={() => setStep('pin')} accessibilityLabel="Back to map"><Text style={styles.back}>← Map</Text></TouchableOpacity>
             <Text style={styles.title}>Address details</Text>
