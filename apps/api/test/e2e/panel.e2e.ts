@@ -2,6 +2,7 @@
 // activity log, and who may do what. LOCAL ONLY (API on :3001, dev DB, staging WordPress on :8090).
 import * as fs from 'fs';
 import * as path from 'path';
+import * as bcrypt from 'bcryptjs';
 import sharp from 'sharp';
 import { aadhaarNumber, API, ADMIN, api, http, otpLogin, preflight, signedApi, sql, wpRest, login } from './helpers';
 
@@ -9,6 +10,9 @@ const stamp = String(Date.now()).slice(-6);
 const P = (n: number) => `+9199${stamp}${n}0`.slice(0, 13); // +91 99 + 6 digits + 2 = 12 chars after +? keep 13 total
 const phones = [P(1), P(2), P(3), P(4)];
 const ids: string[] = [];
+// Partners sign in with email and password (a phone code signs in customers only).
+const PARTNER_PASSWORD = 'E2ePanelPartner#1';
+const partnerEmail = (i: number) => `e2e${stamp}${i}@test.in`;
 const OWNER = { by: 'Owner Test', role: 'admin' as const };
 const STAFFER = { by: 'Desk Test', role: 'staff' as const };
 let adminTok = '';
@@ -22,7 +26,8 @@ async function png(color: string) {
 
 async function makePartner(i: number, status = 'pending', city = 'Lucknow', last4: string | null = null) {
   const ph = phones[i]!;
-  const uid = sql(`insert into users(phone, email, role, is_active, updated_at) values ('${ph}', 'e2e${stamp}${i}@test.in', 'partner', true, now()) returning id`).split('\n')[0]!;
+  const hash = bcrypt.hashSync(PARTNER_PASSWORD, 10);
+  const uid = sql(`insert into users(phone, email, password_hash, role, is_active, updated_at) values ('${ph}', '${partnerEmail(i)}', '${hash}', 'partner', true, now()) returning id`).split('\n')[0]!;
   sql(`insert into user_profiles(user_id, first_name, last_name, updated_at) values ('${uid}', 'Panel', 'Tester${i}', now())`);
   sql(`insert into partner_profiles(user_id, status, modes, city, aadhaar_last4, kyc_status, updated_at) values ('${uid}', '${status}', '{grooming}', '${city}', ${last4 ? `'${last4}'` : 'null'}, 'verified', now())`);
   ids[i] = uid;
@@ -30,7 +35,7 @@ async function makePartner(i: number, status = 'pending', city = 'Lucknow', last
 }
 
 async function partnerLogin(i: number) {
-  return otpLogin(phones[i]!);
+  return login(partnerEmail(i), PARTNER_PASSWORD);
 }
 
 async function uploadSide(tok: string, side: 'front' | 'back', color = '#c0392b') {

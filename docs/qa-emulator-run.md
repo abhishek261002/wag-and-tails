@@ -406,3 +406,13 @@ Extra test data: WT-5L9LTVW and WT-5LKAAO4 (cancelled), WT-5LLRHMZ (completed), 
 Customer release build smoke test: login, home, notification permission, notifications screen, add-pet breed picker. Partner: login, jobs screen, channels. Other screens were not re-tapped in the release builds.
 
 Extra test data: push-test bookings (one completed, one cancelled) for QABuddy.
+
+## Round 11: phone-code login (27 Nov, afternoon)
+
+| # | Where | What happens | Severity | Status |
+|---|---|---|---|---|
+| S6 | POST /auth/otp/verify | Signed in whatever account owned the number, including partners (reproduced with our own QA groomer). In test mode the code is returned to the caller, so a phone number was enough. Missed in the round 6 security sweep. | **Critical** | fixed: phone codes sign in customers only; 4 unit tests; needs deploy |
+
+- Customer sign-in and sign-up are unchanged; partners already use email and password.
+- The local panel end-to-end test now signs partners in with a password (type-checked; the e2e suite was not re-run).
+- Still open while SMS is in test mode: anyone who knows a customer's number can sign in as that customer. Real SMS fixes it and is required before launch. An approved-tester list was offered and not taken up.

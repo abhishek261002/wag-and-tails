@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException, ConflictException, Logger, BadRequestException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, ConflictException, ForbiddenException, Logger, BadRequestException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { prepareSignup } from './customer-signup.js';
 import { PrismaService } from '../prisma/prisma.service.js';
@@ -34,6 +34,11 @@ export class AuthService {
       // code be replayed.
       const valid = await this.otpService.verifyOtp(phone, otp);
       if (!valid) throw new UnauthorizedException('Invalid or expired OTP');
+      // A phone code signs in customers only. Partners, staff and admins use email and password: without this check,
+      // knowing (or intercepting) the code for their number would hand over their account and its powers.
+      if (existing.role !== 'customer') {
+        throw new ForbiddenException('This number cannot be used to log in here. Partners and team members sign in with email and password.');
+      }
       const session = await this.issueTokens(existing.id, existing.role);
       return { isNewUser: false, ...session };
     }
