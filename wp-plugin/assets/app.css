@@ -542,3 +542,17 @@ mark.tvar{background:var(--honey,#f5c46b);color:var(--ink);border-radius:5px;pad
 .slotrow{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px;align-items:start;padding:10px 0;border-top:1px solid var(--line,rgba(0,0,0,.08))}
 .slotrow:first-of-type{border-top:0}
 @media (max-width:640px){.slotrow{grid-template-columns:1fr}}
+/* v1.15 desk customer search + collections */
+.sugg{border:1px solid var(--line);border-radius:12px;background:var(--surface);padding:8px;display:grid;gap:4px;max-height:280px;overflow:auto;box-shadow:0 8px 24px rgba(0,0,0,.08)}
+.sugg-i{display:grid;gap:2px;text-align:left;background:none;border:0;border-radius:8px;padding:8px 10px;cursor:pointer;font:inherit;color:inherit}
+.sugg-i:hover,.sugg-i:focus-visible{background:var(--tint)}
+.sugg-i .num{margin-left:6px;color:var(--muted)}
+#coll .kpi span{display:block;font-size:.85rem;color:var(--muted)}
+#coll tr.tot td{border-top:2px solid var(--line);background:var(--tint)}
+#coll details summary{cursor:pointer;padding:6px 0}
+.btn.on{background:var(--brand);color:var(--on-brand);border-color:var(--brand)}
+/* v1.16 careers */
+.jobgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px;margin-top:20px}
+.jobcard h3{margin:0}
+.appgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:8px 16px}
+.appcard{border-left:4px solid var(--line)}

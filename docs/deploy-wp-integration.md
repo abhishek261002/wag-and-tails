@@ -1,10 +1,6 @@
-> **STOP before installing the plugin on the live site (found 27 Nov 2026).**
+> **Plugin versions (27 Nov 2026).** This repo now holds **1.17.0**: the live site's 1.16.0 (downloaded 27 Nov) merged with the app connection (previously 1.15.0). Both grew from 1.13.0.
 >
-> The live site wagandtails.in runs Wag & Tails plugin **1.16.0**. The copy in this repo is **1.15.0**, built from 1.14.0, so the two have grown apart.
->
-> The live plugin has things this repo does not: careers and job applications (`careers`, `careers/apply`, `admin/careers...`), a `collections` report, `desk/customers/search` and `admin/insurance/report`.
->
-> Installing this repo's zip over the live site would **remove those features**. First get the live plugin's 1.16.0 source from the client or its developer, merge the app connection into it, and test that on a fresh staging copy.
+> **Before installing on the live site:** check the live plugin is still 1.16.0 and unchanged since 27 Nov. If its developer has released anything newer, download it again and merge it first, or the install will remove their changes.
 
 # Going live: website + apps integration
 

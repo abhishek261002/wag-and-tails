@@ -51,7 +51,7 @@ function wt_customer_index() {
 	$idx = array();
 	$add = function ( $p ) use ( &$idx ) {
 		if ( ! isset( $idx[ $p ] ) ) {
-			$idx[ $p ] = array( 'phone' => $p, 'name' => '', 'email' => '', 'address' => '', 'pincode' => '', 'city' => '', 'pets' => array(), 'bookings' => 0, 'spent' => 0, 'last' => '', 'registered' => false, 'source' => '' );
+			$idx[ $p ] = array( 'phone' => $p, 'name' => '', 'email' => '', 'address' => '', 'pincode' => '', 'city' => '', 'pets' => array(), 'bookings' => 0, 'spent' => 0, 'last' => '', 'registered' => false, 'source' => '', 'lat' => null, 'lng' => null, 'mapLink' => '', 'locDate' => '' );
 		}
 	};
 	foreach ( wt_all_bookings() as $b ) {
@@ -73,6 +73,13 @@ function wt_customer_index() {
 					$c[ $k ] = $b[ $k ];
 				}
 			}
+		}
+		$loc = wt_booking_loc( $b );
+		if ( $loc && $d >= $c['locDate'] ) {
+			$c['lat']     = $loc['lat'];
+			$c['lng']     = $loc['lng'];
+			$c['mapLink'] = $loc['mapLink'];
+			$c['locDate'] = $d;
 		}
 		if ( ! empty( $b['breed'] ) || ! empty( $b['petName'] ) ) {
 			$key = strtolower( ( $b['petName'] ?? '' ) . '|' . ( $b['breed'] ?? '' ) );
@@ -113,13 +120,17 @@ function wt_customer_index() {
 			continue;
 		}
 		$add( $p );
-		foreach ( array( 'name', 'email', 'address', 'pincode', 'city', 'altPhone', 'notes', 'editedBy', 'editedAt' ) as $k ) {
+		foreach ( array( 'name', 'email', 'address', 'pincode', 'city', 'altPhone', 'notes', 'editedBy', 'editedAt', 'mapLink' ) as $k ) {
 			if ( isset( $pr[ $k ] ) && '' !== $pr[ $k ] ) {
 				$idx[ $p ][ $k ] = $pr[ $k ];
 			}
 		}
 		if ( ! empty( $pr['pets'] ) ) {
 			$idx[ $p ]['pets'] = $pr['pets'];
+		}
+		if ( isset( $pr['lat'], $pr['lng'] ) && is_numeric( $pr['lat'] ) ) {
+			$idx[ $p ]['lat'] = (float) $pr['lat'];
+			$idx[ $p ]['lng'] = (float) $pr['lng'];
 		}
 		$idx[ $p ]['profile'] = true;
 	}
@@ -128,6 +139,28 @@ function wt_customer_index() {
 	}
 	unset( $c );
 	return $idx;
+}
+
+/**
+ * A booking's location: the pinned point, or the coordinates inside a shared Google Maps link.
+ *
+ * @return array|null lat, lng (may be null when only a short link was shared) and mapLink.
+ */
+function wt_booking_loc( $b ) {
+	$lat  = isset( $b['lat'] ) && is_numeric( $b['lat'] ) ? (float) $b['lat'] : null;
+	$lng  = isset( $b['lng'] ) && is_numeric( $b['lng'] ) ? (float) $b['lng'] : null;
+	$link = (string) ( $b['mapLink'] ?? '' );
+	if ( null === $lat && $link && preg_match( '/(?:[?&](?:q|query|ll)=|@)(-?\d{1,2}\.\d+),\s*(-?\d{1,3}\.\d+)/', rawurldecode( $link ), $m ) ) {
+		$lat = (float) $m[1];
+		$lng = (float) $m[2];
+	}
+	if ( null === $lat && ! $link ) {
+		return null;
+	}
+	if ( ! $link && null !== $lat ) {
+		$link = 'https://www.google.com/maps?q=' . $lat . ',' . $lng;
+	}
+	return array( 'lat' => $lat, 'lng' => $lng, 'mapLink' => $link );
 }
 
 function wt_customer( $phone ) {
@@ -277,7 +310,67 @@ function wt_api_client_save( $in ) {
 /** Booking desk: fill a new booking from what we know about this number. */
 function wt_api_desk_customer( $in ) {
 	$c = wt_customer( $in['phone'] ?? '' );
-	return array( 'customer' => $c ? array_intersect_key( $c, array_flip( array( 'phone', 'name', 'email', 'address', 'pincode', 'city', 'pets', 'notes', 'bookings', 'last' ) ) ) : null );
+	return array( 'customer' => $c ? wt_desk_customer_view( $c ) : null );
+}
+
+function wt_desk_customer_view( $c ) {
+	$v             = array_intersect_key( $c, array_flip( array( 'phone', 'name', 'email', 'address', 'pincode', 'city', 'pets', 'notes', 'bookings', 'last', 'lat', 'lng', 'mapLink' ) ) );
+	$v['cityName'] = $c['city'] ? wt_city_name( $c['city'] ) : '';
+	return $v;
+}
+
+/** Booking desk: find customers by part of their name or mobile number. */
+function wt_api_desk_customer_search( $in ) {
+	$q  = mb_strtolower( trim( sanitize_text_field( (string) ( $in['q'] ?? '' ) ) ) );
+	$qd = preg_replace( '/\D/', '', $q );
+	$by_phone = strlen( $qd ) >= 3 && ! preg_match( '/\p{L}/u', $q );
+	if ( ! $by_phone && mb_strlen( $q ) < 2 ) {
+		return array( 'list' => array() );
+	}
+	$scope = wt_desk_city();
+	$hits  = array();
+	foreach ( wt_customer_index() as $c ) {
+		if ( 'all' !== $scope && $c['city'] && $c['city'] !== $scope ) {
+			continue;
+		}
+		$score = 0;
+		if ( $by_phone ) {
+			if ( 0 === strpos( $c['phone'], $qd ) ) {
+				$score = 3;
+			} elseif ( false !== strpos( $c['phone'], $qd ) || ( ! empty( $c['altPhone'] ) && false !== strpos( $c['altPhone'], $qd ) ) ) {
+				$score = 2;
+			}
+		} else {
+			$n = mb_strtolower( (string) $c['name'] );
+			if ( '' === $n ) {
+				continue;
+			}
+			if ( 0 === strpos( $n, $q ) ) {
+				$score = 3;
+			} elseif ( preg_match( '/\b' . preg_quote( $q, '/' ) . '/u', $n ) ) {
+				$score = 2;
+			} elseif ( false !== mb_strpos( $n, $q ) ) {
+				$score = 1;
+			} else {
+				foreach ( (array) $c['pets'] as $pet ) {
+					if ( ! empty( $pet['name'] ) && 0 === mb_strpos( mb_strtolower( $pet['name'] ), $q ) ) {
+						$score = 1;
+						break;
+					}
+				}
+			}
+		}
+		if ( $score ) {
+			$hits[] = array( $score, $c['bookings'], $c['last'], $c );
+		}
+	}
+	usort(
+		$hits,
+		function ( $a, $b ) {
+			return array( $b[0], $b[1], $b[2] ) <=> array( $a[0], $a[1], $a[2] );
+		}
+	);
+	return array( 'list' => array_map( function ( $h ) { return wt_desk_customer_view( $h[3] ); }, array_slice( $hits, 0, 8 ) ) ); // phpcs:ignore
 }
 
 /* ---------- customer: own details ---------- */
@@ -300,7 +393,7 @@ function wt_profile_public( $phone ) {
 	if ( ! $c ) {
 		return null;
 	}
-	return array_intersect_key( $c, array_flip( array( 'phone', 'name', 'email', 'address', 'pincode', 'city', 'pets' ) ) );
+	return array_intersect_key( $c, array_flip( array( 'phone', 'name', 'email', 'address', 'pincode', 'city', 'pets', 'lat', 'lng', 'mapLink' ) ) );
 }
 
 /* ---------- login with WhatsApp code ---------- */
@@ -468,6 +561,7 @@ add_action(
 			array( 'GET', 'clients/(?P<phone>\d{10})', $staff, 'wt_api_client_get' ),
 			array( 'POST', 'clients/(?P<phone>\d{10})', $staff, 'wt_api_client_save' ),
 			array( 'GET', 'desk/customer', $staff, 'wt_api_desk_customer' ),
+			array( 'GET', 'desk/customers/search', $staff, 'wt_api_desk_customer_search' ),
 			array( 'POST', 'me/profile', 'wt_can_customer', 'wt_api_me_profile' ),
 			array( 'POST', 'otp/send', '__return_true', 'wt_api_otp_send' ),
 			array( 'POST', 'otp/verify', '__return_true', 'wt_api_otp_verify' ),

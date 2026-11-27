@@ -111,6 +111,7 @@ function wt_default_config() {
 			'waPhoneId'      => '',
 			'waToken'        => '',
 			'waLang'         => 'en',
+			'redoCities'     => array( 'kanpur', 'lucknow' ),
 			'waTemplates'    => array(),
 			'waAppSecret'    => '',
 			'webhookUrl'     => '',
@@ -189,6 +190,7 @@ function wt_client_config( $role ) {
 		'notifyWhatsApp' => $s['notifyWhatsApp'],
 		'maxDaysAhead'   => (int) $s['maxDaysAhead'],
 		'razorpayOn'     => ( '' !== $s['razorpayKey'] && '' !== $s['razorpaySecret'] ),
+		'redoCities'     => array_values( (array) $s['redoCities'] ),
 	);
 	if ( 'staff' === $role || 'admin' === $role ) {
 		$pub_settings['reviewMsg'] = $s['reviewMsg'];

@@ -356,3 +356,12 @@ The live site runs plugin **1.16.0**; this repo has **1.15.0** (built from 1.14.
 - Cancellation: the website policy says free up to **3 hours** before; the apps say and enforce **4** (plugin setting "appsCancelHours").
 - PRA codes: if customers should be able to use them, set them to "Shown to customers" in the plugin; the website and apps will then both show them.
 - PAMPER says "first booking" but a returning customer still gets it.
+
+## Round 8: plugin 1.16.0 (live) merged with the app connection, now 1.17.0
+
+- Three-way merge from the original 1.13.0. Only version numbers and two "both added here" spots clashed; both additions kept.
+- All 26 PHP files pass a PHP 8.2 syntax check. No duplicate PHP functions, REST routes or JavaScript names.
+- Local test site: 1.17.0 active, app connection test 49/49, all 36 admin screens open in Chrome with no script errors, careers / collections / customer search / insurance report respond, no PHP errors logged.
+- Expected on the local site only: app screens say the apps server cannot be reached (it was not running), and two WhatsApp screens ask for a Business Account ID.
+- Not run: the 80-check apps integration test (needs the app server and a local database). Not yet installed on /yamato.
+- Upload file: infra/vps/wag-and-tails.zip (rebuild with `py -3 infra/vps/build-plugin-zip.py`).

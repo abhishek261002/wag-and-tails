@@ -16,6 +16,12 @@ function wt_wa_template_defs() {
 			'text'     => "Hi {{1}}, your Wag & Tails home grooming is confirmed! 🐾\n\nBooking ID: {{2}}\nPackage: {{3}}\nDate: {{4}}\nTime: {{5}}\nTotal: {{6}} ({{7}})\n\n24-hour happy-groom promise: if anything is not right, log in at wagandtails.in with this mobile number within 24 hours of the groom and raise a complaint. We will send the groomer back for a free redo.\n\nWe also help with pet insurance and have pet products like beds, jackets and shampoos at wagandtails.in.",
 			'example'  => array( 'Riya', 'WT-ABC123', 'Full Groom', '20 Oct 2026', '11:00am - 12:30pm', '₹1,299', 'Pay after service' ),
 		),
+		'booking_customer_basic' => array(
+			'name'     => 'wag_booking_confirmed_basic',
+			'category' => 'UTILITY',
+			'text'     => "Hi {{1}}, your Wag & Tails home grooming is confirmed! 🐾\n\nBooking ID: {{2}}\nPackage: {{3}}\nDate: {{4}}\nTime: {{5}}\nTotal: {{6}} ({{7}})\n\nNeed to change something? Just reply to this message.\n\nWe also help with pet insurance and have pet products like beds, jackets and shampoos at wagandtails.in.",
+			'example'  => array( 'Riya', 'WT-ABC123', 'Full Groom', '20 Oct 2026', '11:00am - 12:30pm', '₹1,299', 'Pay after service' ),
+		),
 		'complaint_registered' => array(
 			'name'     => 'wag_complaint_registered',
 			'category' => 'UTILITY',

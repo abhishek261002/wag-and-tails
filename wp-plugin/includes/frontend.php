@@ -164,6 +164,7 @@ function wt_boot_data() {
 		'apps'        => in_array( $role, array( 'admin', 'staff' ), true ) && function_exists( 'wt_api_apps_status' ) ? wt_api_apps_status() : null,
 		'blockedDays' => wt_blocked_days(),
 		'events'      => wt_events_boot(),
+		'jobs'        => function_exists( 'wt_jobs_open' ) ? count( wt_jobs_open() ) : 0,
 		'today'       => wt_today(),
 		'links'       => 'admin' === $role ? $links : array( 'lostPass' => wp_lostpassword_url() ),
 		'waEvents'    => 'admin' === $role ? wt_wa_events() : null,

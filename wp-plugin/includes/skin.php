@@ -54,6 +54,9 @@ function wt_skin_links() {
 		$items[] = array( 'events', 'Events' );
 	}
 	$items[] = array( 'insurance', 'Pet Insurance' );
+	if ( function_exists( 'wt_jobs_open' ) && wt_jobs_open() ) {
+		$items[] = array( 'careers', 'Careers' );
+	}
 	$items[] = array( 'about', 'About Us' );
 	$items[] = array( 'contact', 'Contact Us' );
 	return array_map(

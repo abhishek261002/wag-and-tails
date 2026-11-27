@@ -22,3 +22,6 @@ apps/api/private-uploads
 # Downloaded test builds
 apps_build_apk/
 *.apk
+
+# The plugin as downloaded from the live website (reference copy for merging; not part of the project)
+wag-live-plugin/

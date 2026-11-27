@@ -567,6 +567,104 @@ function wt_api_loyal_reward( $in ) {
 	return array( 'ok' => true, 'balance' => $bal, 'what' => $what, 'sent' => $sent );
 }
 
+/* ---------- cash & online collected, city-wise ---------- */
+
+/** What was collected in cash and online for bookings in a date range (by service date), per city. */
+function wt_api_collections( $in ) {
+	$from  = wt_ymd( $in['from'] ?? '', wt_today() );
+	$to    = wt_ymd( $in['to'] ?? '', wt_today() );
+	if ( $from > $to ) {
+		list( $from, $to ) = array( $to, $from );
+	}
+	$blank = array( 'cash' => 0, 'cashN' => 0, 'web' => 0, 'webN' => 0, 'desk' => 0, 'deskN' => 0, 'due' => 0, 'dueN' => 0, 'later' => 0, 'laterN' => 0 );
+	$cities = array();
+	$people = array();
+	$rows   = array();
+	$today  = wt_today();
+	foreach ( wt_all_bookings() as $b ) {
+		$d = (string) ( $b['date'] ?? '' );
+		if ( $d < $from || $d > $to || ! wt_is_sale( $b ) ) {
+			continue;
+		}
+		$city = (string) ( $b['city'] ?? '' );
+		if ( ! isset( $cities[ $city ] ) ) {
+			$cities[ $city ] = $blank;
+		}
+		$c     = &$cities[ $city ];
+		$total = (float) ( $b['total'] ?? 0 );
+		$bal   = (float) ( $b['balanceDue'] ?? 0 );
+		$mode  = (string) ( $b['payMode'] ?? '' );
+		$paid  = 'Paid' === ( $b['payStatus'] ?? '' ) && in_array( $mode, array( 'Cash', 'Online' ), true );
+		$how   = '';
+		if ( $paid ) {
+			$got = max( 0, $total - $bal );
+			if ( 'Cash' === $mode ) {
+				$c['cash'] += $got;
+				++$c['cashN'];
+				$how = 'Cash';
+				$who = trim( (string) ( $b['payBy'] ?? ( $b['closedBy'] ?? '' ) ) );
+				$key = $city . '|' . ( '' === $who ? '—' : $who );
+				$people[ $key ] = ( $people[ $key ] ?? 0 ) + $got;
+			} elseif ( ! empty( $b['payId'] ) && 'free' !== $b['payId'] ) {
+				$c['web'] += $got;
+				++$c['webN'];
+				$how = 'Online (website)';
+			} else {
+				$c['desk'] += $got;
+				++$c['deskN'];
+				$how = 'Online (UPI / card)';
+			}
+			if ( $bal > 0 ) {
+				$c['due'] += $bal;
+				++$c['dueN'];
+			}
+		} elseif ( 'Completed' === ( $b['status'] ?? '' ) || $d < $today ) {
+			$c['due'] += $total;
+			++$c['dueN'];
+			$how = 'Not collected';
+		} else {
+			$c['later'] += $total;
+			++$c['laterN'];
+			$how = 'Pay after service (upcoming)';
+		}
+		unset( $c );
+		$rows[] = array( $b['id'], $d, wt_city_name( $city ), $b['name'] ?? '', $b['phone'] ?? '', $b['status'] ?? '', $total, $how, $paid ? max( 0, $total - $bal ) : 0, $bal > 0 ? $bal : ( $paid ? 0 : $total ), $b['payBy'] ?? ( $b['closedBy'] ?? '' ), $b['payAt'] ?? '', $b['payId'] ?? '' );
+	}
+	if ( 'csv' === ( $in['format'] ?? '' ) ) {
+		wt_csv_send( 'wag-tails-collections-' . $from . '-to-' . $to . '.csv', array( 'Booking ID', 'Service date', 'City', 'Customer', 'Phone', 'Status', 'Booking amount', 'Collected as', 'Collected', 'Still to collect', 'Recorded by', 'Recorded on', 'Razorpay payment ID' ), $rows );
+	}
+	$list = array();
+	$sum  = $blank;
+	foreach ( $cities as $id => $c ) {
+		foreach ( $c as $k => $v ) {
+			$sum[ $k ] += $v;
+		}
+		$c['city']  = $id;
+		$c['name']  = wt_city_name( $id );
+		$c['total'] = $c['cash'] + $c['web'] + $c['desk'];
+		$list[]     = $c;
+	}
+	usort(
+		$list,
+		function ( $a, $b ) {
+			return $b['total'] <=> $a['total'];
+		}
+	);
+	$sum['total'] = $sum['cash'] + $sum['web'] + $sum['desk'];
+	$cash_by      = array();
+	foreach ( $people as $k => $v ) {
+		list( $city, $who ) = explode( '|', $k, 2 );
+		$cash_by[]          = array( 'city' => wt_city_name( $city ), 'who' => $who, 'amount' => round( $v, 2 ) );
+	}
+	usort(
+		$cash_by,
+		function ( $a, $b ) {
+			return array( $a['city'], $b['amount'] ) <=> array( $b['city'], $a['amount'] );
+		}
+	);
+	return array( 'from' => $from, 'to' => $to, 'cities' => $list, 'sum' => $sum, 'cashBy' => $cash_by );
+}
+
 /* ---------- targets ---------- */
 
 function wt_month( $v ) {
@@ -935,6 +1033,7 @@ add_action(
 			array( 'GET', 'my', 'wt_can_staff_only', 'wt_api_my' ),
 			array( 'GET', 'stats', 'wt_can_staff_or_admin', 'wt_api_stats' ),
 			array( 'GET', 'loyal', 'wt_can_staff_or_admin', 'wt_api_loyal' ),
+			array( 'GET', 'collections', 'wt_can_admin', 'wt_api_collections' ),
 			array( 'POST', 'loyal/reward', 'wt_can_staff_or_admin', 'wt_api_loyal_reward' ),
 			array( 'GET', 'team', 'wt_can_admin', 'wt_api_team' ),
 			array( 'POST', 'team', 'wt_can_admin', 'wt_api_team_save' ),

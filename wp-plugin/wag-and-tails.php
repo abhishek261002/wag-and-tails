@@ -2,7 +2,7 @@
 /**
  * Plugin Name:       Wag & Tails
  * Description:       Home pet grooming bookings with city-wise prices, Razorpay or pay-after-service, booking desk for staff, customer accounts with reward points, pet insurance leads, dog walking, and a WooCommerce-powered store.
- * Version:           1.15.0
+ * Version:           1.17.0
  * Requires at least: 6.2
  * Requires PHP:      7.4
  * Author:            Wag & Tails
@@ -14,7 +14,7 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit;
 }
 
-define( 'WT_VER', '1.15.0' );
+define( 'WT_VER', '1.17.0' );
 define( 'WT_FILE', __FILE__ );
 define( 'WT_DIR', plugin_dir_path( __FILE__ ) );
 define( 'WT_URL', plugin_dir_url( __FILE__ ) );
@@ -38,6 +38,7 @@ require_once WT_DIR . 'includes/events.php';
 require_once WT_DIR . 'includes/complaints.php';
 require_once WT_DIR . 'includes/watemplates.php';
 require_once WT_DIR . 'includes/wabulk.php';
+require_once WT_DIR . 'includes/careers.php';
 require_once WT_DIR . 'includes/skin.php';
 require_once WT_DIR . 'includes/connector.php';
 require_once WT_DIR . 'includes/apps.php';

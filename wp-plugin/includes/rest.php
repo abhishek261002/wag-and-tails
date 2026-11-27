@@ -76,6 +76,7 @@ function wt_register_routes() {
 		array( 'POST', 'desk/bookings/(?P<ref>[A-Za-z0-9\-]+)', 'wt_can_desk', 'wt_api_desk_action' ),
 		array( 'POST', 'admin/config', 'wt_can_admin', 'wt_api_save_config' ),
 		array( 'GET', 'admin/records', 'wt_can_admin', 'wt_api_records' ),
+		array( 'GET', 'admin/insurance/report', 'wt_can_admin', 'wt_api_insurance_report' ),
 		array( 'POST', 'admin/records/(?P<ref>[A-Za-z0-9\-]+)', 'wt_can_admin', 'wt_api_record_update' ),
 		array( 'GET', 'admin/customers', 'wt_can_admin', 'wt_api_customers' ),
 		array( 'POST', 'admin/points', 'wt_can_admin', 'wt_api_points_adjust' ),
@@ -351,6 +352,48 @@ function wt_api_records( $in ) {
 		return wt_err( 'Unknown list.' );
 	}
 	return array( 'list' => wt_rec_list( $type, array(), 'id DESC', 'notif' === $type ? 300 : 500 ) );
+}
+
+/** Insurance form leads as a CSV: one column per question, filtered by date received and status. */
+function wt_api_insurance_report( $in ) {
+	global $wpdb;
+	$from   = wt_ymd( $in['from'] ?? '', '2000-01-01' );
+	$to     = wt_ymd( $in['to'] ?? '', wt_today() );
+	$status = sanitize_text_field( $in['status'] ?? 'all' );
+	if ( $from > $to ) {
+		list( $from, $to ) = array( $to, $from );
+	}
+	$rows = $wpdb->get_results( $wpdb->prepare( 'SELECT data, created_at FROM ' . wt_table() . " WHERE type = 'insurance' AND created_at >= %s AND created_at <= %s ORDER BY id DESC", $from . ' 00:00:00', $to . ' 23:59:59' ), ARRAY_A ); // phpcs:ignore
+	$leads = array();
+	foreach ( $rows as $r ) {
+		$d = json_decode( $r['data'], true );
+		if ( ! $d || ( 'all' !== $status && ( $d['status'] ?? 'New' ) !== $status ) ) {
+			continue;
+		}
+		$d['_at'] = $r['created_at'];
+		$leads[]  = $d;
+	}
+	$cols = wp_list_pluck( wt_config()['insFields'], 'label' );
+	foreach ( $leads as $l ) {
+		foreach ( array_keys( (array) ( $l['data'] ?? array() ) ) as $k ) {
+			if ( ! in_array( $k, $cols, true ) ) {
+				$cols[] = $k;
+			}
+		}
+	}
+	if ( 'csv' !== ( $in['format'] ?? '' ) ) {
+		return array( 'count' => count( $leads ) );
+	}
+	$out = array();
+	foreach ( $leads as $l ) {
+		$t   = strtotime( $l['_at'] . ' UTC' ); // saved in site time; read it back unchanged
+		$row = array( $l['id'] ?? '', $t ? gmdate( 'd M Y', $t ) : '', $t ? gmdate( 'h:i A', $t ) : '', $l['status'] ?? 'New', $l['phone'] ?? '' );
+		foreach ( $cols as $c ) {
+			$row[] = (string) ( $l['data'][ $c ] ?? '' );
+		}
+		$out[] = $row;
+	}
+	wt_csv_send( 'insurance-leads-' . $from . '-to-' . $to . '.csv', array_merge( array( 'Lead ID', 'Date', 'Time', 'Status', 'Phone' ), $cols ), $out );
 }
 
 function wt_api_record_update( $in ) {
