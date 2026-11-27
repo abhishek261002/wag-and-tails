@@ -4,13 +4,14 @@ import {
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Button, Card, Badge, Icon } from '@wag/ui-mobile';
+import { Button, Card, Badge, Icon, useElapsedSeconds } from '@wag/ui-mobile';
 import { colors, spacing, typography, radii } from '@wag/design-tokens';
 import { wagApi } from '../../src/lib/api';
 import { format } from 'date-fns';
 import { PartnerChoice, type PartnerChoiceValue } from '../../src/components/PartnerChoice';
 import { goBack } from '../../src/lib/nav';
 import { LiveTrackingTile } from '../../src/components/LiveTrackingTile';
+import { CodeTile } from '../../src/components/CodeTile';
 
 const STATUS_LABELS: Record<string, string> = {
   draft: 'Draft',
@@ -29,6 +30,8 @@ const STATUS_LABELS: Record<string, string> = {
   expired: 'Expired',
 };
 
+// A job is under way (or about to be): its status and codes can change while this page is open.
+const UNDER_WAY = ['assigned', 'accepted', 'partner_on_the_way', 'arrived', 'in_progress'];
 const CANCELLABLE = ['confirmed', 'needs_partner', 'assigned'];
 const RESCHEDULABLE = ['confirmed', 'needs_partner', 'assigned'];
 
@@ -57,6 +60,16 @@ export default function BookingDetailScreen() {
     const t = setInterval(load, 10_000);
     return () => clearInterval(t);
   }, [searching, load]);
+
+  const underWay = !!booking && UNDER_WAY.includes(booking.status);
+  useEffect(() => {
+    if (!underWay) return;
+    const t = setInterval(load, 5_000);
+    return () => clearInterval(t);
+  }, [underWay, load]);
+
+  // A walk's end code is held back until the booked time has passed, as on the live walk screen.
+  const walkSeconds = useElapsedSeconds(booking?.sessionStartedAt, booking?.type === 'walking' && booking?.status === 'in_progress');
 
   const sendRedispatch = async (v: PartnerChoiceValue) => {
     setRedispatching(true);
@@ -122,6 +135,9 @@ export default function BookingDetailScreen() {
   const isGrooming = booking.type === 'grooming';
   const isCompleted = booking.status === 'completed';
   const isCancelled = booking.status === 'cancelled';
+  const walkMinutes = booking.durationMinutes ?? 30;
+  const endCodeReady = isGrooming || walkSeconds >= walkMinutes * 60;
+  const partnerWord = isGrooming ? 'groomer' : 'walker';
   const partnerName = booking.partner?.user?.profile
     ? `${booking.partner.user.profile.firstName} ${booking.partner.user.profile.lastName}`
     : null;
@@ -153,6 +169,19 @@ export default function BookingDetailScreen() {
             />
           </View>
         </Card>
+
+        {/* The codes the customer reads out: start once the partner has arrived, end once the job is running. */}
+        {booking.status === 'arrived' && !!booking.startOtp && (
+          <CodeTile kind="start" code={booking.startOtp} hint={`Share this with your ${partnerWord} to start`} />
+        )}
+        {booking.status === 'in_progress' && !!booking.endOtp && endCodeReady && (
+          <CodeTile kind="end" code={booking.endOtp} hint={isGrooming ? 'Share this with your groomer once the session is done' : 'Share this with your walker to finish the walk'} />
+        )}
+        {booking.status === 'in_progress' && !endCodeReady && (
+          <Card style={styles.statusCard}>
+            <Text style={styles.bookingId}>Your end code will appear here when the {walkMinutes} minutes of the walk are over.</Text>
+          </Card>
+        )}
 
         {/* Dispatch: the chosen partner's answer, or asking the customer to choose again */}
         {searching && booking.dispatch?.mode === 'specific' && (

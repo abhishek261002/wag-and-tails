@@ -416,3 +416,22 @@ Extra test data: push-test bookings (one completed, one cancelled) for QABuddy.
 - Customer sign-in and sign-up are unchanged; partners already use email and password.
 - The local panel end-to-end test now signs partners in with a password (type-checked; the e2e suite was not re-run).
 - Still open while SMS is in test mode: anyone who knows a customer's number can sign in as that customer. Real SMS fixes it and is required before launch. An approved-tester list was offered and not taken up.
+
+### Round 11: checked on the live server after the deploy
+- S6 closed: the phone-code login on a partner number now returns 403. Customer sign-in and new-number sign-up still work; both QA partner logins work.
+- B54 closed: the server stores "booking:payment_collected", and tapping the payment push in the existing preview build opened that booking.
+- Free cancellation reads 3 hours. Walking on in Lucknow. QA accounts have no open jobs; both QA partners left offline.
+
+## Round 12: start and end codes on every booking screen (27 Nov, evening)
+
+| # | Where | What happens | Severity | Status |
+|---|---|---|---|---|
+| B59 | Customer booking details | The start and end codes were not shown, only on the tracking screen. | Medium | fixed: same code card as tracking; the page refreshes every 5 s while a job is under way; needs new build |
+| B60 | Customer Bookings tab | The "Track" button disappeared once a job was in progress, so the end code was hard to reach. | **High** | fixed; needs new build |
+| B61 | Walk timer, both apps | Closing and reopening the screen restarted the walk timer, which delayed the end code. | **High** | fixed: counts from the server's start time; needs new builds |
+
+Checked in the customer development build against the live server with our own booking #A80C648D: start code on the details page matched the server; with the page left open it switched to the end code (also matching) after the partner started the job; "Track" stayed on the Bookings tab. The job was then completed. Today's preview customer app was reinstalled afterwards.
+
+Not checked on a device: the walk timer and the walk end code after the full walk duration (both apps type-check).
+
+Test data added: #A80C648D (completed) and one cancelled unclaimed Lucknow booking (#15D72ADA). The QA Groomer's service city is now Kanpur. Booking #F9395975 was made by a person testing and was only viewed.

@@ -30,7 +30,7 @@ const STATUS_PILL: Record<string, Pill> = {
   expired: { label: 'Expired', tone: 'red' },
 };
 
-const TRACKABLE = new Set(['partner_on_the_way', 'arrived']);
+const TRACKABLE = new Set(['partner_on_the_way', 'arrived', 'in_progress']);
 const RESCHEDULABLE = new Set(['confirmed', 'needs_partner', 'assigned']);
 
 function when(b: any): string {

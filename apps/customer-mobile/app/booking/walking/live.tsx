@@ -1,26 +1,23 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { PetAvatar, LiveMapView, Icon, type IconName } from '@wag/ui-mobile';
+import { PetAvatar, LiveMapView, Icon, useElapsedSeconds, type IconName } from '@wag/ui-mobile';
 import { colors, spacing, typography, radii } from '@wag/design-tokens';
 import { wagApi, resolveMediaUrl } from '../../../src/lib/api';
+import { CodeTile } from '../../../src/components/CodeTile';
 
 export default function LiveWalkScreen() {
   const { id: bookingId } = useLocalSearchParams<{ id: string }>();
   const [booking, setBooking] = useState<any>(null);
-  const [elapsed, setElapsed] = useState(0);
   const [partnerLoc, setPartnerLoc] = useState<{ lat: number; lng: number; timestamp: string } | null>(null);
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const elapsed = useElapsedSeconds(booking?.sessionStartedAt, booking?.status === 'in_progress');
 
   useEffect(() => {
     const load = async () => {
       try {
         const b = await wagApi.bookings.get(bookingId!);
         setBooking(b);
-        if (['in_progress', 'accepted', 'partner_on_the_way', 'arrived'].includes((b as any).status)) {
-          timerRef.current = setInterval(() => setElapsed((e) => e + 1), 1000);
-        }
       } catch {}
     };
     load();
@@ -33,7 +30,6 @@ export default function LiveWalkScreen() {
         setBooking(b);
         if ((b as any).status === 'completed') {
           clearInterval(pollInterval);
-          if (timerRef.current) clearInterval(timerRef.current);
           setTimeout(() => {
             router.replace({ pathname: '/booking/walking/summary', params: { id: bookingId } } as any);
           }, 1000);
@@ -41,10 +37,7 @@ export default function LiveWalkScreen() {
       } catch {}
     }, 5000);
 
-    return () => {
-      clearInterval(pollInterval);
-      if (timerRef.current) clearInterval(timerRef.current);
-    };
+    return () => clearInterval(pollInterval);
   }, [bookingId]);
 
   useEffect(() => {
@@ -54,7 +47,7 @@ export default function LiveWalkScreen() {
 
     const offStatus = wagApi.realtime.on('booking:status_changed', (payload: any) => {
       if (payload.bookingId !== bookingId) return;
-      setBooking((prev: any) => (prev ? { ...prev, status: payload.status, endOtp: payload.endOtp ?? prev.endOtp } : prev));
+      setBooking((prev: any) => (prev ? { ...prev, status: payload.status, endOtp: payload.endOtp ?? prev.endOtp, sessionStartedAt: payload.sessionStartedAt ?? prev.sessionStartedAt } : prev));
       if (payload.status === 'completed') {
         setTimeout(() => {
           router.replace({ pathname: '/booking/walking/summary', params: { id: bookingId } } as any);
@@ -132,11 +125,7 @@ export default function LiveWalkScreen() {
         {/* Arrival code — the customer reads this out to the walker once
             they arrive; entering it server-side is what starts the walk. */}
         {(status === 'partner_on_the_way' || status === 'arrived') && booking?.startOtp && (
-          <View style={styles.otpCard}>
-            <Text style={styles.otpLabel}>Your start code</Text>
-            <Text style={styles.otpValue}>{booking.startOtp}</Text>
-            <Text style={styles.otpHint}>Share this with {partnerName} when they arrive</Text>
-          </View>
+          <CodeTile kind="start" code={booking.startOtp} hint={`Share this with ${partnerName} when they arrive`} />
         )}
 
         {/* Timer */}
@@ -160,11 +149,7 @@ export default function LiveWalkScreen() {
         {/* End code — held back until the timer above finishes, even
             though the server generates it the moment the walk starts. */}
         {status === 'in_progress' && timerDone && booking?.endOtp && (
-          <View style={[styles.otpCard, { backgroundColor: colors.success }]}>
-            <Text style={styles.otpLabel}>Your end code</Text>
-            <Text style={styles.otpValue}>{booking.endOtp}</Text>
-            <Text style={styles.otpHint}>Share this with {partnerName} to finish the walk</Text>
-          </View>
+          <CodeTile kind="end" code={booking.endOtp} hint={`Share this with ${partnerName} to finish the walk`} />
         )}
 
         {/* Partner card */}
@@ -232,8 +217,4 @@ const styles = StyleSheet.create({
   careNoteTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 4 },
   careNoteTitle: { fontFamily: 'Inter', fontSize: 12, fontWeight: '800', color: colors.warning },
   careNoteText: { fontFamily: 'Inter', fontSize: 13, color: colors.warning },
-  otpCard: { backgroundColor: colors.brandBrown, borderRadius: radii.xl, padding: spacing[5], alignItems: 'center', marginBottom: spacing[4] },
-  otpLabel: { fontFamily: 'Inter', fontSize: 13, color: 'rgba(255,255,255,0.7)' },
-  otpValue: { fontFamily: 'Inter', fontSize: 40, fontWeight: '800', color: colors.white, letterSpacing: 8, marginVertical: spacing[1] },
-  otpHint: { fontFamily: 'Inter', fontSize: 12, color: 'rgba(255,255,255,0.7)', textAlign: 'center' },
 });

@@ -1,8 +1,8 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, TextInput, Image, KeyboardAvoidingView } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Button, SlideToComplete, LiveMapView, Icon } from '@wag/ui-mobile';
+import { Button, SlideToComplete, LiveMapView, Icon, useElapsedSeconds } from '@wag/ui-mobile';
 import { colors, spacing, typography, radii } from '@wag/design-tokens';
 import { wagApi, resolveMediaUrl } from '../../src/lib/api';
 import { CollectPaymentCard } from '../../src/components/CollectPaymentCard';
@@ -13,14 +13,13 @@ import { goBack, goTab } from '../../src/lib/nav';
 export default function WalkDetailScreen() {
   const { id: bookingId } = useLocalSearchParams<{ id: string }>();
   const [booking, setBooking] = useState<any>(null);
-  const [elapsed, setElapsed] = useState(0);
   const [photos, setPhotos] = useState<string[]>([]);
   const [ending, setEnding] = useState(false);
   const [beforeUploading, setBeforeUploading] = useState(false);
   const [transitioning, setTransitioning] = useState(false);
   const [otpInput, setOtpInput] = useState('');
   const [endOtpInput, setEndOtpInput] = useState('');
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const elapsed = useElapsedSeconds((booking as any)?.sessionStartedAt, (booking as any)?.status === 'in_progress');
 
   const load = async () => {
     try {
@@ -32,13 +31,6 @@ export default function WalkDetailScreen() {
   useEffect(() => {
     load();
   }, [bookingId]);
-
-  useEffect(() => {
-    if ((booking as any)?.status === 'in_progress') {
-      timerRef.current = setInterval(() => setElapsed((e) => e + 1), 1000);
-    }
-    return () => { if (timerRef.current) clearInterval(timerRef.current); };
-  }, [booking?.status]);
 
   const handleOnTheWay = async () => {
     setTransitioning(true);
@@ -115,7 +107,6 @@ export default function WalkDetailScreen() {
 
   const handleEnd = async () => {
     if (endOtpInput.length < 4) return;
-    if (timerRef.current) clearInterval(timerRef.current);
     setEnding(true);
     try {
       const uploaded: string[] = [];

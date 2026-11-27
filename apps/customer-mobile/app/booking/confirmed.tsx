@@ -8,6 +8,7 @@ import { useLiveRoute } from '../../src/hooks/useLiveRoute';
 import { wagApi } from '../../src/lib/api';
 import { format } from 'date-fns';
 import { goHome } from '../../src/lib/nav';
+import { CodeTile } from '../../src/components/CodeTile';
 
 const WAITING_STATUSES = new Set(['pending_payment', 'confirmed', 'needs_partner', 'searching_partner']);
 const TRACKING_STATUSES = new Set(['assigned', 'accepted', 'partner_on_the_way', 'arrived', 'in_progress']);
@@ -128,11 +129,7 @@ export default function BookingConfirmedScreen() {
         </Text>
 
         {isTracking && booking?.startOtp && (
-          <View style={styles.otpCard}>
-            <Text style={styles.otpLabel}>Your start code</Text>
-            <Text style={styles.otpValue}>{booking.startOtp}</Text>
-            <Text style={styles.otpHint}>Share this with your {booking?.type === 'walking' ? 'walker' : 'groomer'} when they arrive</Text>
-          </View>
+          <CodeTile kind="start" code={booking.startOtp} hint={`Share this with your ${booking?.type === 'walking' ? 'walker' : 'groomer'} when they arrive`} />
         )}
 
         {/* End code — appears the moment the groomer verifies the start
@@ -140,11 +137,7 @@ export default function BookingConfirmedScreen() {
             the planned duration instead, on their own live-tracking screen,
             so it's deliberately excluded here. */}
         {booking?.status === 'in_progress' && booking?.type !== 'walking' && booking?.endOtp && (
-          <View style={[styles.otpCard, { backgroundColor: colors.success }]}>
-            <Text style={styles.otpLabel}>Your end code</Text>
-            <Text style={styles.otpValue}>{booking.endOtp}</Text>
-            <Text style={styles.otpHint}>Share this with your groomer once the session is done</Text>
-          </View>
+          <CodeTile kind="end" code={booking.endOtp} hint="Share this with your groomer once the session is done" />
         )}
 
         {isTracking && (
@@ -243,10 +236,6 @@ const styles = StyleSheet.create({
   successEmoji: { fontSize: 48 },
   headline: { fontFamily: 'Inter', fontSize: typography.fontSize['3xl'], fontWeight: '800', color: colors.textPrimary, textAlign: 'center', marginBottom: spacing[2] },
   sub: { fontFamily: 'Inter', fontSize: typography.fontSize.base, color: colors.textMuted, textAlign: 'center', lineHeight: 22, marginBottom: spacing[6] },
-  otpCard: { width: '100%', backgroundColor: colors.brandBrown, borderRadius: radii.xl, padding: spacing[5], alignItems: 'center', marginBottom: spacing[4] },
-  otpLabel: { fontFamily: 'Inter', fontSize: 13, color: 'rgba(255,255,255,0.7)' },
-  otpValue: { fontFamily: 'Inter', fontSize: 40, fontWeight: '800', color: colors.white, letterSpacing: 8, marginVertical: spacing[1] },
-  otpHint: { fontFamily: 'Inter', fontSize: 12, color: 'rgba(255,255,255,0.7)', textAlign: 'center' },
   trackingCard: { width: '100%', backgroundColor: colors.white, borderRadius: radii.xl, padding: spacing[5], alignItems: 'center', borderWidth: 1, borderColor: colors.borderLight, marginBottom: spacing[4] },
   trackingText: { fontFamily: 'Inter', fontSize: 14, fontWeight: '700', color: colors.textPrimary, marginTop: spacing[2], textAlign: 'center' },
   trackingSub: { fontFamily: 'Inter', fontSize: 12, color: colors.textMuted, marginTop: 4 },
