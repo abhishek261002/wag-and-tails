@@ -58,7 +58,7 @@ export default function RescheduleScreen() {
         )}
         {website ? (
           <Text style={{ fontFamily: 'Inter', fontSize: 12, color: colors.textMuted, marginTop: spacing[4] }}>
-            You can move a booking here up to {cfg?.selfServiceCutoffHours ?? 4} hours before it. Closer to the time, please call or WhatsApp us.
+            You can move a booking here up to {cfg?.selfServiceCutoffHours ?? 3} hours before it. Closer to the time, please call or WhatsApp us.
           </Text>
         ) : null}
 

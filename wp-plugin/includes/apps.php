@@ -27,7 +27,7 @@ function wt_apps_settings( $s = null ) {
 		'escalateHours'   => (float) $n( 'appsEscalateHours', 2, 0.25, 24 ),  // no groomer by then → desk alert
 		'sameDayMins'     => (int) $n( 'appsSameDayMins', 15, 5, 240 ),       // same-day jobs escalate sooner
 		'dayBeforeHour'   => (int) $n( 'appsDayBeforeHour', 18, 8, 23 ),      // next-day jobs escalate by this hour the day before
-		'cancelHours'     => (float) $n( 'appsCancelHours', 4, 0, 72 ),       // app customers cancel / move up to this many hours before
+		'cancelHours'     => (float) $n( 'appsCancelHours', 3, 0, 72 ),       // app customers cancel / move up to this many hours before
 		'noShowMins'      => (int) $n( 'appsNoShowMins', 15, 5, 60 ),         // wait at the door before "customer not available"
 		'reconfirmHours'  => (float) $n( 'appsReconfirmHours', 2, 0.25, 24 ), // after a reschedule the groomer must confirm within
 		'liveTracking'    => ! isset( $s['appsLiveTracking'] ) || '' === $s['appsLiveTracking'] ? true : ! empty( $s['appsLiveTracking'] ) && 'false' !== $s['appsLiveTracking'],

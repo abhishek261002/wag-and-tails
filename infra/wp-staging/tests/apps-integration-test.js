@@ -309,7 +309,7 @@ const jobByRef = (ref) => sql(`select id||'|'||status||'|'||coalesce(partner_id:
   // ── Self-service cut-off (6A) ──────────────────────────────────────────────────
   sql(`update bookings set scheduled_at=now()+interval '2 hours' where id='${payId}'`);
   r = await api(cust, 'PATCH', `/bookings/${payId}/cancel`, { reason: 'late' });
-  check('cancel inside 4 hours is refused (call the desk)', r.s === 403 && r.b.code === 'SELF_SERVICE_CLOSED', r.b);
+  check('cancel inside 3 hours is refused (call the desk)', r.s === 403 && r.b.code === 'SELF_SERVICE_CLOSED', r.b);
 
   // ── B8 points and history; complaints ─────────────────────────────────────────
   console.log('\nB8 points, history, complaints');
@@ -366,7 +366,7 @@ const jobByRef = (ref) => sql(`select id||'|'||status||'|'||coalesce(partner_id:
   await api(admin, 'POST', '/admin/wp/sync');
   r = await api(cust, 'GET', '/config/booking');
   check('settings from the website reach the apps (cancel cut-off 6 h)', r.b.selfServiceCutoffHours === 6, r.b.selfServiceCutoffHours);
-  wp(`$c = wt_config(); $c['settings']['appsCancelHours'] = 4; wt_save_config($c);`);
+  wp(`$c = wt_config(); $c['settings']['appsCancelHours'] = 3; wt_save_config($c);`);
   await api(admin, 'POST', '/admin/wp/sync');
 
   // ── Safety net poll + status ───────────────────────────────────────────────────

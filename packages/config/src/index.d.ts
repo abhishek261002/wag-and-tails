@@ -108,7 +108,7 @@ declare const envSchema: z.ZodObject<{
 export type Env = z.infer<typeof envSchema>;
 export declare function getEnv(): Env;
 export declare const BUSINESS_CONFIG: {
-    readonly FREE_CANCELLATION_HOURS: 4;
+    readonly FREE_CANCELLATION_HOURS: 3;
     readonly PLATFORM_COMMISSION_RATE: 0.2;
     readonly MIN_WALK_RADIUS_KM: 1;
     readonly MAX_WALK_RADIUS_KM: 15;

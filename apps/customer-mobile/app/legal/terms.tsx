@@ -21,7 +21,7 @@ export default function TermsScreen() {
         <Text style={styles.heading}>2. Services</Text>
         <Text style={styles.body}>Wag & Tails provides pet grooming, dog walking, and pet supplies delivery services. Services are subject to availability and partner acceptance.</Text>
         <Text style={styles.heading}>3. Bookings & Cancellations</Text>
-        <Text style={styles.body}>Free cancellations are available up to 4 hours before a scheduled appointment. Late cancellations may incur a fee. Wag & Tails reserves the right to cancel bookings due to partner unavailability, with a full refund.</Text>
+        <Text style={styles.body}>You can reschedule or cancel free up to 3 hours before your slot. Cancellations made within 3 hours of the slot, or a visit where the groomer arrives and nobody is available, are not refunded, but we will reschedule the visit once at no extra charge. Wag & Tails reserves the right to cancel bookings due to partner unavailability, with a full refund.</Text>
         <Text style={styles.heading}>4. Payments</Text>
         <Text style={styles.body}>All payments are processed securely. Refunds for cancelled services are returned to the original payment method within 5–7 business days.</Text>
         <Text style={styles.heading}>5. Partner Conduct</Text>

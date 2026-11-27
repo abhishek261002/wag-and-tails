@@ -66,7 +66,7 @@ export function getEnv(): Env {
 
 // Business configuration constants
 export const BUSINESS_CONFIG = {
-  FREE_CANCELLATION_HOURS: 4,
+  FREE_CANCELLATION_HOURS: 3,
   PLATFORM_COMMISSION_RATE: 0.20, // 20%
   MIN_WALK_RADIUS_KM: 1,
   MAX_WALK_RADIUS_KM: 15,

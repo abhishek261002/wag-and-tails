@@ -122,7 +122,7 @@ function wt_default_config() {
 			'appsEscalateHours'  => 2,
 			'appsSameDayMins'    => 15,
 			'appsDayBeforeHour'  => 18,
-			'appsCancelHours'    => 4,
+			'appsCancelHours'    => 3,
 			'appsNoShowMins'     => 15,
 			'appsReconfirmHours' => 2,
 			'appsLiveTracking'   => true,

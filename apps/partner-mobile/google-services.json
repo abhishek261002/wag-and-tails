@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "834901804076",
+    "project_id": "wag-and-tails-5f87d",
+    "storage_bucket": "wag-and-tails-5f87d.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:834901804076:android:a7a06aab2e0853e05bfd89",
+        "android_client_info": {
+          "package_name": "in.wagandtails.customer"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDi6uhTZ0Aekz-PMXE5TUUOk67jShHb4n8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:834901804076:android:00e568854184b6ca5bfd89",
+        "android_client_info": {
+          "package_name": "in.wagandtails.partner"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDi6uhTZ0Aekz-PMXE5TUUOk67jShHb4n8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

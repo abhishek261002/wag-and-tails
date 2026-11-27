@@ -56,7 +56,7 @@ export interface AppRules {
   cancelHours: number; noShowMins: number; reconfirmHours: number; liveTracking: boolean;
 }
 export const DEFAULT_APP_RULES: AppRules = {
-  offerMins: 10, escalateHours: 2, sameDayMins: 15, dayBeforeHour: 18, cancelHours: 4, noShowMins: 15, reconfirmHours: 2, liveTracking: true,
+  offerMins: 10, escalateHours: 2, sameDayMins: 15, dayBeforeHour: 18, cancelHours: 3, noShowMins: 15, reconfirmHours: 2, liveTracking: true,
 };
 let rules: AppRules = { ...DEFAULT_APP_RULES };
 export function setAppRules(r: Partial<AppRules> | null | undefined) {

@@ -10,7 +10,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { goBack } from '../../src/lib/nav';
 
 const FAQS = [
-  { q: 'How do I cancel a booking?', a: 'Open the booking from My Bookings and tap Cancel. Free cancellation is available up to 4 hours before the appointment.' },
+  { q: 'How do I cancel a booking?', a: 'Open the booking from My Bookings and tap Cancel. You can reschedule or cancel free up to 3 hours before your slot. Closer to the time, please call us.' },
   { q: 'How do I track my dog\'s walk?', a: 'Once a walker accepts your request, tap the booking to see the live map.' },
   { q: 'What if my partner doesn\'t show up?', a: 'Contact support immediately — we\'ll reassign or fully refund your booking.' },
   { q: 'How do I change my delivery address?', a: 'Go to Account → Saved Addresses to add or manage your addresses.' },
