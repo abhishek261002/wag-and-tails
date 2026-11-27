@@ -8,6 +8,9 @@ import { useAuthStore } from '../store/auth.store';
 
 let registeredToken: string | null = null;
 
+/** True once this phone can receive the server's pushes. */
+export const isPushRegistered = () => registeredToken !== null;
+
 // Must match JOB_CHANNEL_ID / JOB_SOUND in the API's notifications.service.ts.
 const JOB_CHANNEL_ID = 'job-requests';
 

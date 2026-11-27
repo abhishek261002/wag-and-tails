@@ -1,4 +1,5 @@
 import { getNotifications } from './notifications-module';
+import { isPushRegistered } from './push';
 
 // Foreground jobs are surfaced by jobs.tsx's own in-app popup modal, not
 // the OS notification tray — this handler only governs notifications
@@ -46,6 +47,9 @@ export async function notifyIncomingJob(params: {
   addressLine: string;
   partnerPayout: number;
 }): Promise<void> {
+  // Only a stand-in for phones without push: the server already sends a push (with the job ringtone) for every new
+  // job, so raising a second, local one made partners get each job twice.
+  if (isPushRegistered()) return;
   try {
     const Notifications = notifications();
     if (!Notifications) return;

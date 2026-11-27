@@ -607,7 +607,7 @@ export class PartnersService {
       }
       await this.notificationsService.sendPush(booking.customerId, {
         title: 'Walk Complete! 🏁',
-        body: `${booking.petName}'s walk is done. Great job today!`,
+        body: `${booking.petName}'s walk is done. Open it to see the photos and rate your walker.`,
         data: { bookingId, type: 'walk:completed' },
       });
     }

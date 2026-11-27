@@ -66,9 +66,8 @@ export async function unregisterPush(): Promise<void> {
 
 /** Where a tapped notification should lead. */
 export function openNotification(data: Record<string, any> | undefined) {
-  const type = String(data?.type ?? '');
   try {
-    if (data?.bookingId && type.startsWith('booking')) {
+    if (data?.bookingId) {
       router.push({ pathname: '/booking/[id]', params: { id: String(data.bookingId) } } as any);
     } else if (data?.petId) {
       router.push({ pathname: '/pet/[id]', params: { id: String(data.petId) } } as any);

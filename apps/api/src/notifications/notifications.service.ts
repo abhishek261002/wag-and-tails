@@ -66,12 +66,15 @@ export class NotificationsService {
       if (pref && pref[opts.optional] === false) return null;
     }
 
+    // The apps decide which screen a tap opens from this type. Most callers put it in data.type, so it must survive:
+    // replacing it with 'system' made every tapped notification land on the inbox instead of the booking or job.
+    const dataType = typeof payload.data?.['type'] === 'string' ? (payload.data['type'] as string) : undefined;
     const notification = await this.prisma.notification.create({
-      data: { userId, type: opts.type ?? 'system', title: payload.title, body: payload.body, data: payload.data ?? {} },
+      data: { userId, type: opts.type ?? dataType ?? 'system', title: payload.title, body: payload.body, data: payload.data ?? {} },
     });
 
     try {
-      await this.deliver(userId, { ...payload, data: { ...(payload.data ?? {}), notificationId: notification.id, type: opts.type ?? 'system' } }, opts.sound);
+      await this.deliver(userId, { ...payload, data: { ...(payload.data ?? {}), notificationId: notification.id, type: dataType ?? opts.type ?? 'system' } }, opts.sound);
     } catch (err) {
       this.logger.warn(`push delivery to ${userId} failed: ${(err as Error).message}`);
     }

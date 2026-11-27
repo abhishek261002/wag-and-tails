@@ -386,3 +386,23 @@ The live site runs plugin **1.16.0**; this repo has **1.15.0** (built from 1.14.
 Not covered: plugin admin screens on /yamato (no admin login), push notifications, real phone, real SMS / payments / DigiLocker, tapping through the walk screens in both apps.
 
 Extra test data: WT-5L9LTVW and WT-5LKAAO4 (cancelled), WT-5LLRHMZ (completed), walk FCC5604D (completed), order #WC836. QA Walker approved; walking switched on for Lucknow on /yamato.
+
+## Round 10: staff panel, 3-hour cancellation, Firebase push, new preview builds (27 Nov, afternoon)
+
+- Staff panel (local test site, 1.17.0, temporary staff account; not on /yamato): all 7 screens open with no errors; 31/31 desk actions pass through the staff API; owner-only actions refused. Staff can read partner money, as agreed on 25 Nov.
+- Apps integration test: 80/80 (local site + local server). It needs JWT_EXPIRES_IN longer than the run (used 3h): the run is slow on this PC and the 15-minute login expired mid-test on the first try.
+- Free cancellation is 3 hours in the app text and in the server and plugin defaults. The live server still enforced 4 on 27 Nov: set "App customers can cancel or move up to (hours before)" to 3 in the plugin on /yamato.
+- Preview builds (commit b3daaf5): both contain Firebase project wag-and-tails-5f87d; partner has the woof sound.
+- **Push works end to end**: customer "Payment received" and partner "New grooming job" (job-requests channel, dog bark) arrived on the emulator.
+
+| # | Where | What happens | Severity | Status |
+|---|---|---|---|---|
+| B54 | Server notifications | The booking/job type was replaced by 'system', so a tapped notification opened the inbox, not the booking or job. | **High** | fixed with 4 unit tests; needs deploy |
+| B55 | Partner app | Every new job alerted twice (server push plus an old local stand-in). | High | local one now only when push is unavailable; needs new build |
+| B56 | Both apps | Notification icon was a blank circle. | Low | white logo icon added; needs new build |
+| B57 | Customer app | Walk notifications did not open the booking. | Medium | fixed; needs new build |
+| B58 | Walk-complete message | "Great job today!" was sent to the customer. | Low | reworded; needs deploy |
+
+Customer release build smoke test: login, home, notification permission, notifications screen, add-pet breed picker. Partner: login, jobs screen, channels. Other screens were not re-tapped in the release builds.
+
+Extra test data: push-test bookings (one completed, one cancelled) for QABuddy.
