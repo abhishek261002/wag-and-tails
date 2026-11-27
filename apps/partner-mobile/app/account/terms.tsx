@@ -25,7 +25,7 @@ export default function PartnerTermsScreen() {
         <Text style={styles.heading}>5. Termination</Text>
         <Text style={styles.body}>Accounts with consistent negative reviews, policy violations, or verified complaints may be suspended or permanently removed from the platform.</Text>
         <Text style={styles.heading}>6. Contact</Text>
-        <Text style={styles.body}>Partner queries: partners@wagandtails.in</Text>
+        <Text style={styles.body}>Partner queries: info@wagandtails.in</Text>
       </ScrollView>
     </SafeAreaView>
   );

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Image } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Button, Icon } from '@wag/ui-mobile';
@@ -49,6 +49,12 @@ export default function PartnerProductDetailScreen() {
 
   const tradePrice = Number(selectedVariant ? selectedVariant.tradePrice : product.tradePrice);
   const retailPrice = Number(selectedVariant ? selectedVariant.retailPrice : product.retailPrice);
+  const mrp = Number(selectedVariant?.mrp ?? product.mrp);
+  // At a 0% partner discount the price is the website's, shown with the same MRP and saving as the website.
+  const isPartnerPrice = tradePrice < retailPrice;
+  const struck = isPartnerPrice ? retailPrice : mrp;
+  const saving = struck > tradePrice ? Math.round((1 - tradePrice / struck) * 100) : 0;
+  const image = selectedVariant?.imageUrl ?? product.imageUrls?.[0];
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -62,21 +68,29 @@ export default function PartnerProductDetailScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <View style={styles.imageContainer}><Icon name="bag" size={64} color={colors.textDisabled} /></View>
+        <View style={styles.imageContainer}>
+          {image
+            ? <Image source={{ uri: image }} style={{ width: '100%', height: '100%' }} resizeMode="contain" />
+            : <Icon name="bag" size={64} color={colors.textDisabled} />}
+        </View>
 
-        <View style={styles.tradeBadge}><Text style={styles.tradeText}>Partner trade price</Text></View>
+        {isPartnerPrice && <View style={styles.tradeBadge}><Text style={styles.tradeText}>Partner price</Text></View>}
         <Text style={styles.productName}>{product.name}</Text>
         <View style={styles.priceRow}>
           <Text style={styles.price}>₹{tradePrice}</Text>
-          <Text style={styles.mrp}>₹{retailPrice}</Text>
-          <View style={styles.discountBadge}>
-            <Text style={styles.discountText}>{Math.round((1 - tradePrice / retailPrice) * 100)}% below retail</Text>
+          {saving > 0 && <Text style={styles.mrp}>₹{struck}</Text>}
+          {saving > 0 && (
+            <View style={styles.discountBadge}>
+              <Text style={styles.discountText}>{saving}% {isPartnerPrice ? 'below retail' : 'off'}</Text>
+            </View>
+          )}
+        </View>
+        {Number(product.reviewCount) > 0 && (
+          <View style={styles.ratingRow}>
+            <Icon name="star" size={13} color={colors.marigoldDark} variant="fill" />
+            <Text style={styles.rating}>{product.rating} ({product.reviewCount} {Number(product.reviewCount) === 1 ? 'review' : 'reviews'})</Text>
           </View>
-        </View>
-        <View style={styles.ratingRow}>
-          <Icon name="star" size={13} color={colors.marigoldDark} variant="fill" />
-          <Text style={styles.rating}>{product.rating} ({product.reviewCount} reviews)</Text>
-        </View>
+        )}
 
         {product.variants?.length > 1 && (
           <View style={styles.section}>
@@ -108,7 +122,7 @@ export default function PartnerProductDetailScreen() {
 
       <View style={styles.footer}>
         <View style={styles.footerPrice}>
-          <Text style={styles.footerPriceLabel}>Trade price</Text>
+          <Text style={styles.footerPriceLabel}>{isPartnerPrice ? 'Partner price' : 'Price'}</Text>
           <Text style={styles.footerPriceValue}>₹{tradePrice}</Text>
         </View>
         <Button

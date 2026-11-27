@@ -1,3 +1,11 @@
+> **STOP before installing the plugin on the live site (found 27 Nov 2026).**
+>
+> The live site wagandtails.in runs Wag & Tails plugin **1.16.0**. The copy in this repo is **1.15.0**, built from 1.14.0, so the two have grown apart.
+>
+> The live plugin has things this repo does not: careers and job applications (`careers`, `careers/apply`, `admin/careers...`), a `collections` report, `desk/customers/search` and `admin/insurance/report`.
+>
+> Installing this repo's zip over the live site would **remove those features**. First get the live plugin's 1.16.0 source from the client or its developer, merge the app connection into it, and test that on a fresh staging copy.
+
 # Going live: website + apps integration
 
 How to switch on the link between the client's WordPress site (wagandtails.in, plugin "Wag & Tails") and the apps' backend on the VPS. Do the steps in order. Nothing changes for website customers until step 5.

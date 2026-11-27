@@ -29,7 +29,7 @@ export default function TermsScreen() {
         <Text style={styles.heading}>6. Liability</Text>
         <Text style={styles.body}>Wag & Tails is not liable for any injury, loss, or damage to your pet beyond the direct cost of the booked service. We strongly recommend keeping pet health records up to date.</Text>
         <Text style={styles.heading}>7. Contact</Text>
-        <Text style={styles.body}>For questions, contact support@wagandtails.in</Text>
+        <Text style={styles.body}>For questions, contact info@wagandtails.in</Text>
       </ScrollView>
     </SafeAreaView>
   );

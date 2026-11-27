@@ -27,6 +27,9 @@ export interface SyncResult {
   error?: string;
 }
 
+// Raise this when mapWpConfig changes what gets saved, so an unchanged website config is applied again after a deploy.
+const MAPPING_VERSION = 2;
+
 @Injectable()
 export class WpConfigSyncService implements OnApplicationBootstrap {
   private readonly logger = new Logger(WpConfigSyncService.name);
@@ -69,7 +72,7 @@ export class WpConfigSyncService implements OnApplicationBootstrap {
       return { ok: false, changed: false, warnings: [], error };
     }
 
-    const hash = createHash('sha256').update(JSON.stringify(cfg)).digest('hex');
+    const hash = createHash('sha256').update(`${MAPPING_VERSION}:${JSON.stringify(cfg)}`).digest('hex');
     const prev = await this.prisma.wpSyncState.findUnique({ where: { key: STATE_CONFIG } });
     if (!force && (prev?.value as any)?.hash === hash) {
       await this.saveStatus({ lastAttemptAt: attemptAt, lastSuccessAt: attemptAt, lastError: null });

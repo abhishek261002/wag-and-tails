@@ -51,6 +51,8 @@ describe('mapWpConfig', () => {
       { code: 'FEST', type: 'flat', value: 200, min: 1699, active: true },
       { code: 'OFF', type: 'flat', value: 50, active: false },
       { code: 'BAD', type: 'pct', value: 150, active: true },
+      { code: 'DESKONLY', type: 'flat', value: 599, active: true, visibility: 'staff' },
+      { code: 'PRIVATE', type: 'flat', value: 100, active: true, visibility: 'hidden' },
     ],
     walkPlans: [{ id: 'w30', name: '30-minute walk', price: 199 }, { id: 'w60', name: '60-minute walk', price: '349' }, { id: 'x', name: 'Long walk', price: 500 }],
     rewards: { enabled: true, bookingRate: 10, pointValue: 1, minRedeem: 100, maxPct: 150, signupBonus: 100 },
@@ -77,11 +79,12 @@ describe('mapWpConfig', () => {
     expect(m.packages.find((p) => p.wpId === 'noprice')).toBeUndefined();
   });
 
-  it('maps active, valid coupons only', () => {
+  it('maps active, valid coupons that the website lists to customers (not staff-only or hidden ones)', () => {
     expect(m.coupons).toEqual([
       { code: 'PAMPER', description: '10% off', discountType: 'percent', discountValue: 10, minOrderValue: null },
       { code: 'FEST', description: 'FEST', discountType: 'flat', discountValue: 200, minOrderValue: 1699 },
     ]);
+    expect(m.coupons.map((c) => c.code)).not.toEqual(expect.arrayContaining(['DESKONLY', 'PRIVATE']));
   });
 
   it('maps walk plans by their length in minutes', () => {

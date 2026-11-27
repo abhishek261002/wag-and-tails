@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert, Linking, KeyboardAvoidingView } from 'react-native';
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Button, Icon, Badge } from '@wag/ui-mobile';
+import { Button, Icon, Badge, SUPPORT_CONTACT } from '@wag/ui-mobile';
 import { colors, spacing, radii } from '@wag/design-tokens';
 import { wagApi } from '../../../src/lib/api';
 import type { SupportTicket } from '@wag/api-client';
@@ -50,15 +50,15 @@ export default function PartnerSupportScreen() {
       </View>
       <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>
         <View style={styles.contactRow}>
-          <TouchableOpacity style={styles.contactBtn} onPress={() => Linking.openURL('tel:+918066778899')} accessibilityLabel="Call support">
+          <TouchableOpacity style={styles.contactBtn} onPress={() => Linking.openURL(SUPPORT_CONTACT.phoneUrl)} accessibilityLabel="Call support">
             <Icon name="phone" size={22} color={colors.brandBrown} />
             <Text style={styles.contactLabel}>Call</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.contactBtn} onPress={() => Linking.openURL('https://wa.me/918066778899')} accessibilityLabel="WhatsApp support">
+          <TouchableOpacity style={styles.contactBtn} onPress={() => Linking.openURL(SUPPORT_CONTACT.whatsappUrl)} accessibilityLabel="WhatsApp support">
             <Icon name="chat" size={22} color={colors.brandBrown} />
             <Text style={styles.contactLabel}>WhatsApp</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.contactBtn} onPress={() => Linking.openURL('mailto:partners@wagandtails.in')} accessibilityLabel="Email support">
+          <TouchableOpacity style={styles.contactBtn} onPress={() => Linking.openURL(`mailto:${SUPPORT_CONTACT.email}`)} accessibilityLabel="Email support">
             <Icon name="send" size={22} color={colors.brandBrown} />
             <Text style={styles.contactLabel}>Email</Text>
           </TouchableOpacity>

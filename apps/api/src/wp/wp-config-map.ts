@@ -102,6 +102,9 @@ export function mapWpConfig(cfg: WpConfig): MappedConfig {
   const codes = new Set<string>();
   for (const c of cfg.coupons ?? []) {
     if (c?.active === false) continue;
+    // List only what the website lists to customers. 'staff' codes are refused outside the booking desk, and 'hidden'
+    // ones are shared privately: a hidden code still works when typed, because the website prices the booking.
+    if ((str(c?.visibility) || 'listed') !== 'listed') continue;
     const code = str(c?.code).toUpperCase();
     const value = num(c?.value);
     const type = str(c?.type) === 'pct' ? 'percent' : str(c?.type) === 'flat' ? 'flat' : null;

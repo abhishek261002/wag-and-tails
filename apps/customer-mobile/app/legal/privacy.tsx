@@ -29,7 +29,7 @@ export default function PrivacyScreen() {
         <Text style={styles.heading}>6. Security</Text>
         <Text style={styles.body}>All data is transmitted over HTTPS and stored securely. Payment data is handled by our payment processor and never stored on Wag & Tails servers.</Text>
         <Text style={styles.heading}>7. Contact</Text>
-        <Text style={styles.body}>Privacy questions: privacy@wagandtails.in</Text>
+        <Text style={styles.body}>Privacy questions: info@wagandtails.in</Text>
       </ScrollView>
     </SafeAreaView>
   );

@@ -325,3 +325,34 @@ Booking WT-5EA9LDW (released, then cancelled). The test cat "QAMia" was removed 
 | B46 | Partner Earnings labels | "Total Earned ₹0" sat under "Your share ₹1440"; these boxes only cover money the company pays out. | Medium | relabelled "Paid out", "Payout pending", "Company owes you (online payments)" |
 
 Verified: the partner app loads with all round 6 changes, shows the offline notice and clears it on reconnect.
+
+## Round 7: live-website comparison (27 Nov, afternoon)
+
+### Checked on the live server after the round 6 deploy (commit 18201e6)
+- Dr. Woof answers (model gemini-3.5-flash-lite).
+- S1 and S2: another account now gets 403 for a booking's history and chat; the owner still gets 200.
+- S5: the customer timeline says "We are finding you another partner."
+
+### Compared with wagandtails.in
+- Store: all 138 products have the same price and MRP in the app. None missing, none extra.
+- Grooming packages: every package is "Dogs & cats" on the website, so cats and dogs pay the same. No change.
+- Partner discount: the live website has no partner discount (its plugin has no such setting). Kept at 0%.
+- Support: call +91 73077 69104, WhatsApp +91 63936 16359, info@wagandtails.in, 9 am to 7 pm every day.
+- "Police verified" wording: confirmed true by the client, kept.
+
+### Bugs found and fixed
+| # | Where | What happens | Severity | Status |
+|---|---|---|---|---|
+| B47 | Both stores | Only 20 of 138 products could ever be seen (also per category and search): the apps never asked for page 2. Missed in earlier store tests. | **Critical** | fixed (both stores verified loading past 20 by scrolling); stable sort needs the deploy |
+| B48 | Coupons | The app listed 12 "PRA" codes (up to ₹599) as eligible. The website does not show them and every one fails with "This coupon code is not valid". The app server ignored coupon visibility. | **High** | fixed, needs the deploy; the next 5-minute sync applies it |
+| B49 | Both product pages | No product photo; "0 (0 reviews)"; partner page said "0% below retail". | High | fixed |
+| B50 | Partner store | Said "Trade Pricing / exclusive partner prices" although partners pay the website price. Now shows website price and MRP; partner wording returns only if a discount is set in the plugin. | Medium | fixed |
+| B51 | Both apps, contacts | Placeholder phone +91 80 6677 8899 and unlisted email addresses. | High | replaced with the website's contacts |
+
+### Go-live blocker
+The live site runs plugin **1.16.0**; this repo has **1.15.0** (built from 1.14.0). Live has careers/job applications, a collections report, desk customer search and an insurance report that our copy lacks. Installing our zip on the live site would remove them. See the warning at the top of docs/deploy-wp-integration.md.
+
+### Questions for the client
+- Cancellation: the website policy says free up to **3 hours** before; the apps say and enforce **4** (plugin setting "appsCancelHours").
+- PRA codes: if customers should be able to use them, set them to "Shown to customers" in the plugin; the website and apps will then both show them.
+- PAMPER says "first booking" but a returning customer still gets it.

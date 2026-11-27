@@ -9,6 +9,8 @@ import { colors, spacing, typography, radii } from '@wag/design-tokens';
 import { Icon } from '@wag/ui-mobile';
 import { wagApi } from '../../src/lib/api';
 
+const PAGE_SIZE = 20;
+
 export default function StoreScreen() {
   const [categories, setCategories] = useState<any[]>([]);
   const [products, setProducts] = useState<any[]>([]);
@@ -22,6 +24,11 @@ export default function StoreScreen() {
   const [failed, setFailed] = useState(false);
   // Only the newest request may update the screen: a slow answer for "do" must not overwrite the one for "dog".
   const requestId = useRef(0);
+  // The server sends one page at a time; the rest load as the customer scrolls.
+  const [total, setTotal] = useState(0);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const nextPage = useRef(2);
+  const fetchingMore = useRef(false);
 
   useEffect(() => {
     const t = setTimeout(() => setQuery(search.trim()), 350);
@@ -34,12 +41,14 @@ export default function StoreScreen() {
     try {
       const [cats, prods, cart] = await Promise.all([
         wagApi.store.listCategories(),
-        wagApi.store.listProducts({ categoryId: selectedCategory ?? undefined, search: query || undefined }),
+        wagApi.store.listProducts({ categoryId: selectedCategory ?? undefined, search: query || undefined, page: 1, pageSize: PAGE_SIZE }),
         wagApi.store.getCart(),
       ]);
       if (mine !== requestId.current) return;
       setCategories(cats);
       setProducts(prods.data);
+      setTotal(prods.total);
+      nextPage.current = 2;
       setCartCount(cart.items.length);
       setFailed(false);
     } catch {
@@ -50,6 +59,26 @@ export default function StoreScreen() {
   }, [selectedCategory, query]);
 
   useEffect(() => { load(); }, [load]);
+
+  const loadMore = async () => {
+    if (fetchingMore.current || loading || products.length >= total) return;
+    fetchingMore.current = true;
+    setLoadingMore(true);
+    const mine = requestId.current;
+    try {
+      const res = await wagApi.store.listProducts({ categoryId: selectedCategory ?? undefined, search: query || undefined, page: nextPage.current, pageSize: PAGE_SIZE });
+      // A new search or category started while this page was on its way: drop it.
+      if (mine !== requestId.current) return;
+      nextPage.current += 1;
+      setTotal(res.total);
+      setProducts((cur) => [...cur, ...res.data.filter((p) => !cur.some((c) => c.id === p.id))]);
+    } catch {
+      // The next scroll tries again.
+    } finally {
+      fetchingMore.current = false;
+      setLoadingMore(false);
+    }
+  };
 
   const onRefresh = async () => { setRefreshing(true); await load(); setRefreshing(false); };
 
@@ -134,6 +163,9 @@ export default function StoreScreen() {
         keyboardShouldPersistTaps="handled"
         keyboardDismissMode="on-drag"
         style={styles.productList}
+        onEndReached={loadMore}
+        onEndReachedThreshold={0.6}
+        ListFooterComponent={loadingMore ? <ActivityIndicator style={{ marginVertical: spacing[4] }} color={colors.brandBrown} /> : null}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={colors.brandBrown} />}
         columnWrapperStyle={{ gap: spacing[3] }}
         renderItem={({ item: product }) => (

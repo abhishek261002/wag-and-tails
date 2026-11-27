@@ -63,7 +63,8 @@ export class StoreService {
         skip,
         take: pageSize,
         include: { category: true, variants: { where: { stockQty: { gt: 0 } } } },
-        orderBy: { rating: 'desc' },
+        // Most products share a rating, so name and id break the tie: without them pages can repeat or skip products.
+        orderBy: [{ rating: 'desc' }, { name: 'asc' }, { id: 'asc' }],
       }),
       this.prisma.product.count({ where }),
     ]);

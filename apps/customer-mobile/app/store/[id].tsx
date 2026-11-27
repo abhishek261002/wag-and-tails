@@ -73,6 +73,7 @@ export default function ProductDetailScreen() {
   const price = selectedVariant ? Number(selectedVariant.retailPrice) : Number(product.retailPrice);
   const mrp = selectedVariant ? Number(selectedVariant.mrp) : Number(product.mrp);
   const hasDiscount = mrp > price;
+  const image = selectedVariant?.imageUrl ?? product.imageUrls?.[0];
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -88,7 +89,9 @@ export default function ProductDetailScreen() {
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         {/* Image */}
         <View style={styles.imageContainer}>
-          <Icon name="bag" size={64} color={colors.textDisabled} />
+          {image
+            ? <Image source={{ uri: image }} style={{ width: '100%', height: '100%' }} resizeMode="contain" />
+            : <Icon name="bag" size={64} color={colors.textDisabled} />}
         </View>
 
         {/* Allergy warning */}
@@ -109,9 +112,11 @@ export default function ProductDetailScreen() {
             </View>
           )}
         </View>
-        <View style={styles.ratingRow}>
-          <Text style={styles.rating}>⭐ {product.rating} ({product.reviewCount} reviews)</Text>
-        </View>
+        {Number(product.reviewCount) > 0 && (
+          <View style={styles.ratingRow}>
+            <Text style={styles.rating}>⭐ {product.rating} ({product.reviewCount} {Number(product.reviewCount) === 1 ? 'review' : 'reviews'})</Text>
+          </View>
+        )}
 
         {/* Variants */}
         {product.variants?.length > 1 && (
